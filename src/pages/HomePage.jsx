@@ -1185,6 +1185,7 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
   const [time, setTime] = useState("13:00");
   const [guests, setGuests] = useState(2);
   const [activeRestaurant, setActiveRestaurant] = useState(0);
+  const [forcedHighlightedLabel, setForcedHighlightedLabel] = useState(null);
   const [activeImg, setActiveImg] = useState(0);
 
   const restaurant = RESTAURANTS[activeRestaurant];
@@ -1198,12 +1199,31 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
   }, [initialRestaurantId]);
 
   const selectedMinutes = useMemo(() => {
-    const m = /^(\d{2}):(\d{2})$/.exec(time || "");
-    if (!m) return null;
-    const hh = Number(m[1]);
-    const mm = Number(m[2]);
-    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
-    return hh * 60 + mm;
+    if (!time) return null;
+    const s = String(time).trim();
+    // Try 24-hour HH:MM
+    let m = /^(\d{1,2}):(\d{2})$/.exec(s);
+    if (m) {
+      let hh = Number(m[1]);
+      const mm = Number(m[2]);
+      if (Number.isFinite(hh) && Number.isFinite(mm)) {
+        if (hh === 24) hh = 0;
+        return hh * 60 + mm;
+      }
+    }
+    // Try 12-hour with AM/PM variants like '6:00 PM' or '9:00am'
+    m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(s.replace(/\s+/g, " ")) || /^(\d{1,2})\s*(AM|PM)$/i.exec(s);
+    if (m) {
+      const hh = Number(m[1]);
+      const mm = Number(m[2] || 0);
+      const ap = (m[3] || m[2] || "").toUpperCase();
+      if (Number.isFinite(hh) && Number.isFinite(mm)) {
+        let h = hh % 12;
+        if (ap === "PM") h += 12;
+        return h * 60 + mm;
+      }
+    }
+    return null;
   }, [time]);
 
   const parseHoursRange = (hours) => {
@@ -1286,10 +1306,26 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
       const next = getNextDateForWeekdays(tokens);
       if (next) setDate(next);
     }
+    // Force immediate highlight of the clicked label for immediate UI feedback
+    setForcedHighlightedLabel(d.label);
+  };
+
+  // When user manually changes date/time, clear any forced highlight so
+  // the automatic highlight based on the selected time can take effect.
+  const handleTimeChange = (t) => {
+    setForcedHighlightedLabel(null);
+    setTime(t);
+  };
+
+  const handleDateChange = (d) => {
+    setForcedHighlightedLabel(null);
+    setDate(d);
   };
 
   const highlightedLabel = useMemo(() => {
     const times = restaurant?.diningTimes ?? DINING_TIMES;
+    // If user clicked a chip, prefer the forced label when it exists on this restaurant
+    if (forcedHighlightedLabel && times.some((t) => t.label === forcedHighlightedLabel)) return forcedHighlightedLabel;
     if (!times?.length || selectedMinutes == null) return null;
     // 1) Prefer explicit time ranges in restaurant times
     for (const t of times) {
@@ -1359,6 +1395,11 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
   }, [activeRestaurant]);
 
   useEffect(() => {
+    // Clear any forced highlight when switching restaurants
+    setForcedHighlightedLabel(null);
+  }, [activeRestaurant]);
+
+  useEffect(() => {
     const id = setInterval(() => setActiveImg((n) => (n + 1) % imgs.length), 4000);
     return () => clearInterval(id);
   }, [imgs.length]);
@@ -1408,7 +1449,7 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                   }}
                 />
               ))}
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(14,13,9,0.85) 0%, transparent 55%)" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(14,13,9,0.85) 0%, transparent 55%)", pointerEvents: 'none' }} />
 
               {/* Dot indicators */}
               <div
@@ -1487,8 +1528,8 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                <FieldInput type="date" value={date} onChange={setDate} placeholder="Date" />
-                <FieldInput type="time" value={time} onChange={setTime} placeholder="Time" />
+                <FieldInput type="date" value={date} onChange={handleDateChange} placeholder="Date" />
+                <FieldInput type="time" value={time} onChange={handleTimeChange} placeholder="Time" />
               </div>
               <GuestPicker value={guests} onChange={setGuests} style={{ marginBottom: 14 }} />
 
@@ -1525,6 +1566,8 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
               opacity: vis ? 1 : 0,
               transform: vis ? "none" : "translateX(30px)",
               transition: "opacity 0.8s 0.15s, transform 0.8s 0.15s",
+              position: 'relative',
+              zIndex: 10005,
             }}
           >
             {/* prev/next */}
@@ -1644,7 +1687,7 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                       flexDirection: 'column',
                       alignItems: 'flex-start',
                       position: 'relative',
-                      zIndex: 30,
+                        zIndex: 10006,
                       pointerEvents: 'auto',
                     }}
                   >
@@ -2050,8 +2093,7 @@ function Footer({ onNavigate }) {
             {[
               { label: "Main Wing", target: "spaces", payload: "Main Wing" },
               { label: "Tower Wing", target: "spaces", payload: "Tower Wing" },
-              { label: "Dining – Qsina", target: "dining", payload: "qsina" },
-              { label: "20/20 Function Room", target: "venue", payload: "20/20 Function Room" },
+              { label: "Dining", target: "dining", payload: "qsina" },
             ].map((item) => (
               <FooterLink
                 key={item.label}
@@ -2065,7 +2107,7 @@ function Footer({ onNavigate }) {
           {/* Reservations */}
           <div>
             <FooterHeading>Reservations</FooterHeading>
-            {["Book a Seat", "Book a Table", "Manage Booking", "Admin Portal"].map((v, i) => (
+            {["Book a Seat", "Book a Table"].map((v, i) => (
               <FooterLink key={v} onClick={() => onNavigate(i === 3 ? "admin" : "venue")}>
                 {v}
               </FooterLink>
