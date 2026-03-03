@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import bellevueLogo from "../assets/bellevue-logo.png";
 
 export default function Nav() {
   const navigate = useNavigate();
@@ -29,6 +30,17 @@ export default function Nav() {
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
+
+  // Listen for homepage section changes (dispatched from HomePage)
+  useEffect(() => {
+    const handleHomeSection = (e) => {
+      if (location.pathname !== "/") return;
+      setActive(e?.detail ?? null);
+    };
+
+    window.addEventListener("homeActiveSection", handleHomeSection);
+    return () => window.removeEventListener("homeActiveSection", handleHomeSection);
+  }, [location.pathname]);
 
   // ─────────────────────────────────────────
   // EVENT click
@@ -70,7 +82,7 @@ export default function Nav() {
             navigate("/");
           }}
         >
-          <span className="nav-logo">b</span>
+          <img src={bellevueLogo} alt="The Bellevue Manila" className="nav-logo" />
         </a>
 
         <div className="nav-links">
@@ -116,10 +128,9 @@ export default function Nav() {
         }
 
         .nav-logo {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 2rem;
-          font-weight: 600;
-          color: #C9A84C;
+          height: 40px;
+          width: auto;
+          display: block;
         }
 
         .nav-links {
@@ -134,7 +145,7 @@ export default function Nav() {
           letter-spacing: 0.05em;
           text-decoration: none;
           font-family: 'DM Sans', sans-serif;
-          color: #1E1A10;
+          color: #c4ad72ff;
           background: transparent;
           border: none;
           transition: background 0.2s ease, color 0.2s ease;

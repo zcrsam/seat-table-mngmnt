@@ -148,12 +148,14 @@ export default function ClientNavbar() {
         <nav style={{ display: "flex", gap: "2rem" }}>
           <Link
             to="/#event"
+            onClick={handleClickEvent}
             style={{
-              color: TOKENS.ink,
+              color: TOKENS.gold,
               textDecoration: "none",
-              fontWeight: 500,
+              fontWeight: activeSection === "event" ? 600 : 500,
               padding: "0.5rem 1rem",
               borderRadius: 20,
+              background: activeSection === "event" ? "rgba(201,168,76,0.1)" : "transparent",
               transition: "all 0.2s ease",
             }}
           >
@@ -161,12 +163,14 @@ export default function ClientNavbar() {
           </Link>
           <Link
             to="/#dining"
+            onClick={handleClickVenue}
             style={{
-              color: TOKENS.ink,
+              color: TOKENS.gold,
               textDecoration: "none",
-              fontWeight: 500,
+              fontWeight: activeSection === "dining" ? 600 : 500,
               padding: "0.5rem 1rem",
               borderRadius: 20,
+              background: activeSection === "dining" ? "rgba(201,168,76,0.1)" : "transparent",
               transition: "all 0.2s ease",
             }}
           >

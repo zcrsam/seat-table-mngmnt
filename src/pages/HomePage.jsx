@@ -4,6 +4,26 @@ import { useLocation, useNavigate } from "react-router-dom";
 import heroBanner from "../assets/banner-grandroom.jpg";
 import bellevueLogo from "../assets/bellevue-logo.png";
 
+// Local images
+import mainWingImg from "../assets/main-wing.jpeg";
+import towerWingImg from "../assets/tower-wing.jpeg";
+import diningImg from "../assets/dining.jpeg";
+
+import alabangImg from "../assets/afc.jpeg";
+import lagunaImg from "../assets/laguna.jpeg";
+import twentyTwentyImg from "../assets/20:20.jpeg";
+import businessCenterImg from "../assets/bc.jpeg";
+import towerBallroomImg from "../assets/towerb.jpeg";
+import grandBallroomImg from "../assets/grandr.jpg";
+
+import qsinaImg from "../assets/qsina.jpeg";
+import qsinaImg2 from "../assets/qsina2.jpeg";
+import qsinaImg3 from "../assets/qsina3.jpeg";
+import hanakazuImg from "../assets/hanakazu.jpeg";
+import hanakazuImg2 from "../assets/hanakazu2.jpeg";
+import hanakazuImg3 from "../assets/hanakazu3.jpeg";
+import phoenixCourtImg from "../assets/phoenix-court.jpeg";
+
 // ─────────────────────────────────────────────
 // DESIGN TOKENS
 // ─────────────────────────────────────────────
@@ -32,19 +52,19 @@ const EVENT_CATEGORIES = [
     id: 1,
     label: "MAIN WING",
     subtitle: "An elegant night at Bellevue",
-    img: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600&q=80",
+    img: mainWingImg,
   },
   {
     id: 2,
     label: "TOWER WING",
     subtitle: "An elegant night at Bellevue",
-    img: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=600&q=80",
+    img: towerWingImg,
   },
   {
     id: 3,
     label: "DINING",
     subtitle: "An elegant night at Bellevue",
-    img: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&q=80",
+    img: diningImg,
   },
 ];
 
@@ -54,7 +74,7 @@ const VENUES = [
     name: "Alabang Function Room",
     seats: 15,
     tables: 14,
-    img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80",
+    img: alabangImg,
     routeId: "alabang",
     wing: "Main Wing",
     rooms: [],
@@ -64,7 +84,7 @@ const VENUES = [
     name: "Laguna Ballroom",
     seats: 25,
     tables: 11,
-    img: "https://images.unsplash.com/photo-1505236858219-8359eb29e329?w=900&q=80",
+    img: lagunaImg,
     routeId: "laguna",
     wing: "Main Wing",
     rooms: ["Laguna 1", "Laguna 2"],
@@ -74,7 +94,7 @@ const VENUES = [
     name: "20/20 Function Room",
     seats: 20,
     tables: 12,
-    img: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=900&q=80",
+    img: twentyTwentyImg,
     routeId: "2020",
     wing: "Main Wing",
     rooms: ["20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C"],
@@ -84,7 +104,7 @@ const VENUES = [
     name: "Business Center",
     seats: 12,
     tables: 8,
-    img: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=900&q=80",
+    img: businessCenterImg,
     routeId: "business",
     wing: "Main Wing",
     rooms: [],
@@ -94,7 +114,7 @@ const VENUES = [
     name: "Tower Ballroom",
     seats: 32,
     tables: 16,
-    img: "https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=900&q=80",
+    img: towerBallroomImg,
     routeId: "tower",
     wing: "Tower Wing",
     rooms: ["Tower 1", "Tower 2", "Tower 3"],
@@ -104,7 +124,7 @@ const VENUES = [
     name: "Grand Ballroom",
     seats: 48,
     tables: 20,
-    img: "https://images.unsplash.com/photo-1531058020387-3be344556be6?w=900&q=80",
+    img: grandBallroomImg,
     routeId: "grand",
     wing: "Tower Wing",
     rooms: ["Grand A", "Grand B", "Grand C"],
@@ -122,9 +142,9 @@ const DINING_TIMES = [
 ];
 
 const GALLERY_IMGS = [
-  "https://images.unsplash.com/photo-1555244162-803834f70033?w=1200&q=80",
-  "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=1200&q=80",
-  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80",
+  qsinaImg,
+  qsinaImg2,
+  qsinaImg3,
 ];
 
 const RESTAURANTS = [
@@ -134,9 +154,9 @@ const RESTAURANTS = [
     description:
       "Qsina offers diverse culinary delights with both international buffets and à la carte options. From lavish breakfast spreads to intimate dinner experiences.",
     imgs: [
-      "https://images.unsplash.com/photo-1555244162-803834f70033?w=1200&q=80",
-      "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=1200&q=80",
-      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80",
+      qsinaImg,
+      qsinaImg2,
+      qsinaImg3,
     ],
     diningTimes: [
       { label: "Breakfast Buffet", hours: "6:00 – 10:00 AM" },
@@ -152,9 +172,9 @@ const RESTAURANTS = [
     description:
       "Hanakazu brings authentic Japanese cuisine to The Bellevue Manila. Savor fresh sushi, sashimi, and teppanyaki in an elegant setting.",
     imgs: [
-      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=1200&q=80",
-      "https://images.unsplash.com/photo-1617196035154-1e7e6e28b0db?w=1200&q=80",
-      "https://images.unsplash.com/photo-1553621042-f6e147245754?w=1200&q=80",
+      hanakazuImg,
+      hanakazuImg2,
+      hanakazuImg3,
     ],
     diningTimes: [
       { label: "Lunch", hours: "11:30 AM – 2:30 PM" },
@@ -168,12 +188,12 @@ const RESTAURANTS = [
     description:
       "Phoenix Court presents refined Cantonese and Chinese cuisine. Experience dim sum, Peking duck, and classic dishes in a sophisticated atmosphere.",
     imgs: [
-      "https://images.unsplash.com/photo-1563245372-f21724e3856d?w=1200&q=80",
-      "https://images.unsplash.com/photo-1525755662778-989d0524087e?w=1200&q=80",
-      "https://images.unsplash.com/photo-1544025162-d76694265947?w=1200&q=80",
+      phoenixCourtImg,
+      qsinaImg2,
+      qsinaImg3,
     ],
     diningTimes: [
-      { label: "Dim Sum", hours: "10:00 AM – 2:30 PM" },
+      { label: "Dim Sum", hours: "5:00 AM – 11:29 PM" },
       { label: "Lunch", hours: "11:30 AM – 2:30 PM" },
       { label: "Dinner", hours: "6:00 PM – 10:00 PM" },
     ],
@@ -388,10 +408,11 @@ function Hero({ onNavigate }) {
             display: "flex",
             maxWidth: 520,
             margin: "0 auto 20px",
-            background: "rgba(255,255,255,0.97)",
-            borderRadius: 3,
+            background: "rgba(255,255,255,0.8)",
+            borderRadius: 10,
             overflow: "hidden",
             boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+            opacity: 0.8,
           }}
         >
           <input
@@ -415,6 +436,9 @@ function Hero({ onNavigate }) {
             onClick={() => onNavigate("venue", query)}
             style={{
               padding: "16px 22px",
+              marginRight: 3,
+              marginTop: 3,
+              marginBottom: 3,
               background: C.dark,
               border: "none",
               cursor: "pointer",
@@ -429,7 +453,13 @@ function Hero({ onNavigate }) {
             onMouseEnter={(e) => (e.currentTarget.style.background = C.darkCard)}
             onMouseLeave={(e) => (e.currentTarget.style.background = C.dark)}
           >
-            SEARCH
+            <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block", color: C.gold }}>
+                <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="2" />
+              </svg>
+            </span>
+            <span style={{ position: 'absolute', left: -9999, width: 1, height: 1, overflow: 'hidden' }} aria-hidden={false}>Search</span>
           </button>
         </div>
 
@@ -477,7 +507,6 @@ function Hero({ onNavigate }) {
             </button>
           ))}
         </div>
-      </div>
 
       {/* Scroll hint */}
       <div
@@ -502,11 +531,13 @@ function Hero({ onNavigate }) {
             color: C.gold,
           }}
         >
-          Scroll
+          
         </span>
-        <div style={{ width: 1, height: 36, background: `linear-gradient(to bottom,${C.gold},transparent)` }} />
+        <div style={{ width: 0, height: 0, background: `linear-gradient(to bottom,${C.gold},transparent)` }} />
       </div>
-    </section>
+        {/* close main hero content container */}
+        </div>
+      </section>
   );
 }
 
@@ -625,6 +656,7 @@ function BrowseSection({ onNavigate }) {
             />
           ))}
         </div>
+      {/* close outer container div */}
       </div>
     </section>
   );
@@ -814,7 +846,7 @@ function VenuesSection({ onReserveVenue, venues = [], highlightVenueId = null })
         >
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <GoldLine width={24} />
+              <GoldLine width={62} />
               <span
                 style={{
                   fontFamily: "'DM Sans',sans-serif",
@@ -998,25 +1030,29 @@ function VenuesSection({ onReserveVenue, venues = [], highlightVenueId = null })
               marginTop: 8,
             }}
           >
+            <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: C.muted }}>
+              {total ? `${activeIdx + 1} of ${total}` : "0 of 0"}
+            </span>
+
             {/* Dots */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flex: 1 }}>
-              {venues.map((v, i) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => setActiveIdx(i)}
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    border: `1px solid ${i === activeIdx ? C.gold : "transparent"}`,
-                    background: i === activeIdx ? C.gold : "transparent",
-                    color: i === activeIdx ? C.dark : "transparent",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                />
-              ))}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+              {venues.map((v, i) => {
+                const active = i === activeIdx;
+                return (
+                  <div
+                    key={v.id}
+                    onClick={() => setActiveIdx(i)}
+                    style={{
+                      width: active ? 20 : 8,
+                      height: active ? 2 : 8,
+                      borderRadius: active ? 1 : "50%",
+                      background: active ? C.gold : "rgba(247,243,234,0.6)",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1195,17 +1231,67 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
   const fallbackSlot = useMemo(() => {
     if (selectedMinutes == null) return null;
     if (selectedMinutes >= 6 * 60 && selectedMinutes < 10 * 60) return "Breakfast Buffet";
-    if (selectedMinutes >= 11 * 60 && selectedMinutes < 12 * 60) return "Lunch";
-    if (selectedMinutes >= 12 * 60 && selectedMinutes < 17 * 60) return "Light Lunch";
-    if (selectedMinutes >= 17 * 60 && selectedMinutes < 21 * 60) return "Dinner";
-    if (selectedMinutes >= 21 * 60 && selectedMinutes <= 23 * 60 + 59) return "Dinner Buffet";
+    if (selectedMinutes >= 11 * 60 && selectedMinutes < 13 * 60) return "Lunch";
+    if (selectedMinutes >= 13 * 60 && selectedMinutes < 17 * 60) return "Light Lunch";
+    if (selectedMinutes >= 17 * 60 && selectedMinutes < 20 * 60) return "Dinner";
+    if (selectedMinutes >= 20 * 60 && selectedMinutes < 22 * 60) return "Dinner Buffet";
     return null;
   }, [selectedMinutes]);
+
+  // Helpers usable by click handlers
+  const getNextDateForWeekdays = (weekdays) => {
+    if (!weekdays || !weekdays.length) return null;
+    const names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const today = new Date();
+    for (let offset = 0; offset < 14; offset++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + offset);
+      const dow = names[d.getDay()];
+      if (weekdays.includes(dow)) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+    }
+    return null;
+  };
+
+  const representativeTimeForLabel = (label) => {
+    const map = {
+      "Breakfast Buffet": "08:00",
+      Lunch: "12:00",
+      "Light Lunch": "15:00",
+      Dinner: "18:00",
+      "Dinner Buffet": "20:00",
+    };
+    return map[label] || "12:00";
+  };
+
+  const selectDiningTime = (d) => {
+    const range = parseHoursRange(d.hours);
+    if (range) {
+      const hh = Math.floor(range.start / 60);
+      const mm = range.start % 60;
+      const timeStr = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      setTime(timeStr);
+    } else {
+      setTime(representativeTimeForLabel(d.label));
+    }
+
+    const hh = String(d.hours || "").toLowerCase();
+    const dayMatches = hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g);
+    if (dayMatches && dayMatches.length) {
+      const tokens = dayMatches.map((s) => s.replace("thur", "thu").slice(0, 3));
+      const next = getNextDateForWeekdays(tokens);
+      if (next) setDate(next);
+    }
+  };
 
   const highlightedLabel = useMemo(() => {
     const times = restaurant?.diningTimes ?? DINING_TIMES;
     if (!times?.length || selectedMinutes == null) return null;
-
+    // 1) Prefer explicit time ranges in restaurant times
     for (const t of times) {
       const range = parseHoursRange(t.hours);
       if (!range) continue;
@@ -1217,7 +1303,9 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
       if (match) return t.label;
     }
 
+    // 2) If no explicit time range matched, try to match day-based entries combined with fallback time slot
     if (!fallbackSlot) return null;
+
     const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const candidates =
       fallbackSlot === "Light Lunch"
@@ -1225,10 +1313,45 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
         : fallbackSlot === "Dinner Buffet"
           ? ["Dinner Buffet", "Dinner"]
           : [fallbackSlot];
-
     const normalizedCandidates = candidates.map(norm);
-    const found = times.find((t) => normalizedCandidates.includes(norm(t.label)));
-    return found?.label ?? null;
+
+    // compute weekday abbreviation from selected date (e.g., 'mon', 'tue')
+    let selectedDay = null;
+    if (date) {
+      const d = new Date(date + "T00:00:00");
+      if (!Number.isNaN(d.getTime())) {
+        // 0 = Sun, 1 = Mon ...
+        const dow = d.getDay();
+        const names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+        selectedDay = names[dow];
+      }
+    }
+
+    // Check entries that list days (e.g. "MON · TUE") or have no hours but are labels
+    for (const t of times) {
+      const range = parseHoursRange(t.hours);
+      if (range) continue; // already handled above
+
+      // If t.hours contains day names, check selected day
+      const hh = String(t.hours || "").toLowerCase();
+      const hasDayTokens = /mon|tue|wed|thu|thur|fri|sat|sun/.test(hh);
+      if (hasDayTokens) {
+        if (!selectedDay) continue; // can't match day if no date selected
+        const tokenMatches = hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g);
+        const tokens = (tokenMatches || []).map((s) => s.replace("thur", "thu").slice(0, 3));
+        if (!tokens.includes(selectedDay)) continue;
+
+        // If day matches, also ensure the time slot aligns (using fallbackSlot candidates)
+        if (normalizedCandidates.includes(norm(t.label))) return t.label;
+      } else {
+        // If no day tokens and no hours, treat label-only entries: match by fallbackSlot label
+        if (!t.hours) {
+          if (normalizedCandidates.includes(norm(t.label))) return t.label;
+        }
+      }
+    }
+
+    return null;
   }, [restaurant, selectedMinutes, fallbackSlot]);
 
   useEffect(() => {
@@ -1325,8 +1448,9 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                 bottom: -28,
                 left: 24,
                 right: 24,
-                background: "rgba(0, 0, 0, 0.5)",
+                background: "rgba(0,0,0,0.5)",
                 backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
                 border: `1px solid ${C.border}`,
                 borderRadius: 10,
                 padding: "22px 24px",
@@ -1506,14 +1630,22 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
               {(restaurant?.diningTimes ?? DINING_TIMES).map((d) => {
                 const active = highlightedLabel ? d.label === highlightedLabel : false;
                 return (
-                  <div
+                  <button
                     key={d.label}
+                    onClick={() => selectDiningTime(d)}
+                    type="button"
                     style={{
                       padding: "7px 14px",
                       borderRadius: 3,
                       background: active ? C.gold : "rgba(255,255,255,0.05)",
                       border: `1px solid ${active ? C.gold : C.border}`,
                       cursor: "pointer",
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      position: 'relative',
+                      zIndex: 30,
+                      pointerEvents: 'auto',
                     }}
                   >
                     <div
@@ -1539,17 +1671,21 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                         {d.hours}
                       </div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
 
             {/* Photo strip */}
             <div style={{ display: "flex", gap: 10 }}>
-              {imgs.map((src, i) => (
+                {imgs.map((src, i) => (
                 <div
                   key={src}
-                  onClick={() => setActiveImg(i)}
+                  onClick={() => {
+                    setActiveImg(i);
+                    const pref = (restaurant?.diningTimes ?? DINING_TIMES)[0];
+                    if (pref) selectDiningTime(pref);
+                  }}
                   style={{
                     flex: 1,
                     height: 76,
@@ -1558,6 +1694,9 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                     cursor: "pointer",
                     border: activeImg === i ? `2px solid ${C.gold}` : "2px solid transparent",
                     transition: "border 0.2s",
+                    position: "relative",
+                    zIndex: 40,
+                    pointerEvents: "auto",
                   }}
                 >
                   <img
@@ -1568,6 +1707,8 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                       height: "100%",
                       objectFit: "cover",
                       transition: "transform 0.4s",
+                      display: "block",
+                      pointerEvents: "auto",
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
                     onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
@@ -1655,7 +1796,17 @@ function GuestPicker({ value, onChange, min = 1, max = 20, style }) {
         >
           Guests
         </div>
-        <div
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={String(value)}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^0-9]/g, "");
+            const next = raw === "" ? min : Number(raw);
+            if (!Number.isFinite(next)) return;
+            onChange(clamp(Math.round(next)));
+          }}
           style={{
             width: "100%",
             height: 32,
@@ -1667,13 +1818,10 @@ function GuestPicker({ value, onChange, min = 1, max = 20, style }) {
             fontSize: 14,
             textAlign: "center",
             outline: "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            WebkitAppearance: "textfield",
+            MozAppearance: "textfield",
           }}
-        >
-          {value}
-        </div>
+        />
       </div>
       <button
         type="button"
@@ -2006,6 +2154,35 @@ export default function HomePage() {
   const [highlightVenueId, setHighlightVenueId] = useState(null);
   const [diningRestaurantId, setDiningRestaurantId] = useState(null);
   const venuesRef = useRef(null);
+
+  // Dispatch homepage section active events so Navbar can highlight accordingly
+  useEffect(() => {
+    const headerH = 72;
+    const markerY = headerH + 8;
+
+    const inView = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return r.top <= markerY && r.bottom > markerY;
+    };
+
+    const getActive = () => {
+      if (inView("home-event")) return "event";
+      if (inView("home-dining")) return "dining";
+      return null;
+    };
+
+    const onScroll = () => {
+      const active = getActive();
+      window.dispatchEvent(new CustomEvent("homeActiveSection", { detail: active }));
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // run once to initialize state
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     if (location.pathname === "/") {
