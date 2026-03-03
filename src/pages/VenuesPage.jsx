@@ -154,7 +154,22 @@ export default function VenuesPage() {
   const navigate = useNavigate();
   const { isMobile } = useResponsive();
 
-  const handleVenueClick = (id) => navigate(`/reserve/${id}`);
+ const handleVenueClick = (id) => {
+  // If main Alabang Function Room
+  if (id === "alabang") {
+    navigate("/alabang-reserve");
+    return;
+  }
+
+  // If sub-room of Alabang (optional)
+  if (id.startsWith("alabang__")) {
+    navigate("/alabang-reserve");
+    return;
+  }
+
+  // Default route for other venues
+  navigate(`/reserve/${id}`);
+};
 
   return (
     <div style={{ background: '#F7F3EA', minHeight: '100vh' }}>

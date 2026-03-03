@@ -5,3 +5,7 @@ function App() {
 }
 
 export default App;
+
+import AlabangReserve from "./pages/AlabangReserve";
+
+<Route path="/alabang-reserve" element={<AlabangReserve />} />
