@@ -183,8 +183,6 @@ function Dashboard({ onLogout }) {
   const navItems = [
     { id: "reservations", label: "Reservations", icon: "📋" },
     { id: "seat-map",     label: "Seat Map",      icon: "🗺️" },
-    { id: "rooms",        label: "Rooms",         icon: "🏛️" },
-    { id: "settings",     label: "Settings",      icon: "⚙️" },
   ];
 
   // Guard: ensure selectedWing/Room are valid after seatMapData loads
@@ -533,14 +531,7 @@ function Dashboard({ onLogout }) {
             </div>
           )}
 
-          {/* ── ROOMS / SETTINGS PLACEHOLDER ── */}
-          {(activeNav === "rooms" || activeNav === "settings") && (
-            <div style={{ marginTop: 60, textAlign: "center", color: "#6C757D", fontFamily: "Montserrat, sans-serif", fontSize: 20 }}>
-              {activeNav === "rooms" ? "🏛️  Rooms management — coming soon." : "⚙️  Settings panel — coming soon."}
-            </div>
-          )}
-
-        </main>
+          </main>
       </div>
 
       {viewRes && <DetailModal res={viewRes} onClose={() => setViewRes(null)} onApprove={id => { handleApprove(id); setViewRes(null); }} onReject={id => { handleReject(id); setViewRes(null); }} />}
