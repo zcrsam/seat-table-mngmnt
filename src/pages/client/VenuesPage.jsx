@@ -168,9 +168,9 @@ const handleVenueClick = (id) => {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 42, marginBottom: 12 }}>
             <button
-              onClick={() => navigate('/')}
-              title="Back to home"
-              aria-label="Back to home"
+              onClick={() => navigate('/', { state: { scrollTo: "event" } })}
+              title="Back to event section"
+              aria-label="Back to event section"
               style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: 999, border: `2px solid ${C.gold}`, color: C.gold, cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.06)', fontSize: 16, marginRight: 6 }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.goldDark; e.currentTarget.style.color = C.goldDark; e.currentTarget.style.boxShadow = '0 8px 22px rgba(201,168,76,0.12)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)'; }}

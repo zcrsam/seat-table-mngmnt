@@ -607,7 +607,7 @@ function BrowseSection({ onNavigate }) {
           </div>
           <button
             type="button"
-            onClick={() => onNavigate("all-venues")}
+            onClick={() => onNavigate("all-venues", "Main Wing")}
             style={{
               padding: "11px 26px",
               border: `1px solid ${C.gold}`,
@@ -2258,6 +2258,14 @@ export default function HomePage() {
 
   const handleNavigate = (target, payload) => {
     if (target === "all-venues") {
+      setActiveWing(payload || "Main Wing");
+      setShowVenues(true);
+      setHighlightVenueId(null);
+      window.location.hash = "#venues";
+      requestAnimationFrame(() => {
+        const el = venuesRef.current;
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       navigate("/venues");
       return;
     }
