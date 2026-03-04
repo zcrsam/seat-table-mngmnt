@@ -217,6 +217,8 @@ function Dashboard({ onLogout }) {
           transition: "all 0.3s ease",
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
+          overflowY: "hidden",
         }}>
           <div style={{
             display: "flex",
@@ -230,7 +232,8 @@ function Dashboard({ onLogout }) {
           {isSidebarOpen && (
             <>
               <div style={{ padding: "0 20px", marginBottom: 14, fontSize: 9, letterSpacing: 2, color: "#E8E2D4", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>NAVIGATION</div>
-              {navItems.map(item => (
+              <div style={{ overflow: "hidden", overflowY: "hidden" }}>
+                {navItems.map(item => (
                 <div
                   key={item.id + item.label}
                   onClick={() => setActiveNav(item.id)}
@@ -249,6 +252,7 @@ function Dashboard({ onLogout }) {
                   <span>{item.icon}</span>{item.label}
                 </div>
               ))}
+              </div>
 
               <div style={{ margin: "28px 0 14px", padding: "0 20px", fontSize: 9, letterSpacing: 2, color: "#E8E2D4", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>QUICK STATS</div>
               {[["Pending", pending, "#E8A838"], ["Approved", approved, "#4CAF79"], ["Rejected", rejected, "#E05252"]].map(([lbl, val, col]) => (
