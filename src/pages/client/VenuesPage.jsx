@@ -81,8 +81,6 @@ function VenueCard({ venue, onClick }) {
         </div>
 
         <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
-          {/* sub-room count intentionally removed */}
-
           {venue.rooms && venue.rooms.length ? (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {venue.rooms.map((r) => {
@@ -91,26 +89,9 @@ function VenueCard({ venue, onClick }) {
                   <button
                     key={r}
                     onClick={(e) => { e.stopPropagation(); onClick(roomId); }}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 12,
-                      background: 'transparent',
-                      border: `1px solid rgba(0,0,0,0.08)`,
-                      fontSize: 12,
-                      color: '#4b463f',
-                      cursor: 'pointer',
-                      transition: 'all 0.18s',
-                    }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(201,168,76,0.12)';
-                        e.currentTarget.style.color = '#0e0d09';
-                        e.currentTarget.style.borderColor = C.gold;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = '#4b463f';
-                        e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)';
-                      }}
+                    style={{ padding: '6px 10px', borderRadius: 12, background: 'transparent', border: `1px solid rgba(0,0,0,0.08)`, fontSize: 12, color: '#4b463f', cursor: 'pointer', transition: 'all 0.18s' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.12)'; e.currentTarget.style.color = '#0e0d09'; e.currentTarget.style.borderColor = C.gold; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4b463f'; e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; }}
                   >
                     {r}
                   </button>
@@ -154,7 +135,14 @@ export default function VenuesPage() {
   const navigate = useNavigate();
   const { isMobile } = useResponsive();
 
-const handleVenueClick = (id) => {
+  // FIX 1: Scroll to top immediately on mount.
+  // React SPA navigation does NOT reset scroll position between routes,
+  // so navigating from Homepage (scrolled down) lands mid-page on VenuesPage.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
+
+  const handleVenueClick = (id) => {
     if (id === "alabang") {
       navigate("/alabang-reserve");
     } else {
@@ -164,36 +152,39 @@ const handleVenueClick = (id) => {
 
   return (
     <div style={{ background: '#F7F3EA', minHeight: '100vh' }}>
-      <div style={{ padding: '48px 24px', maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'flex-start', gap: 20, justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 42, marginBottom: 12 }}>
-            <button
-              onClick={() => navigate('/', { state: { scrollTo: "event" } })}
-              title="Back to event section"
-              aria-label="Back to event section"
-              style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: 999, border: `2px solid ${C.gold}`, color: C.gold, cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.06)', fontSize: 16, marginRight: 6 }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.goldDark; e.currentTarget.style.color = C.goldDark; e.currentTarget.style.boxShadow = '0 8px 22px rgba(201,168,76,0.12)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)'; }}
-            >
-              ←
-            </button>
-            <div style={{ width: 40, height: 2, background: C.gold, borderRadius: 2 }} />
-            <div style={{ color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', fontFamily: "'DM Sans',sans-serif" }}>ALL VENUES</div>
-          </div>
-          <h1 style={{ margin: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(32px,4.2vw,48px)', color: C.dark, lineHeight: 1.05 }}>Browse venues and reserve your space.</h1>
-          <p style={{ marginTop: 12, color: C.muted, fontSize: 14, maxWidth: 820, fontFamily: "'DM Sans',sans-serif" }}>Explore our venues below — click a card to view layouts and reserve. Sub-rooms are noted where available.</p>
-          <div style={{ marginTop: 42, marginBottom: -32, height: 2, width: '100%', background: 'rgba(201,168,76,0.16)', borderRadius: 2, margin: '12px 0' }} />
+
+      {/* ── FIX 2: Header — removed marginTop:42 that was pushing content down ── */}
+      <div style={{ padding: '28px 24px 0 24px', maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, }}>
+          <button
+            onClick={() => navigate('/', { state: { scrollTo: "event" } })}
+            title="Back to event section"
+            aria-label="Back to event section"
+            style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: 999, border: `2px solid ${C.gold}`, color: C.gold, cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.06)', fontSize: 16, flexShrink: 0 }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.goldDark; e.currentTarget.style.color = C.goldDark; e.currentTarget.style.boxShadow = '0 8px 22px rgba(201,168,76,0.12)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)'; }}
+          >
+            ←
+          </button>
+          <div style={{ width: 40, height: 2, background: C.gold, borderRadius: 2 }} />
+          <div style={{ color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', fontFamily: "'DM Sans',sans-serif" }}>ALL VENUES</div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          {/* kept intentionally empty to preserve spacing on wide screens */}
-        </div>
+        <h1 style={{ margin: '0 0 8px 0', fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(32px,4.2vw,48px)', color: C.dark, lineHeight: 1.05 }}>
+          Browse venues and reserve your space.
+        </h1>
+        <p style={{ margin: '0 0 24px 0', color: C.muted, fontSize: 14, maxWidth: 820, fontFamily: "'DM Sans',sans-serif" }}>
+          Explore our venues below — click a card to view layouts and reserve. Sub-rooms are noted where available.
+        </p>
+        <div style={{ height: 1, background: 'rgba(201,168,76,0.16)', borderRadius: 2, marginBottom: 0 }} />
       </div>
 
-      <section style={{ padding: '0 24px 60px 24px', maxWidth: 1200, margin: '0 auto' }}>
+      {/* ── Venue sections ── */}
+      <section style={{ padding: '24px 24px 60px 24px', maxWidth: 1200, margin: '0 auto' }}>
+
         {/* Main Wing */}
-        <div style={{ marginTop: 8, marginBottom: 60 }}>
-          <h2 style={{ color: C.gold, fontSize: 'clamp(36px,3.2vw,34px)', fontWeight: 600, marginBottom: 8, fontFamily: "'Cormorant Garamond', serif" }}>Main Wing</h2>
+        <div style={{ marginBottom: 60 }}>
+          <h2 style={{ color: C.gold, fontSize: 'clamp(26px,3.2vw,34px)', fontWeight: 600, marginBottom: 8, fontFamily: "'Cormorant Garamond', serif" }}>Main Wing</h2>
           <div style={{ marginBottom: 20, color: C.muted, fontSize: 14 }}>Includes function rooms and ballrooms suitable for conferences and weddings.</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
             {SUBCATEGORIES['Main Wing'].map((venue) => (
@@ -229,6 +220,7 @@ const handleVenueClick = (id) => {
             ))}
           </div>
         </div>
+
       </section>
     </div>
   );
