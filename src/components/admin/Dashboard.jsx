@@ -4,8 +4,7 @@ import AdminNavbar from "./AdminNavbar";
 import Sidebar from "./Sidebar";
 import SeatMap, { STATUS_COLORS, STATUS_LABELS } from "./SeatMap";
 import { SEAT_MAP_DATA } from "../../data/seatMapData";
-import { TABLE_T1, DINING_DATA } from "../../utils/seatMapData";
-import { saveRoomData, getRoomData, subscribeToSeatMapChanges } from "../../utils/seatMapPersistence";
+import { saveSeatMapData, loadSeatMapData, subscribeToSeatMapChanges } from "../../utils/seatMapPersistence";
 
 const MOCK_RESERVATIONS = [
   { id: "BLV-2025-0042", name: "Sarah Kim", email: "sarahkim@gmail.com", phone: "09123456789", room: "20/20 Function Room", table: "T1", seat: null, guests: 2, eventDate: "March 15, 2026", eventTime: "7:00 PM", specialRequests: "None", status: "pending", type: "whole", submittedAt: "Mar 03, 2026 · 10:42 AM" },
@@ -35,15 +34,6 @@ const ROOM_CATEGORIES = {
   }
 };
 
-// Venues without sub-venues for easier reference
-const VENUES_WITHOUT_SUB_VENUES = [
-  "Alabang Function Room",
-  "Business Center", 
-  "Qsina",
-  "Hanakazu",
-  "Phoenix Court"
-];
-
 const STATUS_CATEGORIES = ["ALL", "PENDING", "APPROVED", "REJECTED"];
 
 function Dashboard({ onLogout }) {
@@ -63,43 +53,11 @@ function Dashboard({ onLogout }) {
   const [selectedWing, setSelectedWing] = useState("Main Wing");
   const [selectedRoom, setSelectedRoom] = useState("Alabang Function Room");
   const [seatMapData, setSeatMapData] = useState(() => {
-    // Load from persistence for each room with appropriate fallbacks
-    const getFallbackData = (wing, room) => {
-      if (wing === "Main Wing" && room === "Alabang Function Room") {
-        return TABLE_T1;
-      } else if (wing === "Dining") {
-        return DINING_DATA[room] || null;
-      } else {
-        return SEAT_MAP_DATA[wing]?.[room] || null;
-      }
-    };
-
-    const initializeWingData = (wingName) => {
-      const wingData = SEAT_MAP_DATA[wingName] || {};
-      const initializedRooms = {};
-      
-      Object.keys(wingData).forEach(roomName => {
-        const fallbackData = getFallbackData(wingName, roomName);
-        const persistedData = getRoomData(wingName, roomName, fallbackData);
-        initializedRooms[roomName] = persistedData;
-      });
-
-      // Special handling for Dining wing
-      if (wingName === "Dining") {
-        Object.keys(DINING_DATA).forEach(roomName => {
-          const fallbackData = DINING_DATA[roomName];
-          const persistedData = getRoomData(wingName, roomName, fallbackData);
-          initializedRooms[roomName] = persistedData;
-        });
-      }
-
-      return initializedRooms;
-    };
-
+    // Load from persistence first, fallback to default data
+    const persistedData = loadSeatMapData();
     return {
-      "Main Wing": initializeWingData("Main Wing"),
-      "Tower Wing": initializeWingData("Tower Wing"),
-      "Dining": initializeWingData("Dining")
+      ...SEAT_MAP_DATA,
+      ...persistedData
     };
   });
   const [editMode, setEditMode] = useState(false);
@@ -173,7 +131,6 @@ function Dashboard({ onLogout }) {
   };
 
   const handleSeatMapUpdate = (updatedRoomData) => {
-    console.log('Dashboard: handleSeatMapUpdate called with:', updatedRoomData);
     // Update local state
     setSeatMapData(prev => ({
       ...prev,
@@ -184,8 +141,8 @@ function Dashboard({ onLogout }) {
     }));
     
     // Save to persistence
-    const saved = saveRoomData(selectedWing, selectedRoom, updatedRoomData);
-    if (saved !== false) {
+    const saved = saveSeatMapData(selectedWing, selectedRoom, updatedRoomData);
+    if (saved) {
       showToast("Seat map updated and saved", "#4CAF79");
     } else {
       showToast("Error saving seat map", "#E05252");
@@ -208,8 +165,8 @@ function Dashboard({ onLogout }) {
     const mS = filterStatus==="ALL" || r.status===filterStatus.toLowerCase();
     let mR = filterSubVenue==="All Venues";
     
-    // If a specific venue is selected (but not "All Venues")
-    if (filterWing !== "All Wings" && filterVenue !== "All Venues") {
+    if (!mR && filterWing !== "All Wings" && filterVenue !== "All Venues" && filterSubVenue !== "All Venues") {
+      // Check if reservation matches the specific sub-venue
       const wingVenues = ROOM_CATEGORIES["All Venues"][filterWing];
       if (wingVenues && wingVenues[filterVenue]) {
         // For venues without sub-venues, match directly
@@ -221,7 +178,7 @@ function Dashboard({ onLogout }) {
             // Show all sub-venues for this venue
             mR = wingVenues[filterVenue].includes(r.room);
           } else {
-            // Show only the specific sub-venue
+            // Show only specific sub-venue
             mR = r.room === filterSubVenue;
           }
         }
@@ -239,6 +196,7 @@ function Dashboard({ onLogout }) {
   const navItems = [
     { id:"reservations", label:"Reservations", icon:"📋" },
     { id:"seat-map",     label:"Seat Map",      icon:"🗺️" },
+    { id:"rooms",        label:"Rooms",         icon:"🏛️" },
     { id:"settings",     label:"Settings",      icon:"⚙️" },
   ];
 
@@ -440,12 +398,7 @@ function Dashboard({ onLogout }) {
                             key={venue}
                             onClick={() => {
                               setFilterVenue(venue);
-                              // For venues without sub-venues, set sub-venue to the venue
-                              if (VENUES_WITHOUT_SUB_VENUES.includes(venue)) {
-                                setFilterSubVenue(venue);
-                              } else {
-                                setFilterSubVenue("All Venues");
-                              }
+                              setFilterSubVenue("All Venues");
                             }}
                             style={{
                               padding:"6px 12px",
@@ -481,7 +434,7 @@ function Dashboard({ onLogout }) {
                   )}
 
                   {/* Sub-venue Selection */}
-                  {filterWing !== "All Wings" && filterVenue !== "All Venues" && ROOM_CATEGORIES["All Venues"][filterWing][filterVenue] && !VENUES_WITHOUT_SUB_VENUES.includes(filterVenue) && (
+                  {filterWing !== "All Wings" && filterVenue !== "All Venues" && ROOM_CATEGORIES["All Venues"][filterWing][filterVenue] && (
                     <div style={{ 
                       background:"#FFFFFF", 
                       border:"1px solid #E1E4E8", 
@@ -773,28 +726,16 @@ function Dashboard({ onLogout }) {
                     }}>
                       {selectedRoom}
                     </div>
-                    {(() => {
-                      const currentTableData = seatMapData[selectedWing][selectedRoom];
-                      console.log('Dashboard: Passing to SeatMap:', {
-                        wing: selectedWing,
-                        room: selectedRoom,
-                        tableData: currentTableData
-                      });
-                      return (
-                        <SeatMap
-                          tableData={currentTableData}
-                          mode="individual"
-                          selectedSeat={null}
-                          onSeatClick={handleSeatClick}
-                          onTableClick={handleTableClick}
-                          windowWidth={800}
-                          editMode={editMode}
-                          onUpdate={handleSeatMapUpdate}
-                          wing={selectedWing}
-                          room={selectedRoom}
-                        />
-                      );
-                    })()}
+                    <SeatMap
+                      tableData={seatMapData[selectedWing][selectedRoom]}
+                      mode="individual"
+                      selectedSeat={null}
+                      onSeatClick={handleSeatClick}
+                      onTableClick={handleTableClick}
+                      windowWidth={800}
+                      editMode={editMode}
+                      onUpdate={handleSeatMapUpdate}
+                    />
                   </div>
                 </div>
 
@@ -860,9 +801,9 @@ function Dashboard({ onLogout }) {
             </div>
           )}
 
-          {activeNav==="settings" && (
+          {(activeNav==="rooms"||activeNav==="settings") && (
             <div style={{ marginTop:60, textAlign:"center", color:"#6C757D", fontFamily:"Montserrat, sans-serif", fontSize:20 }}>
-              ⚙️  Settings panel — coming soon.
+              {activeNav==="rooms"?"🏛️  Rooms management — coming soon.":"⚙️  Settings panel — coming soon."}
             </div>
           )}
         </main>

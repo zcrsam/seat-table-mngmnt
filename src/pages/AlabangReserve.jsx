@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import MainWingNavbar from "../components/MainWingNavbar";
+import MainWingNavbar from "../components/client/MainWingNavbar";
 
 // ─── Color Palette & Tokens ───────────────────────────────────────────────────
 // Navy: #1B2A4A  |  Gold: #C9A84C  |  Cream: #F5F0E8  |  Red: #E05252
