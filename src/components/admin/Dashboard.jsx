@@ -317,9 +317,8 @@ function Dashboard({ onLogout }) {
                 <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 9, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 12 }}>EVENTS/VENUES</div>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
 
-                  {/* Wing */}
+                  {/* Category */}
                   <div style={{ background: "#FFFFFF", border: "1px solid #E1E4E8", borderRadius: 12, padding: 16, minWidth: 200, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                    <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 8, letterSpacing: 1.5, color: "#6B7280", fontWeight: 600, marginBottom: 8, textTransform: "uppercase" }}>WING</div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {["All Wings", "Main Wing", "Tower Wing", "Dining"].map(wing => (
                         <button

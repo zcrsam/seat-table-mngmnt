@@ -263,8 +263,12 @@ export default function SeatMap({
     const raw = tablesProp ? tablesProp : tableData ? [tableData] : [];
     return raw.map((t, i) => hydrateTable(t, i)).filter(Boolean);
   });
-  const [selTableId,   setSelTableId]   = useState(null);
-  const [selSeatId,    setSelSeatId]    = useState(null);
+  const [selTableId, setSelTableId] = useState(null);
+  const [selSeatId, setSelSeatId] = useState(null);
+  const [editingTableId, setEditingTableId] = useState(null);
+  const [editingSeatId, setEditingSeatId] = useState(null);
+  const [tempTableId, setTempTableId] = useState("");
+  const [tempSeatNum, setTempSeatNum] = useState("");
   const [showAddSeat,  setShowAddSeat]  = useState(false);
   const [showAddTable, setShowAddTable] = useState(false);
   const [saved,        setSaved]        = useState(false);
@@ -391,8 +395,51 @@ export default function SeatMap({
       <div
         onMouseDown={editMode ? (e) => startDrag(e, "seat", tableId, seat.id) : undefined}
         onClick={(e) => handleSeatClick(e, tableId, seat.id)}
+        onDoubleClick={() => {
+          if (editMode) {
+            setEditingSeatId(seat.id);
+            setTempSeatNum(seat.num);
+          }
+        }}
         style={{ position: "absolute", left: seat.x, top: seat.y, width: SEAT_W, height: SEAT_H, borderRadius: 8, background: (isSel || viewSel) ? "#1B2A4A" : STATUS_COLORS[seat.status], display: "flex", alignItems: "center", justifyContent: "center", fontFamily: F.body, fontWeight: 700, fontSize: 13, color: "#fff", cursor: editMode ? "grab" : (clickable ? "pointer" : "default"), border: (isSel || viewSel) ? "2px solid #C9A84C" : "2px solid rgba(255,255,255,0.22)", boxShadow: (isSel || viewSel) ? "0 0 0 3px rgba(201,168,76,0.35), 0 4px 14px rgba(0,0,0,0.18)" : "0 2px 7px rgba(0,0,0,0.14)", zIndex: isSel ? 30 : 20, userSelect: "none", transition: "box-shadow 0.12s, border 0.12s" }}>
-        {seat.num}
+        {editingSeatId === seat.id ? (
+            <input
+              type="text"
+              value={tempSeatNum}
+              onChange={(e) => setTempSeatNum(e.target.value)}
+              onBlur={() => {
+                if (tempSeatNum.trim()) {
+                  push(tables.map(t => t.id === tableId ? { ...t, seats: t.seats.map(s => s.id === seat.id ? { ...s, num: tempSeatNum.trim() } : s) } : t));
+                }
+                setEditingSeatId(null);
+                setTempSeatNum("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.target.blur();
+                } else if (e.key === "Escape") {
+                  setEditingSeatId(null);
+                  setTempSeatNum("");
+                }
+              }}
+              style={{
+                fontFamily: "DM Sans",
+                fontWeight: 700,
+                fontSize: 13,
+                color: "#fff",
+                background: "#1B2A4A",
+                border: "2px solid #C9A84C",
+                borderRadius: 4,
+                padding: "2px 4px",
+                textAlign: "center",
+                width: "30px",
+                height: "30px"
+              }}
+              autoFocus
+            />
+          ) : (
+            <>{seat.num}</>
+          )}
         {editMode && <div style={{ position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: "50%", background: isSel ? "#C9A84C" : "rgba(255,255,255,0.55)", border: "1.5px solid rgba(0,0,0,0.08)" }} />}
       </div>
     );
@@ -413,7 +460,52 @@ export default function SeatMap({
           onMouseDown={editMode ? (e) => startDrag(e, "table", table.id) : undefined}
           onClick={(e) => { e.stopPropagation(); if (editMode) { setSelTableId(id => id === table.id ? null : table.id); setSelSeatId(null); } else if (mode === "whole") onTableClick?.(table.id); }}
           style={{ position: "absolute", left: 0, top: 0, width: table.width, height: table.height, background: tableColor, borderRadius: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: editMode ? "grab" : (mode === "whole" ? "pointer" : "default"), border: isSelT ? "2px solid #C9A84C" : "2px solid rgba(255,255,255,0.28)", boxShadow: isSelT ? "0 0 0 4px rgba(201,168,76,0.22), 0 6px 24px rgba(0,0,0,0.17)" : (mode === "whole" ? "0 4px 20px rgba(201,168,76,0.3)" : "0 2px 10px rgba(0,0,0,0.1)"), zIndex: 15, userSelect: "none", transition: "box-shadow 0.14s, border 0.14s" }}>
-          <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "#C9A84C", fontWeight: 600, letterSpacing: 0.5, pointerEvents: "none" }}>{table.id}</span>
+          {editingTableId === table.id ? (
+            <input
+              type="text"
+              value={tempTableId}
+              onChange={(e) => setTempTableId(e.target.value)}
+              onBlur={() => {
+                if (tempTableId.trim()) {
+                  push(tables.map(t => t.id === table.id ? { ...t, id: tempTableId.trim() } : t));
+                }
+                setEditingTableId(null);
+                setTempTableId("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.target.blur();
+                } else if (e.key === "Escape") {
+                  setEditingTableId(null);
+                  setTempTableId("");
+                }
+              }}
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 22,
+                color: "#C9A84C",
+                fontWeight: 600,
+                letterSpacing: 0.5,
+                background: "white",
+                border: "2px solid #C9A84C",
+                borderRadius: 4,
+                padding: "2px 4px",
+                textAlign: "center",
+                width: "80px"
+              }}
+              autoFocus
+            />
+          ) : (
+            <span 
+              onDoubleClick={() => {
+                if (editMode) {
+                  setEditingTableId(table.id);
+                  setTempTableId(table.id);
+                }
+              }}
+              style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "#C9A84C", fontWeight: 600, letterSpacing: 0.5, pointerEvents: "none", cursor: editMode ? "pointer" : "default" }}
+            >{table.id}</span>
+          )}
           <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: "rgba(201,168,76,0.9)", letterSpacing: 1.2, marginTop: 4, fontWeight: 500, pointerEvents: "none" }}>{table.label}</span>
           {isSelT && <>
             <RHandle tableId={table.id} edge="e"  style={{ right: -5,  top: 14, bottom: 14, width: 10 }} />
