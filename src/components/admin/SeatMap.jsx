@@ -30,10 +30,11 @@ function useFonts() {
 
 // ─── HYDRATION ────────────────────────────────────────────────────────────────
 function hydrateTable(t, tableIndex = 0) {
-  const left   = t.seats.filter(s => s.pos === "left")  .sort((a,b) => b.num - a.num);
-  const right  = t.seats.filter(s => s.pos === "right") .sort((a,b) => b.num - a.num);
-  const bottom = t.seats.filter(s => s.pos === "bottom").sort((a,b) => a.num - b.num);
-  const top    = t.seats.filter(s => s.pos === "top")   .sort((a,b) => a.num - b.num);
+  const seats = t.seats || [];
+  const left   = seats.filter(s => s.pos === "left")  .sort((a,b) => b.num - a.num);
+  const right  = seats.filter(s => s.pos === "right") .sort((a,b) => b.num - a.num);
+  const bottom = seats.filter(s => s.pos === "bottom").sort((a,b) => a.num - b.num);
+  const top    = seats.filter(s => s.pos === "top")   .sort((a,b) => a.num - b.num);
 
   const rowCount = Math.max(left.length, right.length, 1);
   const tW = typeof t.width  === "number" ? t.width  : 80;
