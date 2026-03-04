@@ -161,10 +161,21 @@ function Dashboard({ onLogout }) {
     const mS = filterStatus === "ALL" || r.status === filterStatus.toLowerCase();
 
     let mR = true; // default: show all
-    if (filterWing !== "All Wings" && filterVenue !== "All Venues" && filterSubVenue !== "All Venues") {
+    if (filterWing !== "All Wings" && filterVenue !== "All Venues") {
       const wingVenues = ROOM_CATEGORIES["All Venues"][filterWing];
       if (wingVenues && wingVenues[filterVenue]) {
-        mR = wingVenues[filterVenue].includes(r.room);
+        const subVenues = wingVenues[filterVenue];
+        // If venue has no sub-venues (empty array), match the venue name directly
+        if (subVenues.length === 0) {
+          mR = r.room === filterVenue;
+        } else {
+          // If venue has sub-venues, check if reservation matches any sub-venue
+          mR = subVenues.includes(r.room);
+          // If specific sub-venue is selected, filter further
+          if (filterSubVenue !== "All Venues") {
+            mR = r.room === filterSubVenue;
+          }
+        }
       }
     }
 
