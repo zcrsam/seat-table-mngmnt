@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MainWingNavbar from "../../components/client/MainWingNavbar";
 import SeatMap, { STATUS_COLORS, STATUS_LABELS } from "../../components/client/SeatMap";
-import { TABLE_T1 } from "../../utils/seatMapData";
+import { TABLE_T1, SEAT_MAP_DATA } from "../../data/seatMapData";
 import { getRoomData, subscribeToSeatMapChanges } from "../../utils/seatMapPersistence";
 
 // ─── Constants ────────────────────────────────────────────────────────────────

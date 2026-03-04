@@ -49,6 +49,11 @@ export function getRoomData(wing, room, defaultData) {
   return defaultData;
 }
 
+// ─── Load room data (legacy function for compatibility) ───────────────
+export function loadSeatMapData(wing, room, defaultData) {
+  return getRoomData(wing, room, defaultData);
+}
+
 // ─── Subscribe to live changes ─────────────────────────────────────────────────
 // callback: ({ wing, room, data }) => void
 // Returns an unsubscribe function.

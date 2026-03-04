@@ -17,9 +17,16 @@ export const TABLE_T1 = {
     { id: "s4",  num: 4, pos: "right", status: "available" },
     { id: "s5",  num: 5, pos: "left",  status: "available" },
     { id: "s6",  num: 6, pos: "right", status: "available" },
-    { id: "s7",  num: 7, pos: "left",  status: "available" },
+    { id: "s7",  num: 7, pos: "left", status: "available" },
     { id: "s8",  num: 8, pos: "right", status: "available" },
   ],
+};
+
+// Legacy export for backward compatibility
+export const SEAT_MAP_DATA = {
+  "Main Wing": {
+    "Alabang Function Room": TABLE_T1
+  }
 };
 
 // Dining venues data with coordinates
