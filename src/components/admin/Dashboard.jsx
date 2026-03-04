@@ -210,7 +210,7 @@ function Dashboard({ onLogout }) {
         {/* SIDEBAR */}
         <aside style={{
           width: isSidebarOpen ? 240 : 50,
-          background: "#0F1825",
+          background: "#FFFFFF",
           borderRight: "1px solid rgba(201,168,76,0.15)",
           padding: isSidebarOpen ? "28px 0" : "16px 0",
           flexShrink: 0,
@@ -231,7 +231,7 @@ function Dashboard({ onLogout }) {
 
           {isSidebarOpen && (
             <>
-              <div style={{ padding: "0 20px", marginBottom: 14, fontSize: 9, letterSpacing: 2, color: "#E8E2D4", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>NAVIGATION</div>
+              <div style={{ padding: "0 20px", marginBottom: 14, fontSize: 9, letterSpacing: 2, color: "#1B2A4A", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>NAVIGATION</div>
               <div style={{ overflow: "hidden", overflowY: "hidden" }}>
                 {navItems.map(item => (
                 <div
@@ -241,7 +241,7 @@ function Dashboard({ onLogout }) {
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "10px 20px",
                     fontFamily: "Montserrat, sans-serif", fontSize: 12,
-                    color: activeNav === item.id ? "#C9A84C" : "#E8E2D4",
+                    color: activeNav === item.id ? "#C9A84C" : "#666666",
                     background: activeNav === item.id ? "rgba(201,168,76,0.08)" : "transparent",
                     borderLeft: activeNav === item.id ? "2px solid #C9A84C" : "2px solid transparent",
                     cursor: "pointer",
@@ -254,10 +254,10 @@ function Dashboard({ onLogout }) {
               ))}
               </div>
 
-              <div style={{ margin: "28px 0 14px", padding: "0 20px", fontSize: 9, letterSpacing: 2, color: "#E8E2D4", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>QUICK STATS</div>
+              <div style={{ margin: "28px 0 14px", padding: "0 20px", fontSize: 9, letterSpacing: 2, color: "#1B2A4A", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>QUICK STATS</div>
               {[["Pending", pending, "#E8A838"], ["Approved", approved, "#4CAF79"], ["Rejected", rejected, "#E05252"]].map(([lbl, val, col]) => (
                 <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "7px 20px", fontFamily: "Montserrat, sans-serif", fontSize: 11 }}>
-                  <span style={{ color: "#E8E2D4" }}>{lbl}</span>
+                  <span style={{ color: "#666666" }}>{lbl}</span>
                   <span style={{ color: col, fontWeight: 700 }}>{val}</span>
                 </div>
               ))}
