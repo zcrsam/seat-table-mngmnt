@@ -413,8 +413,8 @@ export default function SeatMap({
           onMouseDown={editMode ? (e) => startDrag(e, "table", table.id) : undefined}
           onClick={(e) => { e.stopPropagation(); if (editMode) { setSelTableId(id => id === table.id ? null : table.id); setSelSeatId(null); } else if (mode === "whole") onTableClick?.(table.id); }}
           style={{ position: "absolute", left: 0, top: 0, width: table.width, height: table.height, background: tableColor, borderRadius: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: editMode ? "grab" : (mode === "whole" ? "pointer" : "default"), border: isSelT ? "2px solid #C9A84C" : "2px solid rgba(255,255,255,0.28)", boxShadow: isSelT ? "0 0 0 4px rgba(201,168,76,0.22), 0 6px 24px rgba(0,0,0,0.17)" : (mode === "whole" ? "0 4px 20px rgba(201,168,76,0.3)" : "0 2px 10px rgba(0,0,0,0.1)"), zIndex: 15, userSelect: "none", transition: "box-shadow 0.14s, border 0.14s" }}>
-          <span style={{ fontFamily: F.display, fontSize: 18, color: "#1B2A4A", pointerEvents: "none" }}>{table.id}</span>
-          <span style={{ fontFamily: F.body, fontSize: 10, color: "rgba(27,42,74,0.7)", letterSpacing: 1, marginTop: 2, pointerEvents: "none" }}>{table.label}</span>
+          <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "#C9A84C", fontWeight: 600, letterSpacing: 0.5, pointerEvents: "none" }}>{table.id}</span>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: "rgba(201,168,76,0.9)", letterSpacing: 1.2, marginTop: 4, fontWeight: 500, pointerEvents: "none" }}>{table.label}</span>
           {isSelT && <>
             <RHandle tableId={table.id} edge="e"  style={{ right: -5,  top: 14, bottom: 14, width: 10 }} />
             <RHandle tableId={table.id} edge="w"  style={{ left: -5,   top: 14, bottom: 14, width: 10 }} />
