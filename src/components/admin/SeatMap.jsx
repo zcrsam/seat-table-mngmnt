@@ -40,7 +40,7 @@ function hydrateTable(t, tableIndex = 0) {
   const tW = typeof t.width  === "number" ? t.width  : 80;
   const tH = typeof t.height === "number" ? t.height : rowCount * (SEAT_H + 6);
 
-  const seats = t.seats.map(s => {
+  const seatObjects = t.seats.map(s => {
     if (typeof s.x === "number") return s;
     let x = 0, y = 0;
     const ROW_H = SEAT_H + 6;
@@ -70,7 +70,7 @@ function hydrateTable(t, tableIndex = 0) {
     y:      typeof t.y === "number" ? t.y : 80,
     width:  tW,
     height: tH,
-    seats,
+    seats: seatObjects,
   };
 }
 
