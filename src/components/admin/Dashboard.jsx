@@ -7,11 +7,12 @@ import { SEAT_MAP_DATA } from "../../data/seatMapData";
 import { saveSeatMapData, loadSeatMapData, subscribeToSeatMapChanges } from "../../utils/seatMapPersistence";
 
 const MOCK_RESERVATIONS = [
-  { id: "BLV-2025-0042", name: "Sarah Kim", email: "sarahkim@gmail.com", phone: "09123456789", room: "20/20 Function Room", table: "T1", seat: null, guests: 2, eventDate: "March 15, 2026", eventTime: "7:00 PM", specialRequests: "None", status: "pending", type: "whole", submittedAt: "Mar 03, 2026 · 10:42 AM" },
+  { id: "BLV-2025-0042", name: "Sarah Kim", email: "sarahkim@gmail.com", phone: "09123456789", room: "20/20 Function Room A", table: "T1", seat: null, guests: 2, eventDate: "March 15, 2026", eventTime: "7:00 PM", specialRequests: "None", status: "pending", type: "whole", submittedAt: "Mar 03, 2026 · 10:42 AM" },
   { id: "BLV-2025-0039", name: "Marco dela Cruz", email: "marco@email.com", phone: "09987654321", room: "Alabang Function Room", table: "T1", seat: "Seat 9", guests: 1, eventDate: "March 20, 2026", eventTime: "6:00 PM", specialRequests: "Wheelchair access needed", status: "pending", type: "individual", submittedAt: "Mar 02, 2026 · 3:15 PM" },
   { id: "BLV-2025-0031", name: "Lia Santos", email: "lia.santos@gmail.com", phone: "09111222333", room: "Laguna Ballroom", table: "T3", seat: null, guests: 5, eventDate: "March 10, 2026", eventTime: "5:30 PM", specialRequests: "Birthday setup", status: "reserved", type: "whole", submittedAt: "Feb 28, 2026 · 9:00 AM" },
   { id: "BLV-2025-0028", name: "James Reyes", email: "james@email.com", phone: "09555666777", room: "Business Center", table: "T2", seat: "Seat 4", guests: 1, eventDate: "March 8, 2026", eventTime: "2:00 PM", specialRequests: "None", status: "available", type: "individual", submittedAt: "Feb 25, 2026 · 11:30 AM" },
-  { id: "BLV-2025-0019", name: "Anna Tan", email: "anna.tan@email.com", phone: "09222333444", room: "20/20 Function Room", table: "T2", seat: null, guests: 3, eventDate: "April 1, 2026", eventTime: "8:00 PM", specialRequests: "Vegan menu", status: "pending", type: "whole", submittedAt: "Mar 01, 2026 · 8:20 AM" },
+  { id: "BLV-2025-0019", name: "Anna Tan", email: "anna.tan@email.com", phone: "09222333444", room: "20/20 Function Room B", table: "T2", seat: null, guests: 3, eventDate: "April 1, 2026", eventTime: "8:00 PM", specialRequests: "Vegan menu", status: "pending", type: "whole", submittedAt: "Mar 01, 2026 · 8:20 AM" },
+  { id: "BLV-2025-0015", name: "David Lee", email: "david.lee@email.com", phone: "09155566677", room: "20/20 Function Room C", table: "T3", seat: null, guests: 4, eventDate: "March 25, 2026", eventTime: "6:30 PM", specialRequests: "Corporate event setup", status: "reserved", type: "whole", submittedAt: "Feb 20, 2026 · 2:15 PM" },
 ];
 
 const ROOM_CATEGORIES = {
