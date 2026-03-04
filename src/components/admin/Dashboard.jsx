@@ -17,10 +17,10 @@ const MOCK_RESERVATIONS = [
 const ROOM_CATEGORIES = {
   "All Venues": {
     "Main Wing": {
-      "Alabang Function Room": ["Alabang Function Room"],
+      "Alabang Function Room": [],
       "Laguna Ballroom": ["Laguna 1", "Laguna 2"],
       "20/20 Function Room": ["20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C"],
-      "Business Center": ["Business Center"]
+      "Business Center": []
     },
     "Tower Wing": {
       "Tower Ballroom": ["Tower 1", "Tower 2", "Tower 3"],
@@ -340,7 +340,7 @@ function Dashboard({ onLogout }) {
                   )}
 
                   {/* Sub-venue */}
-                  {filterWing !== "All Wings" && filterVenue !== "All Venues" && ROOM_CATEGORIES["All Venues"][filterWing]?.[filterVenue] && (
+                  {filterWing !== "All Wings" && filterVenue !== "All Venues" && ROOM_CATEGORIES["All Venues"][filterWing]?.[filterVenue]?.length > 0 && (
                     <div style={{ background: "#FFFFFF", border: "1px solid #E1E4E8", borderRadius: 12, padding: 16, minWidth: 200, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                       <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 8, letterSpacing: 1.5, color: "#6B7280", fontWeight: 600, marginBottom: 8, textTransform: "uppercase" }}>SUB-VENUE</div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
