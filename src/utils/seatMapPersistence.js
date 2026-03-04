@@ -1,79 +1,80 @@
 // src/utils/seatMapPersistence.js
-//
-// Shared persistence layer between SeatMap (admin edit) and AlabangReserve (client view).
-// Uses localStorage for persistence across page reloads, and a BroadcastChannel
-// (with storage event fallback) so the client page updates live when admin saves.
+// Shared persistence layer between admin SeatMap (editMode) and client AlabangReserve.
+// Uses localStorage for persistence + BroadcastChannel/custom events for live sync.
 
 const STORAGE_PREFIX = "seatmap";
 const CHANNEL_NAME   = "seatmap_updates";
+const LEGACY_KEY     = "seatMapData"; // for loadSeatMapData / saveSeatMapData
 
-// ─── Build a storage key ───────────────────────────────────────────────────────
 function buildKey(wing, room) {
   return `${STORAGE_PREFIX}:${wing}:${room}`;
 }
 
-// ─── Save room data (called from admin / SeatMap editMode) ────────────────────
+// ─── Per-room save (called by dispatchSeatMapUpdate inside SeatMap) ───────────
 export function saveRoomData(wing, room, tableData) {
   const key = buildKey(wing, room);
-  const payload = JSON.stringify(tableData);
-
   try {
-    localStorage.setItem(key, payload);
+    localStorage.setItem(key, JSON.stringify(tableData));
   } catch (e) {
-    console.warn("[seatMapPersistence] localStorage write failed:", e);
+    console.warn("[seatMapPersistence] saveRoomData failed:", e);
   }
-
-  // Broadcast to other tabs / windows
   try {
     const bc = new BroadcastChannel(CHANNEL_NAME);
     bc.postMessage({ wing, room, data: tableData });
     bc.close();
-  } catch {
-    // BroadcastChannel not supported — fall back to storage event (cross-tab only)
-    // The storage event fires automatically when localStorage changes in another tab.
-  }
+  } catch {}
 }
 
-// ─── Load room data (called on mount, falls back to defaultData) ───────────────
+// ─── Per-room load (used by AlabangReserve on mount) ─────────────────────────
 export function getRoomData(wing, room, defaultData) {
   const key = buildKey(wing, room);
   try {
     const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return parsed;
-    }
+    if (raw) return JSON.parse(raw);
   } catch (e) {
-    console.warn("[seatMapPersistence] localStorage read failed:", e);
+    console.warn("[seatMapPersistence] getRoomData failed:", e);
   }
   return defaultData;
 }
 
-// ─── Load room data (legacy function for compatibility) ───────────────
-export function loadSeatMapData(wing, room, defaultData) {
-  return getRoomData(wing, room, defaultData);
+// ─── Whole-map save (used by Dashboard) ──────────────────────────────────────
+export function saveSeatMapData(wing, room, data) {
+  try {
+    saveRoomData(wing, room, data);
+    const existing = loadSeatMapData() || {};
+    const updated  = {
+      ...existing,
+      [wing]: { ...(existing[wing] || {}), [room]: data },
+    };
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.warn("[seatMapPersistence] saveSeatMapData failed:", e);
+    return false;
+  }
+}
+
+// ─── Whole-map load (used by Dashboard on mount) ──────────────────────────────
+export function loadSeatMapData() {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn("[seatMapPersistence] loadSeatMapData failed:", e);
+  }
+  return null;
 }
 
 // ─── Subscribe to live changes ─────────────────────────────────────────────────
-// callback: ({ wing, room, data }) => void
-// Returns an unsubscribe function.
 export function subscribeToSeatMapChanges(callback) {
-  const listeners = [];
-
-  // 1. BroadcastChannel (same-origin, cross-tab)
   let bc = null;
   try {
     bc = new BroadcastChannel(CHANNEL_NAME);
     bc.onmessage = (e) => {
-      if (e.data?.wing && e.data?.room && e.data?.data) {
-        callback(e.data);
-      }
+      if (e.data?.wing && e.data?.room && e.data?.data) callback(e.data);
     };
-  } catch {
-    bc = null;
-  }
+  } catch { bc = null; }
 
-  // 2. storage event fallback (fires in OTHER tabs when localStorage changes)
   const onStorage = (e) => {
     if (!e.key?.startsWith(STORAGE_PREFIX + ":")) return;
     try {
@@ -86,7 +87,6 @@ export function subscribeToSeatMapChanges(callback) {
   };
   window.addEventListener("storage", onStorage);
 
-  // 3. Custom DOM event for same-tab updates (admin panel inside same React app)
   const onCustom = (e) => {
     const { wing, room, data } = e.detail || {};
     if (wing && room && data) callback({ wing, room, data });
@@ -100,8 +100,10 @@ export function subscribeToSeatMapChanges(callback) {
   };
 }
 
-// ─── Dispatch same-tab event (call this after saveRoomData for same-tab sync) ──
+// ─── Dispatch same-tab event (save + notify same-tab listeners) ───────────────
 export function dispatchSeatMapUpdate(wing, room, data) {
   saveRoomData(wing, room, data);
-  window.dispatchEvent(new CustomEvent("seatmap:update", { detail: { wing, room, data } }));
+  window.dispatchEvent(
+    new CustomEvent("seatmap:update", { detail: { wing, room, data } })
+  );
 }
