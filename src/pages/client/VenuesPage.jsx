@@ -3,15 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
 // Assets
-import alabangImg from "../assets/afc.jpeg";
-import lagunaImg from "../assets/laguna.jpeg";
-import twentyTwentyImg from "../assets/20:20.jpeg";
-import businessCenterImg from "../assets/bc.jpeg";
-import towerBallroomImg from "../assets/towerb.jpeg";
-import grandBallroomImg from "../assets/grandr.jpg";
-import qsinaImg from "../assets/qsina.jpeg";
-import hanakazuImg from "../assets/hanakazu.jpeg";
-import phoenixCourtImg from "../assets/phoenix-court.jpeg";
+import alabangImg from "../../assets/afc.jpeg";
+import lagunaImg from "../../assets/laguna.jpeg";
+import twentyTwentyImg from "../../assets/20:20.jpeg";
+import businessCenterImg from "../../assets/bc.jpeg";
+import towerBallroomImg from "../../assets/towerb.jpeg";
+import grandBallroomImg from "../../assets/grandr.jpg";
+import qsinaImg from "../../assets/qsina.jpeg";
+import hanakazuImg from "../../assets/hanakazu.jpeg";
+import phoenixCourtImg from "../../assets/phoenix-court.jpeg";
 
 /* -------------------- Responsive Hook -------------------- */
 function useResponsive() {
@@ -154,22 +154,13 @@ export default function VenuesPage() {
   const navigate = useNavigate();
   const { isMobile } = useResponsive();
 
- const handleVenueClick = (id) => {
-  // If main Alabang Function Room
-  if (id === "alabang") {
-    navigate("/alabang-reserve");
-    return;
-  }
-
-  // If sub-room of Alabang (optional)
-  if (id.startsWith("alabang__")) {
-    navigate("/alabang-reserve");
-    return;
-  }
-
-  // Default route for other venues
-  navigate(`/reserve/${id}`);
-};
+const handleVenueClick = (id) => {
+    if (id === "alabang") {
+      navigate("/alabang-reserve");
+    } else {
+      navigate(`/reserve/${id}`);
+    }
+  };
 
   return (
     <div style={{ background: '#F7F3EA', minHeight: '100vh' }}>
