@@ -202,7 +202,7 @@ function Dashboard({ onLogout }) {
   const currentRoomData = currentWingData[selectedRoom] || { seats: [], tableStatus: "available" };
 
   return (
-    <div style={{ fontFamily: "Montserrat, sans-serif", background: "#FFFFFF", minHeight: "100vh", color: "#1B2A4A" }}>
+    <div style={{ fontFamily: "Montserrat, sans-serif", background: "#FFFFFF", minHeight: "100vh", color: "#333333" }}>
       <AdminNavbar onLogout={onLogout} />
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 60px)" }}>
@@ -231,7 +231,7 @@ function Dashboard({ onLogout }) {
 
           {isSidebarOpen && (
             <>
-              <div style={{ padding: "0 20px", marginBottom: 14, fontSize: 9, letterSpacing: 2, color: "#1B2A4A", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>NAVIGATION</div>
+              <div style={{ padding: "0 20px", marginBottom: 14, fontSize: 9, letterSpacing: 2, color: "#333333", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>NAVIGATION</div>
               <div style={{ overflow: "hidden", overflowY: "hidden" }}>
                 {navItems.map(item => (
                 <div
@@ -254,7 +254,7 @@ function Dashboard({ onLogout }) {
               ))}
               </div>
 
-              <div style={{ margin: "28px 0 14px", padding: "0 20px", fontSize: 9, letterSpacing: 2, color: "#1B2A4A", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>QUICK STATS</div>
+              <div style={{ margin: "28px 0 14px", padding: "0 20px", fontSize: 9, letterSpacing: 2, color: "#333333", fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>QUICK STATS</div>
               {[["Pending", pending, "#E8A838"], ["Approved", approved, "#4CAF79"], ["Rejected", rejected, "#E05252"]].map(([lbl, val, col]) => (
                 <div key={lbl} style={{ display: "flex", justifyContent: "space-between", padding: "7px 20px", fontFamily: "Montserrat, sans-serif", fontSize: 11 }}>
                   <span style={{ color: "#666666" }}>{lbl}</span>
@@ -274,10 +274,10 @@ function Dashboard({ onLogout }) {
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
                 <div>
                   <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 10, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 4 }}>ADMIN · RESERVATION MANAGEMENT</div>
-                  <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, color: "#1B2A4A", fontWeight: "bold" }}>Reservation Dashboard</div>
+                  <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, color: "#333333", fontWeight: "bold" }}>Reservation Dashboard</div>
                 </div>
                 <input
-                  style={{ padding: "9px 14px", background: "#F8F9FA", border: "1px solid #E1E4E8", borderRadius: 6, color: "#1B2A4A", fontFamily: "Montserrat, sans-serif", fontSize: 12, width: 220, outline: "none" }}
+                  style={{ padding: "9px 14px", background: "#F8F9FA", border: "1px solid #E1E4E8", borderRadius: 6, color: "#333333", fontFamily: "Montserrat, sans-serif", fontSize: 12, width: 220, outline: "none" }}
                   placeholder="Search name or ref code..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -392,15 +392,15 @@ function Dashboard({ onLogout }) {
                       <tr key={r.id} style={{ background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.02)" }}>
                         <td style={{ padding: "14px 16px", fontFamily: "Montserrat, sans-serif", color: "#C9A84C", fontSize: 11, letterSpacing: 1, verticalAlign: "middle" }}>{r.id}</td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          <div style={{ color: "#1B2A4A", fontWeight: 600, fontFamily: "Montserrat, sans-serif", fontSize: 12 }}>{r.name}</div>
+                          <div style={{ color: "#333333", fontWeight: 600, fontFamily: "Montserrat, sans-serif", fontSize: 12 }}>{r.name}</div>
                           <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2, fontFamily: "Montserrat, sans-serif" }}>{r.email}</div>
                         </td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          <div style={{ color: "#1B2A4A", fontFamily: "Montserrat, sans-serif", fontSize: 12 }}>{r.room}</div>
+                          <div style={{ color: "#333333", fontFamily: "Montserrat, sans-serif", fontSize: 12 }}>{r.room}</div>
                           <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2, fontFamily: "Montserrat, sans-serif" }}>{r.table} · {r.seat || "Whole"}</div>
                         </td>
-                        <td style={{ padding: "14px 16px", fontFamily: "Montserrat, sans-serif", fontSize: 12, color: "#1B2A4A", verticalAlign: "middle" }}>{r.eventDate}</td>
-                        <td style={{ padding: "14px 16px", fontFamily: "Montserrat, sans-serif", fontSize: 12, color: "#1B2A4A", textAlign: "center", verticalAlign: "middle" }}>{r.guests}</td>
+                        <td style={{ padding: "14px 16px", fontFamily: "Montserrat, sans-serif", fontSize: 12, color: "#333333", verticalAlign: "middle" }}>{r.eventDate}</td>
+                        <td style={{ padding: "14px 16px", fontFamily: "Montserrat, sans-serif", fontSize: 12, color: "#333333", textAlign: "center", verticalAlign: "middle" }}>{r.guests}</td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
                           <span style={{ background: r.type === "whole" ? "rgba(201,168,76,0.12)" : "rgba(100,160,255,0.12)", color: r.type === "whole" ? "#C9A84C" : "#6AA0FF", padding: "2px 8px", borderRadius: 10, fontSize: 9, fontWeight: 700, letterSpacing: 1, fontFamily: "Montserrat, sans-serif" }}>
                             {r.type === "whole" ? "WHOLE" : "SEAT"}
@@ -427,7 +427,7 @@ function Dashboard({ onLogout }) {
             <div>
               <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 10, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 4 }}>ADMIN · SEAT MAP</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-                <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, color: "#1B2A4A", fontWeight: "bold" }}>Live Seat Map</div>
+                <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 24, color: "#333333", fontWeight: "bold" }}>Live Seat Map</div>
                 <button
                   onClick={() => setEditMode(!editMode)}
                   style={{ padding: "8px 16px", background: editMode ? "#C9A84C" : "transparent", color: editMode ? "#fff" : "#C9A84C", border: "1px solid #C9A84C", borderRadius: 6, cursor: "pointer", fontFamily: "Montserrat, sans-serif", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease" }}
@@ -502,7 +502,7 @@ function Dashboard({ onLogout }) {
                 {/* Center: Seat Map */}
                 <div style={{ flex: 1, minWidth: 400 }}>
                   <div style={{ background: "#EFEAD9", borderRadius: 12, padding: 24, border: "1px solid #D4C5A0", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-                    <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 14, color: "#1B2A4A", fontWeight: 600, marginBottom: 16, textAlign: "center" }}>
+                    <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 14, color: "#333333", fontWeight: 600, marginBottom: 16, textAlign: "center" }}>
                       {selectedRoom}
                     </div>
                     <SeatMap
@@ -531,7 +531,7 @@ function Dashboard({ onLogout }) {
                       .slice(0, 5)
                       .map(reservation => (
                         <div key={reservation.id} style={{ padding: "8px 0", borderBottom: "1px solid #E1E4E8", fontSize: 11 }}>
-                          <div style={{ fontFamily: "Montserrat, sans-serif", fontWeight: 600, color: "#1B2A4A", marginBottom: 2 }}>{reservation.name}</div>
+                          <div style={{ fontFamily: "Montserrat, sans-serif", fontWeight: 600, color: "#333333", marginBottom: 2 }}>{reservation.name}</div>
                           <div style={{ color: "#6B7280", fontSize: 10 }}>{reservation.id} • {reservation.eventDate}</div>
                           <div style={{ marginTop: 2 }}><StatusPill status={reservation.status} /></div>
                         </div>
