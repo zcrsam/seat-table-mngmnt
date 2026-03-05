@@ -177,7 +177,7 @@ export default function VenuesPage() {
   };
 
   return (
-    <div style={{ background: "#F7F3EA", minHeight: "100vh", fontFamily: F.body }}>
+    <div style={{ background: "#FAF6F0", minHeight: "100vh", fontFamily: F.body }}>
 
       {/* ── Header ── */}
       <div style={{ padding: isMobile ? "20px 16px 0" : "32px 32px 0", maxWidth: 1200, margin: "0 auto" }}>
