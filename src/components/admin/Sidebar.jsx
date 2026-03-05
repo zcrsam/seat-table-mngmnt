@@ -26,7 +26,7 @@ function Sidebar({ isOpen, onToggle }) {
         style={{
           width: "20px",
           height: "2px",
-          background: "#E6D5A8",
+          background: "#E05252",
           transition: "all 0.2s ease"
         }}
       />
@@ -34,7 +34,7 @@ function Sidebar({ isOpen, onToggle }) {
         style={{
           width: "20px",
           height: "2px",
-          background: "#E6D5A8",
+          background: "#E05252",
           transition: "all 0.2s ease"
         }}
       />
@@ -42,7 +42,7 @@ function Sidebar({ isOpen, onToggle }) {
         style={{
           width: "20px",
           height: "2px",
-          background: "#E6D5A8",
+          background: "#E05252",
           transition: "all 0.2s ease"
         }}
       />
