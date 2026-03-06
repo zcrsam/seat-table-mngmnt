@@ -284,6 +284,38 @@ function Dashboard({ onLogout }) {
                 />
               </div>
 
+              {/* Stats */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
+                {[
+                  ["TOTAL RESERVATIONS",    reservations.length, "#D3AD53"],
+                  ["PENDING RESERVATIONS",  pending,             "#F49E0C"],
+                  ["APPROVED RESERVATIONS", approved,            "#0FBA81"],
+                  ["REJECTED RESERVATIONS", rejected,            "#F43F5F"],
+                ].map(([lbl, num, acc]) => (
+                  <div
+                    key={lbl}
+                    onClick={() => handleStatClick(lbl)}
+                    style={{
+                      background: lbl.includes("TOTAL")    ? "rgba(211,173,83,0.4)"  :
+                                  lbl.includes("PENDING")  ? "rgba(255,173,34,0.5)"  :
+                                  lbl.includes("APPROVED") ? "rgba(15,186,129,0.4)"  :
+                                                             "rgba(244,63,95,0.4)",
+                      border: `1px solid ${acc}`,
+                      borderRadius: 8, padding: "20px 22px",
+                      position: "relative", overflow: "hidden",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      textAlign: "center", cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.filter = "brightness(0.9)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0px)";  e.currentTarget.style.filter = "brightness(1)"; }}
+                  >
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 45, fontWeight: "600", color: acc, lineHeight: 1, marginBottom: 12 }}>{num}</div>
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "#6B7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>{lbl}</div>
+                  </div>
+                ))}
+              </div>
+
               {/* Filters */}
               <div style={{ marginBottom: 24 }}>
                 <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 9, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 12 }}>EVENTS/VENUES</div>
@@ -402,38 +434,6 @@ function Dashboard({ onLogout }) {
                 >
                   {editMode ? "✓ Editing" : "✏️ Edit Layout"}
                 </button>
-              </div>
-
-              {/* Stats */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
-                {[
-                  ["TOTAL RESERVATIONS",    reservations.length, "#D3AD53"],
-                  ["PENDING RESERVATIONS",  pending,             "#F49E0C"],
-                  ["APPROVED RESERVATIONS", approved,            "#0FBA81"],
-                  ["REJECTED RESERVATIONS", rejected,            "#F43F5F"],
-                ].map(([lbl, num, acc]) => (
-                  <div
-                    key={lbl}
-                    onClick={() => handleStatClick(lbl)}
-                    style={{
-                      background: lbl.includes("TOTAL")    ? "rgba(211,173,83,0.4)"  :
-                                  lbl.includes("PENDING")  ? "rgba(255,173,34,0.5)"  :
-                                  lbl.includes("APPROVED") ? "rgba(15,186,129,0.4)"  :
-                                                             "rgba(244,63,95,0.4)",
-                      border: `1px solid ${acc}`,
-                      borderRadius: 8, padding: "20px 22px",
-                      position: "relative", overflow: "hidden",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                      textAlign: "center", cursor: "pointer",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.filter = "brightness(0.9)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0px)";  e.currentTarget.style.filter = "brightness(1)"; }}
-                  >
-                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 45, fontWeight: "600", color: acc, lineHeight: 1, marginBottom: 12 }}>{num}</div>
-                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "#6B7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>{lbl}</div>
-                  </div>
-                ))}
               </div>
 
               {/* Wing Tabs */}

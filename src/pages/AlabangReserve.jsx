@@ -95,13 +95,13 @@ const s = {
     gap: 28,
     alignItems: "flex-start",
   },
+  // ── KEY FIX: mapCard no longer has its own background/padding/shadow.
+  // SeatMap renders its own "#EFEAD9" canvas card — wrapping it again caused
+  // a double-background that made the client view look different from the
+  // admin canvas.
   mapCard: {
-    background: "#EFEAD9",
-    borderRadius: 12,
-    padding: 24,
     flex: 1,
     minWidth: 320,
-    boxShadow: "0 4px 20px rgba(27,42,74,0.06)",
   },
   rightPanel: {
     width: 260,
@@ -366,7 +366,6 @@ export default function AlabangReserve() {
   const [tableData, setTableData] = useState(() => {
     const raw = getRoomData(WING, ROOM, null);
     if (!raw) return null;
-    // Filter out any ghost tables with no seats (legacy data)
     if (Array.isArray(raw)) return raw.filter(t => t.seats && t.seats.length > 0);
     if (raw.seats && raw.seats.length > 0) return raw;
     return null;
@@ -387,7 +386,6 @@ export default function AlabangReserve() {
     return unsubscribe;
   }, []);
 
-  // One-time cleanup: remove stale legacy localStorage data that has 0 seats
   useEffect(() => {
     try {
       const key = `seatmap:${WING}:${ROOM}`;
@@ -410,12 +408,12 @@ export default function AlabangReserve() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const handleTableClick  = (table) => { setSelectedTable(table); setModal("guestCount"); };
-  const handleSeatClick   = (seat) => setSelectedSeat(seat);
+  const handleTableClick    = (table) => { setSelectedTable(table); setModal("guestCount"); };
+  const handleSeatClick     = (seat) => setSelectedSeat(seat);
   const handleGuestContinue = (g) => { setGuests(g); setModal("details"); };
-  const handleReview      = (form) => { setFormData(form); setModal("review"); };
-  const handleSubmit      = () => setModal("success");
-  const handleBack        = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); };
+  const handleReview        = (form) => { setFormData(form); setModal("review"); };
+  const handleSubmit        = () => setModal("success");
+  const handleBack          = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); };
 
   const isMobile = windowSize.width < 480;
   const isTablet = windowSize.width < 768;
@@ -463,8 +461,9 @@ export default function AlabangReserve() {
 
         {/* Main layout */}
         <div style={{ ...s.layout, ...responsiveLayout }}>
-          {/* Seat Map card */}
-          <div style={s.mapCard}>
+
+          {/* ── Seat Map — no extra wrapper background, SeatMap owns its canvas ── */}
+          <div style={{ ...s.mapCard }}>
             <SeatMap
               tableData={tableData}
               editMode={false}

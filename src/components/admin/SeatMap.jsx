@@ -58,7 +58,6 @@ const DEFAULT_LABELS = [
 ];
 
 // ─── StaticLabel — used ONLY in client (read-only) view ───────────────────────
-// No drag handles, no interactivity, no state.
 function StaticLabel({ item }) {
   const isScreen = item.type === "screen";
   return (
@@ -88,7 +87,6 @@ function StaticLabel({ item }) {
 }
 
 // ─── DraggableLabel — used ONLY in admin (edit) view ─────────────────────────
-// Always shows drag-handle dots; no editMode prop needed here.
 function DraggableLabel({ item, onDragStart, isDragging }) {
   const [hovered, setHovered] = useState(false);
   const isScreen = item.type === "screen";
@@ -128,7 +126,6 @@ function DraggableLabel({ item, onDragStart, isDragging }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Drag-handle dots — always visible in edit mode */}
       <span style={{ display: "flex", flexDirection: "column", gap: 2, opacity: 0.45, marginRight: 1 }}>
         {[0, 1, 2].map(i => (
           <span key={i} style={{ display: "flex", gap: 2 }}>
@@ -143,186 +140,117 @@ function DraggableLabel({ item, onDragStart, isDragging }) {
 }
 
 // ─── Seat Node ────────────────────────────────────────────────────────────────
-function SeatNode({ seat, editMode, onSeatClick, isSelected, onSeatDragStart, isDraggingSeat }) {
+function SeatNode({ seat, isSelected, editMode, isDragging, onSeatClick, onSeatDragStart }) {
   const color = STATUS_COLORS[seat.status] || STATUS_COLORS.available;
   return (
     <div
-      title={editMode ? `Drag to reposition · ${seat.label || seat.num}` : `${seat.label || seat.num} · ${seat.status}`}
-      onClick={e => { e.stopPropagation(); onSeatClick && onSeatClick(seat); }}
-      onMouseDown={editMode && onSeatDragStart ? e => { e.stopPropagation(); onSeatDragStart(e, seat.id); } : undefined}
+      onClick={e => { e.stopPropagation(); if (!isDragging) onSeatClick && onSeatClick(seat); }}
+      onMouseDown={editMode ? e => { e.stopPropagation(); onSeatDragStart && onSeatDragStart(e, seat.id); } : undefined}
       style={{
         width: 44, height: 44, borderRadius: "50%",
         background: color,
         border: isSelected ? "2.5px solid #1B2A4A" : "2.5px solid rgba(255,255,255,0.7)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: editMode ? (isDraggingSeat ? "grabbing" : "grab") : "pointer",
-        boxShadow: isDraggingSeat
-          ? "0 8px 24px rgba(0,0,0,0.35), 0 0 0 3px #C9A84C"
-          : isSelected
-            ? "0 0 0 3px #C9A84C, 0 2px 6px rgba(0,0,0,0.2)"
-            : "0 2px 6px rgba(0,0,0,0.18)",
-        transform: isDraggingSeat ? "scale(1.2)" : "scale(1)",
-        transition: isDraggingSeat ? "box-shadow 0.1s" : "transform 0.12s, box-shadow 0.12s",
+        cursor: editMode ? "grab" : "pointer",
+        boxShadow: isSelected ? "0 0 0 3px #C9A84C, 0 2px 6px rgba(0,0,0,0.2)" : "0 2px 6px rgba(0,0,0,0.18)",
         flexShrink: 0, userSelect: "none",
-        zIndex: isDraggingSeat ? 100 : 1,
+        transition: "box-shadow 0.12s",
       }}
     >
-      <span style={{ color: "#fff", fontSize: 14, fontWeight: 800, fontFamily: F.body, lineHeight: 1 }}>
+      <span style={{ color: "#fff", fontSize: 14, fontWeight: 800, fontFamily: F.body, lineHeight: 1, pointerEvents: "none" }}>
         {seat.num}
       </span>
     </div>
   );
 }
 
-// Drop zone indicator shown when dragging a seat over a side
-function DropZone({ side, active, tableW, tableH }) {
-  const base = {
-    position: "absolute", zIndex: 50, borderRadius: 8, transition: "all 0.15s",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 10, fontWeight: 700, letterSpacing: 1.5,
-    textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif",
-    pointerEvents: "none",
-  };
-  const activeStyle = { background: "rgba(201,168,76,0.25)", border: "2px dashed #C9A84C", color: "#C9A84C" };
-  const idleStyle   = { background: "rgba(201,168,76,0.06)", border: "2px dashed rgba(201,168,76,0.2)", color: "transparent" };
-  const style = active ? activeStyle : idleStyle;
-  const PAD = 6;
-
-  if (side === "top")    return <div style={{ ...base, ...style, top: -54, left: PAD, right: PAD, height: 46 }}>TOP</div>;
-  if (side === "bottom") return <div style={{ ...base, ...style, bottom: -54, left: PAD, right: PAD, height: 46 }}>BOTTOM</div>;
-  if (side === "left")   return <div style={{ ...base, ...style, left: -54, top: PAD, bottom: PAD, width: 46 }}>L</div>;
-  if (side === "right")  return <div style={{ ...base, ...style, right: -54, top: PAD, bottom: PAD, width: 46 }}>R</div>;
-  return null;
-}
-
-// ─── Table Node — seats drag-repositionable on all 4 sides ───────────────────
+// ─── Table Node ───────────────────────────────────────────────────────────────
 function TableNode({
   table, editMode, isTableSelected, selectedSeatId,
   onSelectTable, onDragStart, onResizeStart, onSeatClick, onLabelEdit,
   isDragging, onSeatMove,
 }) {
-  const [hovered, setHovered]           = useState(false);
-  const [editingLabel, setEditingLabel] = useState(false);
-  const [labelVal, setLabelVal]         = useState(table.label || table.id);
+  const [hovered, setHovered]               = useState(false);
+  const [editingLabel, setEditingLabel]     = useState(false);
+  const [labelVal, setLabelVal]             = useState(table.label || table.id);
   const [draggingSeatId, setDraggingSeatId] = useState(null);
-  const [hoverSide, setHoverSide]       = useState(null);
-  const tableRef = useRef(null);
+  const [dropSide, setDropSide]             = useState(null);
+  const [ghostXY, setGhostXY]               = useState(null);
+  const tableBodyRef = useRef(null);
+  const seatDragRef  = useRef(null);
 
   useEffect(() => { setLabelVal(table.label || table.id); }, [table.label, table.id]);
 
-  const SEAT_D   = 44;
-  const SEAT_GAP = 8;
-  const SEAT_OFF = 10;
-
+  const SEAT_D = 44, SEAT_GAP = 8, SEAT_OFF = 10;
   const tableW = Math.max(table.width  || 140, 80);
   const tableH = Math.max(table.height || 70,  50);
   const isCircle = table.shape === "circle";
 
-  // Max seats that fit on top/bottom vs left/right
-  const maxHoriz = Math.max(1, Math.floor(tableW / (SEAT_D + SEAT_GAP)));
-  const maxVert  = Math.max(1, Math.floor(tableH / (SEAT_D + SEAT_GAP)));
-
-  // Auto-distribute: fill top first, then bottom, overflow to left/right
+  const maxH = Math.max(1, Math.floor((tableW + SEAT_GAP) / (SEAT_D + SEAT_GAP)));
+  const maxV = Math.max(1, Math.floor((tableH + SEAT_GAP) / (SEAT_D + SEAT_GAP)));
   const byPos = { top: [], bottom: [], left: [], right: [] };
-  // First pass: use saved positions
-  const unassigned = [];
-  table.seats.forEach((seat, i) => {
-    if (seat.position) {
-      byPos[seat.position].push(seat);
-    } else {
-      unassigned.push({ seat, i });
-    }
-  });
-  // Auto-place unassigned: top → bottom → left → right
-  unassigned.forEach(({ seat }) => {
-    if      (byPos.top.length    < maxHoriz) byPos.top.push(seat);
-    else if (byPos.bottom.length < maxHoriz) byPos.bottom.push(seat);
-    else if (byPos.left.length   < maxVert)  byPos.left.push(seat);
-    else                                      byPos.right.push(seat);
+  const free  = [];
+  table.seats.forEach((s, i) => s.position ? byPos[s.position].push(s) : free.push(s));
+  free.forEach(s => {
+    if      (byPos.top.length    < maxH) byPos.top.push(s);
+    else if (byPos.bottom.length < maxH) byPos.bottom.push(s);
+    else if (byPos.left.length   < maxV) byPos.left.push(s);
+    else                                  byPos.right.push(s);
   });
 
   const topPad   = byPos.top.length    ? SEAT_D + SEAT_OFF : 0;
   const botPad   = byPos.bottom.length ? SEAT_D + SEAT_OFF : 0;
   const leftPad  = byPos.left.length   ? SEAT_D + SEAT_OFF : 0;
   const rightPad = byPos.right.length  ? SEAT_D + SEAT_OFF : 0;
-
   const contW = leftPad + tableW + rightPad;
   const contH = topPad  + tableH + botPad;
-  const tOffX = leftPad;
-  const tOffY = topPad;
-
-  // ── Seat drag logic ────────────────────────────────────────────────────────
-  const seatDragRef = useRef(null);
+  const tOffX = leftPad, tOffY = topPad;
 
   const startSeatDrag = useCallback((e, seatId) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDraggingSeatId(seatId);
+    e.preventDefault(); e.stopPropagation();
     seatDragRef.current = { seatId };
+    setDraggingSeatId(seatId);
+    setGhostXY({ x: e.clientX, y: e.clientY });
   }, []);
 
   useEffect(() => {
-    if (!editMode) return;
-    const onMove = (e) => {
-      if (!seatDragRef.current || !tableRef.current) return;
-      const rect = tableRef.current.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      const w  = rect.width;
-      const h  = rect.height;
-      // Determine which side the cursor is nearest to
-      const distTop    = cy;
-      const distBottom = h - cy;
-      const distLeft   = cx;
-      const distRight  = w - cx;
-      const min = Math.min(distTop, distBottom, distLeft, distRight);
-      if      (min === distTop)    setHoverSide("top");
-      else if (min === distBottom) setHoverSide("bottom");
-      else if (min === distLeft)   setHoverSide("left");
-      else                         setHoverSide("right");
+    if (!draggingSeatId) return;
+    const onMove = e => {
+      setGhostXY({ x: e.clientX, y: e.clientY });
+      if (!tableBodyRef.current) return;
+      const r  = tableBodyRef.current.getBoundingClientRect();
+      const cx = e.clientX - r.left, cy = e.clientY - r.top;
+      const dists = { top: cy, bottom: r.height - cy, left: cx, right: r.width - cx };
+      const side  = Object.entries(dists).sort((a,b)=>a[1]-b[1])[0][0];
+      setDropSide(side);
     };
-    const onUp = (e) => {
-      if (seatDragRef.current && hoverSide) {
-        onSeatMove && onSeatMove(table.id, seatDragRef.current.seatId, hoverSide);
-      }
+    const onUp = () => {
+      if (seatDragRef.current?.seatId && dropSide)
+        onSeatMove && onSeatMove(table.id, seatDragRef.current.seatId, dropSide);
       seatDragRef.current = null;
-      setDraggingSeatId(null);
-      setHoverSide(null);
+      setDraggingSeatId(null); setDropSide(null); setGhostXY(null);
     };
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup",   onUp);
+    window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [editMode, hoverSide, onSeatMove, table.id]);
+  }, [draggingSeatId, dropSide, onSeatMove, table.id]);
 
-  // Render a row/col of seats on one side
   const renderSide = (seats, side) => {
     if (!seats.length) return null;
-    const isHoriz = side === "top" || side === "bottom";
-    const rowPx   = seats.length * (SEAT_D + SEAT_GAP) - SEAT_GAP;
-
-    const style = isHoriz ? {
-      position: "absolute",
-      display: "flex", flexDirection: "row", gap: SEAT_GAP,
-      left: tOffX + tableW / 2 - rowPx / 2,
-      width: rowPx,
-      ...(side === "top"    ? { top:  0               } : {}),
-      ...(side === "bottom" ? { top: tOffY + tableH + SEAT_OFF } : {}),
-    } : {
-      position: "absolute",
-      display: "flex", flexDirection: "column", gap: SEAT_GAP,
-      top: tOffY + tableH / 2 - rowPx / 2,
-      height: rowPx,
-      ...(side === "left"  ? { left: 0                        } : {}),
-      ...(side === "right" ? { left: tOffX + tableW + SEAT_OFF } : {}),
-    };
-
+    const horiz = side === "top" || side === "bottom";
+    const rowPx = seats.length * (SEAT_D + SEAT_GAP) - SEAT_GAP;
+    const pos   = {
+      top:    { top: 0,                          left: tOffX + tableW/2 - rowPx/2 },
+      bottom: { top: tOffY + tableH + SEAT_OFF,  left: tOffX + tableW/2 - rowPx/2 },
+      left:   { left: 0,                         top:  tOffY + tableH/2 - rowPx/2 },
+      right:  { left: tOffX + tableW + SEAT_OFF, top:  tOffY + tableH/2 - rowPx/2 },
+    }[side];
     return (
-      <div key={side} style={style}>
+      <div key={side} style={{ position:"absolute", display:"flex", flexDirection: horiz?"row":"column", gap: SEAT_GAP, ...pos }}>
         {seats.map(seat => (
-          <SeatNode
-            key={seat.id} seat={seat} editMode={editMode}
+          <SeatNode key={seat.id} seat={seat} editMode={editMode}
             isSelected={seat.id === selectedSeatId}
-            isDraggingSeat={draggingSeatId === seat.id}
+            isDragging={draggingSeatId === seat.id}
             onSeatDragStart={startSeatDrag}
             onSeatClick={s => { if (!draggingSeatId) onSeatClick(s, table.id); }}
           />
@@ -332,92 +260,85 @@ function TableNode({
   };
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: table.x, top: table.y,
-        width: contW, height: contH,
-        overflow: "visible",
-        zIndex: isTableSelected ? 10 : 1,
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Seat rows — outside table div, never clipped */}
-      {["top","bottom","left","right"].map(side => renderSide(byPos[side], side))}
+    <>
+      {editMode && draggingSeatId && ghostXY && (() => {
+        const seat  = table.seats.find(s => s.id === draggingSeatId);
+        if (!seat) return null;
+        return (
+          <div style={{
+            position:"fixed", left: ghostXY.x - 22, top: ghostXY.y - 22,
+            width:44, height:44, borderRadius:"50%",
+            background: STATUS_COLORS[seat.status] || STATUS_COLORS.available,
+            border:"2.5px solid rgba(255,255,255,0.8)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            pointerEvents:"none", zIndex:9999,
+            boxShadow:"0 8px 24px rgba(0,0,0,0.35), 0 0 0 3px #C9A84C",
+            transform:"scale(1.2)", opacity:0.93,
+          }}>
+            <span style={{ color:"#fff", fontSize:14, fontWeight:800, fontFamily:F.body }}>{seat.num}</span>
+          </div>
+        );
+      })()}
 
-      {/* Table body */}
-      <div
-        ref={tableRef}
-        style={{
-          position: "absolute", left: tOffX, top: tOffY,
-          width: tableW, height: tableH,
-          background: isTableSelected ? "#162240" : "#2C3E6B",
-          borderRadius: isCircle ? "50%" : 12,
-          display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-          border: isTableSelected
-            ? "2.5px solid #C9A84C"
-            : (hovered && editMode) ? "2.5px solid rgba(201,168,76,0.5)"
-            : "2.5px solid rgba(255,255,255,0.08)",
-          boxShadow: isTableSelected
-            ? "0 0 0 3px #C9A84C44, 0 4px 16px rgba(0,0,0,0.22)"
-            : isDragging ? "0 8px 24px rgba(0,0,0,0.30)"
-            : "0 3px 10px rgba(0,0,0,0.22)",
-          transition: "border 0.15s, box-shadow 0.15s",
-          cursor: editMode ? (isDragging ? "grabbing" : "grab") : "pointer",
-          zIndex: 2, overflow: "visible",
-        }}
-        onMouseDown={editMode ? e => { if (!draggingSeatId) { e.stopPropagation(); onDragStart(e, table.id); } } : undefined}
-        onClick={editMode
-          ? e => { e.stopPropagation(); onSelectTable(table); }
-          : e => { e.stopPropagation(); onSelectTable(table); }}
-        onDoubleClick={editMode ? e => { e.stopPropagation(); setEditingLabel(true); } : undefined}
-      >
-        {/* Drop zone indicators — show when dragging a seat */}
-        {editMode && draggingSeatId && (
-          <>
-            <DropZone side="top"    active={hoverSide === "top"}    tableW={tableW} tableH={tableH} />
-            <DropZone side="bottom" active={hoverSide === "bottom"} tableW={tableW} tableH={tableH} />
-            <DropZone side="left"   active={hoverSide === "left"}   tableW={tableW} tableH={tableH} />
-            <DropZone side="right"  active={hoverSide === "right"}  tableW={tableW} tableH={tableH} />
-          </>
-        )}
+      <div style={{ position:"absolute", left:table.x, top:table.y, width:contW, height:contH, overflow:"visible", zIndex:isTableSelected?10:1 }}
+        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
 
-        {editingLabel ? (
-          <input autoFocus value={labelVal}
-            onChange={e => setLabelVal(e.target.value)}
-            onBlur={() => { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); }}
-            onKeyDown={e => { if (e.key === "Enter") { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); } e.stopPropagation(); }}
-            onClick={e => e.stopPropagation()}
-            onMouseDown={e => e.stopPropagation()}
-            style={{ background: "transparent", border: "none", outline: "none", color: "#fff", fontFamily: F.body, fontWeight: 700, fontSize: 16, letterSpacing: 1.5, textAlign: "center", width: "85%", textTransform: "uppercase" }}
-          />
-        ) : (
-          <>
-            <div style={{ color: "#fff", fontFamily: F.body, fontWeight: 700, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1.3, textAlign: "center", padding: "0 8px" }}>
-              {table.label || table.id}
-            </div>
-            {table.seats.length > 0 && (
-              <div style={{ color: "#A0AABB", fontFamily: F.body, fontSize: 13, letterSpacing: 1, marginTop: 3 }}>
-                {table.seats.length} SEATS
-              </div>
-            )}
-          </>
-        )}
+        {["top","bottom","left","right"].map(side => renderSide(byPos[side], side))}
 
-        {/* Resize handles */}
-        {editMode && isTableSelected && (
-          <>
-            <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "ew-resize", zIndex: 20, border: "1.5px solid #fff", right: -5, top: "50%", transform: "translateY(-50%)" }}
-              onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "e"); }} />
-            <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "ns-resize", zIndex: 20, border: "1.5px solid #fff", bottom: -5, left: "50%", transform: "translateX(-50%)" }}
-              onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "s"); }} />
-            <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "nwse-resize", zIndex: 20, border: "1.5px solid #fff", right: -5, bottom: -5 }}
-              onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "se"); }} />
-          </>
-        )}
+        <div ref={tableBodyRef} style={{
+            position:"absolute", left:tOffX, top:tOffY, width:tableW, height:tableH,
+            background: isTableSelected ? "#162240" : "#2C3E6B",
+            borderRadius: isCircle ? "50%" : 12,
+            display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column",
+            border: isTableSelected ? "2.5px solid #C9A84C"
+                  : (hovered && editMode) ? "2.5px solid rgba(201,168,76,0.5)"
+                  : "2.5px solid rgba(255,255,255,0.08)",
+            boxShadow: isTableSelected ? "0 0 0 3px #C9A84C44, 0 4px 16px rgba(0,0,0,0.22)"
+                     : isDragging ? "0 8px 24px rgba(0,0,0,0.30)" : "0 3px 10px rgba(0,0,0,0.22)",
+            transition:"border 0.15s, box-shadow 0.15s",
+            cursor: editMode ? (isDragging ? "grabbing" : "grab") : "pointer",
+            zIndex:2, overflow:"visible",
+          }}
+          onMouseDown={editMode ? e => { if (!draggingSeatId) { e.stopPropagation(); onDragStart(e, table.id); } } : undefined}
+          onClick={e => { e.stopPropagation(); onSelectTable(table); }}
+          onDoubleClick={editMode ? e => { e.stopPropagation(); setEditingLabel(true); } : undefined}
+        >
+          {editMode && draggingSeatId && ["top","bottom","left","right"].map(side => {
+            const active = dropSide === side;
+            const s = { position:"absolute", zIndex:10, pointerEvents:"none", borderRadius:6, transition:"all 0.1s",
+              background: active ? "rgba(201,168,76,0.25)" : "rgba(201,168,76,0.07)",
+              border: active ? "2px dashed #C9A84C" : "2px dashed rgba(201,168,76,0.3)" };
+            const P = 5;
+            if (side==="top")    return <div key={side} style={{ ...s, top:P,    left:P,  right:P,  height:30 }} />;
+            if (side==="bottom") return <div key={side} style={{ ...s, bottom:P, left:P,  right:P,  height:30 }} />;
+            if (side==="left")   return <div key={side} style={{ ...s, left:P,   top:P,   bottom:P, width:30  }} />;
+            if (side==="right")  return <div key={side} style={{ ...s, right:P,  top:P,   bottom:P, width:30  }} />;
+            return null;
+          })}
+
+          {editingLabel ? (
+            <input autoFocus value={labelVal}
+              onChange={e => setLabelVal(e.target.value)}
+              onBlur={() => { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); }}
+              onKeyDown={e => { if (e.key==="Enter") { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); } e.stopPropagation(); }}
+              onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+              style={{ background:"transparent", border:"none", outline:"none", color:"#fff", fontFamily:F.body, fontWeight:700, fontSize:16, letterSpacing:1.5, textAlign:"center", width:"85%", textTransform:"uppercase" }}
+            />
+          ) : (
+            <>
+              <div style={{ color:"#fff", fontFamily:F.body, fontWeight:700, fontSize:16, letterSpacing:1.5, textTransform:"uppercase", lineHeight:1.3, textAlign:"center", padding:"0 8px" }}>{table.label || table.id}</div>
+              {table.seats.length > 0 && <div style={{ color:"#A0AABB", fontFamily:F.body, fontSize:13, letterSpacing:1, marginTop:3 }}>{table.seats.length} SEATS</div>}
+            </>
+          )}
+
+          {editMode && isTableSelected && (<>
+            <div style={{ position:"absolute", width:10, height:10, background:"#C9A84C", borderRadius:2, cursor:"ew-resize", zIndex:20, border:"1.5px solid #fff", right:-5, top:"50%", transform:"translateY(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "e"); }} />
+            <div style={{ position:"absolute", width:10, height:10, background:"#C9A84C", borderRadius:2, cursor:"ns-resize", zIndex:20, border:"1.5px solid #fff", bottom:-5, left:"50%", transform:"translateX(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "s"); }} />
+            <div style={{ position:"absolute", width:10, height:10, background:"#C9A84C", borderRadius:2, cursor:"nwse-resize", zIndex:20, border:"1.5px solid #fff", right:-5, bottom:-5 }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "se"); }} />
+          </>)}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -435,15 +356,17 @@ function HowToUse() {
     ["💾",  "Click Save Layout to push changes live to the client view."],
   ];
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div>
       <button onClick={() => setOpen(o => !o)} style={{
         display: "inline-flex", alignItems: "center", gap: 7,
         background: open ? "#1B2A4A" : "#fff", color: open ? "#C9A84C" : "#1B2A4A",
         border: "2px solid #1B2A4A", borderRadius: 8, padding: "7px 16px",
         fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1.2,
         cursor: "pointer", textTransform: "uppercase", transition: "all 0.15s",
+        width: "100%", justifyContent: "space-between",
       }}>
-        ? How to Use <span style={{ fontSize: 9 }}>{open ? "▲" : "▼"}</span>
+        <span>? How to Use</span>
+        <span style={{ fontSize: 9 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div style={{ marginTop: 8, background: "#fff", border: "1.5px solid #E8E3DC", borderRadius: 10, padding: "14px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.07)" }}>
@@ -530,10 +453,7 @@ function Legend() {
   );
 }
 
-// ─── ScaledCanvas — renders children at virtualW×virtualH, scales to fill width
-// This makes the seat map look identical at every viewport size, just like
-// an SVG viewBox. The outer div is sized by paddingTop % trick so height
-// tracks width proportionally.
+// ─── ScaledCanvas ─────────────────────────────────────────────────────────────
 function ScaledCanvas({ virtualW, virtualH, children, onScale }) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -557,13 +477,11 @@ function ScaledCanvas({ virtualW, virtualH, children, onScale }) {
       ref={containerRef}
       style={{
         width: "100%",
-        // Height = scaled virtual height so the outer box fits exactly
         height: virtualH * scale,
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* Inner canvas at full virtual size, scaled down to fit */}
       <div style={{
         position: "absolute",
         top: 0, left: 0,
@@ -603,9 +521,9 @@ export default function SeatMap({
   const [tool, setTool]             = useState("select");
   const [activeDragId, setActiveDragId] = useState(null);
 
-  const dragging     = useRef(null);
-  const canvasRef    = useRef(null);
-  const adminScaleRef = useRef(1); // tracks current scale of admin canvas
+  const dragging      = useRef(null);
+  const canvasRef     = useRef(null);
+  const adminScaleRef = useRef(1);
 
   // ── ADMIN: load saved layout from localStorage ────────────────────────────
   useEffect(() => {
@@ -616,9 +534,6 @@ export default function SeatMap({
         const parsed = JSON.parse(raw);
         let norm = normalize(parsed).filter(t => t.seats && t.seats.length > 0);
 
-        // Re-normalize coordinates: shift all tables so the leftmost starts
-        // at x=40 and topmost starts at y=40. This fixes layouts saved when
-        // the canvas was in a different viewport size.
         if (norm.length > 0) {
           const SEAT_APPROX_W = 32, SEAT_GAP_PX = 6, PAD = 40;
           const allX = norm.flatMap(t => {
@@ -650,11 +565,9 @@ export default function SeatMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode, wing, room]);
 
-  // ── CLIENT: sync tables from prop (passed from AlabangReserve) ───────────
+  // ── CLIENT: sync tables from prop ────────────────────────────────────────
   useEffect(() => {
     if (editMode) return;
-    // Raw coordinates are normalized in the client render itself (shiftedTables),
-    // so we just store them as-is here.
     const norm = normalize(tableData).filter(t => t.seats && t.seats.length > 0);
     setTables(norm);
   }, [tableData, normalize, editMode]);
@@ -670,7 +583,6 @@ export default function SeatMap({
       } catch {}
     };
     loadLabels();
-    // Re-load whenever admin hits Save Layout
     const onStorage = (e) => { if (e.key === LABEL_KEY) loadLabels(); };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -734,7 +646,6 @@ export default function SeatMap({
     if (!editMode || tool !== "addTable") return;
     const rect = canvasRef.current?.getBoundingClientRect();
     const s = adminScaleRef.current || 1;
-    // Divide by scale to convert screen pixels → virtual canvas coordinates
     const t = makeTable(
       Math.max(0, (e.clientX - rect.left) / s - 55),
       Math.max(0, (e.clientY - rect.top)  / s - 27)
@@ -775,32 +686,28 @@ export default function SeatMap({
   const handleSeatLabelEdit = (val) => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
   const handleSeatStatus    = (status) => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
   const handleSeatPosition  = (position) => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, position } : s) })); };
-  // Called when user drags a seat to a new side of its table
   const handleSeatMove = (tableId, seatId, newPosition) => {
     setTables(prev => prev.map(t => t.id !== tableId ? t : {
       ...t,
       seats: t.seats.map(s => s.id === seatId ? { ...s, position: newPosition } : s)
     }));
   };
-  const handleSeatClick     = (seat, tableId) => { if (!editMode) { onSeatClick && onSeatClick(seat, tableId); return; } setSelected({ type: "seat", tableId, seatId: seat.id }); };
-  const handleTableSelect   = (table) => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick && onTableClick(table); };
+  const handleSeatClick   = (seat, tableId) => { if (!editMode) { onSeatClick && onSeatClick(seat, tableId); return; } setSelected({ type: "seat", tableId, seatId: seat.id }); };
+  const handleTableSelect = (table) => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick && onTableClick(table); };
 
   const handleSave = () => {
     if (wing && room) {
       const payload = tables.length === 1 ? tables[0] : tables;
-      // Save tables + fire storage event so client picks up changes on same page
       try {
         const tableKey = `seatmap:${wing}:${room}`;
         localStorage.setItem(tableKey, JSON.stringify(payload));
         window.dispatchEvent(new StorageEvent("storage", { key: tableKey, newValue: JSON.stringify(payload) }));
       } catch {}
-      // Save label positions + fire storage event
       try {
         const labelKey = `seatmap_labels:${wing}:${room}`;
         localStorage.setItem(labelKey, JSON.stringify(labels));
         window.dispatchEvent(new StorageEvent("storage", { key: labelKey, newValue: JSON.stringify(labels) }));
       } catch {}
-      // Also fire custom event (for AlabangReserve's subscribeToSeatMapChanges)
       dispatchSeatMapUpdate(wing, room, payload);
     }
     setSaved(true);
@@ -811,23 +718,19 @@ export default function SeatMap({
     <button onClick={onClick} style={{ padding: "8px 16px", border: `2px solid ${active ? "#C9A84C" : "#D8D2C8"}`, background: active ? "#C9A84C" : "#fff", color: active ? "#1B2A4A" : "#555", borderRadius: 8, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1, cursor: "pointer", textTransform: "uppercase", transition: "all 0.13s", whiteSpace: "nowrap" }}>{label}</button>
   );
 
-  // Shared canvas style
   const canvasStyle = {
     background: "#EFEAD9",
     borderRadius: 12,
-    overflow: "hidden",   // clip to canvas boundary but seats inside are overflow:visible
+    overflow: "hidden",
     userSelect: "none",
     boxShadow: "0 4px 20px rgba(27,42,74,0.06)",
     width: "100%",
   };
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CLIENT VIEW — uses a fixed virtual canvas (1200×700) that scales to fill
-  // 100% of available width at every screen size, identical layout always.
+  // CLIENT VIEW
   // ══════════════════════════════════════════════════════════════════════════
   if (!editMode) {
-    // Fixed virtual canvas — same reference frame the admin editor uses.
-    // All saved x/y coordinates are within this space.
     const VIRTUAL_W = 1200;
     const VIRTUAL_H = 700;
 
@@ -852,109 +755,111 @@ export default function SeatMap({
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ADMIN / EDIT VIEW — full width canvas, panels above, DraggableLabel
+  // ADMIN / EDIT VIEW — canvas LEFT, panels RIGHT
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ fontFamily: F.body, width: "100%" }}>
 
-      {/* Title */}
-      <h2 style={{ margin: "0 0 16px 0", fontFamily: F.display, fontSize: 26, fontWeight: 700, color: "#1B2A4A", letterSpacing: 0.5 }}>
-        Layout Editor
-        {wing && room && <span style={{ fontSize: 14, fontFamily: F.body, fontWeight: 400, color: "#8A7F6E", marginLeft: 12 }}>{wing} — {room}</span>}
-      </h2>
-
-      {/* How To Use */}
-      <HowToUse />
-
-      {/* Inspector + Legend + Label list — all ABOVE the canvas */}
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "12px 0 20px" }}>
-        <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 340 }}>
-          <Inspector
-            selected={selected} selectedTable={selectedTable} selectedSeatObj={selectedSeatObj}
-            tables={tables} setTables={setTables}
-            addSeat={addSeat} deleteSeat={deleteSeat} deleteTable={deleteTable}
-            updateTable={updateTable} handleSeatLabelEdit={handleSeatLabelEdit} handleSeatStatus={handleSeatStatus} handleSeatPosition={handleSeatPosition}
-          />
-        </div>
-        <div style={{ flex: "0 0 auto" }}><Legend /></div>
-        <div style={{ flex: "0 0 auto", minWidth: 180, background: "#fff", borderRadius: 10, padding: "14px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 8, textTransform: "uppercase" }}>Draggable Labels</div>
-          <div style={{ fontSize: 11, color: "#888", fontFamily: F.body, marginBottom: 8, lineHeight: 1.5 }}>Drag these on the canvas:</div>
-          {labels.map(lbl => (
-            <div key={lbl.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: lbl.type === "screen" ? "#1B2A4A" : "#D8D2C8", flexShrink: 0 }} />
-              <span style={{ fontFamily: F.body, fontSize: 12, color: "#555", fontWeight: 500, textTransform: "uppercase", letterSpacing: 1 }}>{lbl.label}</span>
-              <span style={{ marginLeft: "auto", fontSize: 10, color: "#bbb" }}>⠿ drag</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      
 
       {/* Toolbar */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
         <TBtn label="☰ Select"  active={tool === "select"}   onClick={() => setTool("select")} />
         <TBtn label="＋ Table"  active={tool === "addTable"} onClick={() => setTool("addTable")} />
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-          {saved && <span style={{ padding: "5px 12px", background: "#E8F5EE", color: "#4CAF79", borderRadius: 5, fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>✓ Saved</span>}
+          {saved && (
+            <span style={{ padding: "5px 12px", background: "#E8F5EE", color: "#4CAF79", borderRadius: 5, fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>
+              ✓ Saved
+            </span>
+          )}
           <button onClick={handleSave} style={{ padding: "8px 22px", background: "#1B2A4A", color: "#fff", border: "none", borderRadius: 8, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1.5, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}>
             💾 Save Layout
           </button>
         </div>
       </div>
 
-      {/* EDITING CANVAS — scaled 1200×700 virtual canvas, same as client view */}
-      <div style={{
-        ...canvasStyle,
-        border: tool === "addTable" ? "2px dashed #C9A84C" : "2px solid transparent",
-        transition: "border 0.2s",
-        overflow: "hidden",
-      }}>
-        {tool === "addTable" && (
-          <div style={{ background: "#C9A84C", color: "#1B2A4A", padding: "6px 0", textAlign: "center", fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1.5 }}>
-            CLICK ANYWHERE BELOW TO PLACE A TABLE
+      {/* Two-column layout: canvas LEFT, panels RIGHT */}
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+
+        {/* LEFT — editing canvas */}
+        <div style={{ flex: "1 1 0", minWidth: 0 }}>
+          <div style={{
+            ...canvasStyle,
+            border: tool === "addTable" ? "2px dashed #C9A84C" : "2px solid transparent",
+            transition: "border 0.2s",
+            overflow: "hidden",
+          }}>
+            {tool === "addTable" && (
+              <div style={{ background: "#C9A84C", color: "#1B2A4A", padding: "6px 0", textAlign: "center", fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1.5 }}>
+                CLICK ANYWHERE BELOW TO PLACE A TABLE
+              </div>
+            )}
+            <ScaledCanvas
+              virtualW={1200}
+              virtualH={700}
+              onScale={s => { adminScaleRef.current = s; }}
+            >
+              {/* Invisible click/drag capture layer */}
+              <div
+                ref={canvasRef}
+                style={{ position: "absolute", inset: 0, cursor: tool === "addTable" ? "crosshair" : "default" }}
+                onClick={handleCanvasClick}
+                onMouseDown={e => { if (tool === "select" && e.target === canvasRef.current) setSelected(null); }}
+              />
+
+              {labels.map(lbl => (
+                <DraggableLabel key={lbl.id} item={lbl}
+                  onDragStart={(e, id) => startLabelDrag(e, id)}
+                  isDragging={activeDragId === lbl.id} />
+              ))}
+
+              {tables.map(table => (
+                <TableNode
+                  key={table.id} table={table} editMode={true}
+                  isTableSelected={selected?.tableId === table.id}
+                  selectedSeatId={selected?.type === "seat" && selected?.tableId === table.id ? selected.seatId : null}
+                  onSelectTable={handleTableSelect}
+                  onDragStart={startTableDrag} onResizeStart={startResize}
+                  onSeatClick={handleSeatClick} onLabelEdit={handleLabelEdit}
+                  isDragging={activeDragId === table.id}
+                  onSeatMove={handleSeatMove}
+                />
+              ))}
+
+              {tables.length === 0 && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                  <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.25 }}>🪑</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: "#A09890", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600 }}>No tables yet — click + Table to add one</div>
+                </div>
+              )}
+            </ScaledCanvas>
           </div>
-        )}
-        <ScaledCanvas
-          virtualW={1200}
-          virtualH={700}
-          onScale={s => { adminScaleRef.current = s; }}
-        >
-          {/* Invisible click/drag capture layer covering the whole virtual canvas */}
-          <div
-            ref={canvasRef}
-            style={{ position: "absolute", inset: 0, cursor: tool === "addTable" ? "crosshair" : "default" }}
-            onClick={handleCanvasClick}
-            onMouseDown={e => { if (tool === "select" && e.target === canvasRef.current) setSelected(null); }}
+        </div>
+
+        {/* RIGHT — side panels stacked vertically */}
+        <div style={{ flex: "0 0 280px", width: 280, display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* How To Use */}
+          <HowToUse />
+
+          {/* Inspector */}
+          <Inspector
+            selected={selected} selectedTable={selectedTable} selectedSeatObj={selectedSeatObj}
+            tables={tables} setTables={setTables}
+            addSeat={addSeat} deleteSeat={deleteSeat} deleteTable={deleteTable}
+            updateTable={updateTable} handleSeatLabelEdit={handleSeatLabelEdit}
+            handleSeatStatus={handleSeatStatus} handleSeatPosition={handleSeatPosition}
           />
 
-          {/* DraggableLabel — admin edit view, always has handles */}
-          {labels.map(lbl => (
-            <DraggableLabel key={lbl.id} item={lbl}
-              onDragStart={(e, id) => startLabelDrag(e, id)}
-              isDragging={activeDragId === lbl.id} />
-          ))}
+          {/* Legend */}
+          <Legend />
 
-          {tables.map(table => (
-            <TableNode
-              key={table.id} table={table} editMode={true}
-              isTableSelected={selected?.tableId === table.id}
-              selectedSeatId={selected?.type === "seat" && selected?.tableId === table.id ? selected.seatId : null}
-              onSelectTable={handleTableSelect}
-              onDragStart={startTableDrag} onResizeStart={startResize}
-              onSeatClick={handleSeatClick} onLabelEdit={handleLabelEdit}
-              isDragging={activeDragId === table.id}
-              onSeatMove={handleSeatMove}
-            />
-          ))}
+          
 
-          {tables.length === 0 && (
-            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-              <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.25 }}>🪑</div>
-              <div style={{ fontFamily: F.body, fontSize: 12, color: "#A09890", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600 }}>No tables yet — click + Table to add one</div>
-            </div>
-          )}
-        </ScaledCanvas>
+        </div>
+        {/* END right panel */}
       </div>
+      {/* END two-column layout */}
     </div>
   );
 }
