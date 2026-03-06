@@ -1,53 +1,251 @@
+// src/components/admin/Sidebar.jsx
 import { useState } from "react";
 
-function Sidebar({ isOpen, onToggle }) {
+const F = { body: "Montserrat, sans-serif" };
+
+const NAV_ITEMS = [
+  { id: "reservations", label: "Reservations", icon: "📋" },
+  { id: "seat-map",     label: "Seat Map",      icon: "🗺️" },
+];
+
+// ─── Hamburger Toggle Button ──────────────────────────────────────────────────
+function HamburgerBtn({ onClick, isOpen }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
-      onClick={onToggle}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={isOpen ? "Collapse sidebar" : "Expand sidebar"}
       style={{
-        width: "32px",
-        height: "32px",
-        background: "transparent",
+        width: 36,
+        height: 36,
+        background: hovered ? "rgba(201,168,76,0.12)" : "transparent",
         border: "none",
         cursor: "pointer",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        gap: "4px",
-        padding: "6px",
-        borderRadius: "4px",
-        transition: "all 0.2s ease"
+        gap: 5,
+        padding: 6,
+        borderRadius: 6,
+        transition: "background 0.2s",
+        flexShrink: 0,
       }}
-      onMouseEnter={e => e.target.style.background = "rgba(201, 168, 76, 0.1)"}
-      onMouseLeave={e => e.target.style.background = "transparent"}
     >
-      <span
-        style={{
-          width: "20px",
-          height: "2px",
-          background: "#E6D5A8",
-          transition: "all 0.2s ease"
-        }}
-      />
-      <span
-        style={{
-          width: "20px",
-          height: "2px",
-          background: "#E6D5A8",
-          transition: "all 0.2s ease"
-        }}
-      />
-      <span
-        style={{
-          width: "20px",
-          height: "2px",
-          background: "#E6D5A8",
-          transition: "all 0.2s ease"
-        }}
-      />
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          style={{
+            display: "block",
+            width: i === 1 && isOpen ? 12 : 18,
+            height: 2,
+            background: "#C9A84C",
+            borderRadius: 2,
+            transition: "width 0.2s",
+            marginLeft: i === 1 && isOpen ? "auto" : 0,
+          }}
+        />
+      ))}
     </button>
   );
 }
 
-export default Sidebar;
+// ─── Nav Item ─────────────────────────────────────────────────────────────────
+function NavItem({ item, isActive, isOpen, onClick }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={() => onClick(item.id)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={!isOpen ? item.label : undefined}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: isOpen ? "11px 20px" : "11px 0",
+        justifyContent: isOpen ? "flex-start" : "center",
+        fontFamily: F.body,
+        fontSize: 12,
+        color: isActive ? "#C9A84C" : hovered ? "#C9A84C" : "#555",
+        background: isActive
+          ? "rgba(201,168,76,0.10)"
+          : hovered
+          ? "rgba(201,168,76,0.05)"
+          : "transparent",
+        borderLeft: isActive ? "3px solid #C9A84C" : "3px solid transparent",
+        cursor: "pointer",
+        fontWeight: isActive ? 700 : 400,
+        transition: "all 0.15s",
+        userSelect: "none",
+        borderRadius: isOpen ? "0 6px 6px 0" : 0,
+      }}
+    >
+      <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
+      {isOpen && (
+        <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>
+          {item.label}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Stat Row ─────────────────────────────────────────────────────────────────
+function StatRow({ label, value, color, isOpen }) {
+  if (!isOpen) return null;
+  return (
+    <div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "7px 20px",
+      fontFamily: F.body,
+      fontSize: 11,
+    }}>
+      <span style={{ color: "#777" }}>{label}</span>
+      <span style={{
+        color,
+        fontWeight: 700,
+        background: `${color}18`,
+        padding: "2px 8px",
+        borderRadius: 10,
+        fontSize: 11,
+        minWidth: 24,
+        textAlign: "center",
+      }}>{value}</span>
+    </div>
+  );
+}
+
+// ─── MAIN SIDEBAR COMPONENT ───────────────────────────────────────────────────
+export default function Sidebar({
+  activeNav,
+  onNavChange,
+  pending,
+  approved,
+  rejected,
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <aside style={{
+      width: isOpen ? 220 : 52,
+      minHeight: "calc(100vh - 60px)",
+      background: "#FAF6F0", // Light cream background/ sidebar background
+      borderRight: "1px solid rgba(201,168,76,0.18)",
+      display: "flex",
+      flexDirection: "column",
+      flexShrink: 0,
+      transition: "width 0.25s ease",
+      overflow: "hidden",
+    }}>
+
+      {/* ── Top: logo area + hamburger ── */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: isOpen ? "space-between" : "center",
+        padding: isOpen ? "20px 16px 20px 20px" : "20px 0",
+        borderBottom: "1px solid rgba(201,168,76,0.12)",
+        flexShrink: 0,
+      }}>
+        {isOpen && (
+          <div style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: 15,
+            fontWeight: 700,
+            color: "#1B2A4A",
+            letterSpacing: 0.5,
+            lineHeight: 1.2,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}>
+            Bellevue<br />
+            <span style={{ color: "#C9A84C", fontSize: 10, fontFamily: F.body, letterSpacing: 2, fontWeight: 700 }}>ADMIN PANEL</span>
+          </div>
+        )}
+        <HamburgerBtn isOpen={isOpen} onClick={() => setIsOpen(o => !o)} />
+      </div>
+
+      {/* ── Navigation ── */}
+      <div style={{ paddingTop: 16, flexShrink: 0 }}>
+        {isOpen && (
+          <div style={{
+            padding: "0 20px",
+            marginBottom: 8,
+            fontSize: 9,
+            letterSpacing: 2,
+            color: "#BBBBBB",
+            fontFamily: F.body,
+            fontWeight: 700,
+            textTransform: "uppercase",
+          }}>
+            Navigation
+          </div>
+        )}
+        {NAV_ITEMS.map(item => (
+          <NavItem
+            key={item.id}
+            item={item}
+            isActive={activeNav === item.id}
+            isOpen={isOpen}
+            onClick={onNavChange}
+          />
+        ))}
+      </div>
+
+      {/* ── Divider ── */}
+      <div style={{ height: 1, background: "rgba(201,168,76,0.12)", margin: "20px 0 4px" }} />
+
+      {/* ── Quick Stats ── */}
+      {isOpen && (
+        <div style={{ paddingBottom: 16 }}>
+          <div style={{
+            padding: "0 20px",
+            marginBottom: 10,
+            fontSize: 9,
+            letterSpacing: 2,
+            color: "#BBBBBB",
+            fontFamily: F.body,
+            fontWeight: 700,
+            textTransform: "uppercase",
+          }}>
+            Quick Stats
+          </div>
+          <StatRow label="Pending"  value={pending}  color="#E8A838" isOpen={isOpen} />
+          <StatRow label="Approved" value={approved} color="#4CAF79" isOpen={isOpen} />
+          <StatRow label="Rejected" value={rejected} color="#E05252" isOpen={isOpen} />
+        </div>
+      )}
+
+      {/* ── Collapsed: dot indicators for stats ── */}
+      {!isOpen && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, paddingTop: 8 }}>
+          {[["#E8A838", pending], ["#4CAF79", approved], ["#E05252", rejected]].map(([color, val], i) => (
+            val > 0 && (
+              <div key={i} style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: color,
+                boxShadow: `0 0 0 2px ${color}33`,
+              }} />
+            )
+          ))}
+        </div>
+      )}
+
+      {/* ── Bottom spacer / version ── */}
+      <div style={{ marginTop: "auto", padding: isOpen ? "14px 20px" : "14px 0", textAlign: isOpen ? "left" : "center" }}>
+        {isOpen ? (
+          <div style={{ fontSize: 9, color: "#CCC", fontFamily: F.body, letterSpacing: 1 }}>
+            v1.0 · Admin Dashboard
+          </div>
+        ) : (
+          <div style={{ fontSize: 9, color: "#CCC", fontFamily: F.body }}>v1</div>
+        )}
+      </div>
+    </aside>
+  );
+}

@@ -95,10 +95,6 @@ const s = {
     gap: 28,
     alignItems: "flex-start",
   },
-  // ── KEY FIX: mapCard no longer has its own background/padding/shadow.
-  // SeatMap renders its own "#EFEAD9" canvas card — wrapping it again caused
-  // a double-background that made the client view look different from the
-  // admin canvas.
   mapCard: {
     flex: 1,
     minWidth: 320,
@@ -163,53 +159,194 @@ const s = {
   policyTitle: { fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 8, textTransform: "uppercase" },
   policyText: { fontFamily: F.body, fontSize: 12, color: "#666", lineHeight: 1.6 },
 
-  // Modal shared
-  overlay: { position: "fixed", inset: 0, background: "rgba(27,42,74,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(3px)" },
-  modalNavy: { background: "#1B2A4A", borderRadius: 14, padding: "36px 40px", width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.35)", color: "#fff", position: "relative" },
-  modalTag: { fontFamily: F.body, fontSize: 9, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" },
-  modalTitle: { fontFamily: F.display, fontSize: 28, fontWeight: 700, color: "#fff", marginBottom: 4 },
+  // ── Modal shared (white) ──────────────────────────────────────────────────
+  overlay: {
+    position: "fixed", inset: 0,
+    background: "rgba(27,42,74,0.55)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    zIndex: 1000, backdropFilter: "blur(3px)",
+  },
+  // White modal card — used for all 3 steps
+  modalWhite: {
+    background: "#fff",
+    borderRadius: 14,
+    padding: "36px 40px",
+    width: 440,
+    maxWidth: "90vw",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+    color: "#1B2A4A",
+    position: "relative",
+    maxHeight: "90vh",
+    overflowY: "auto",
+  },
+  modalTag: {
+    fontFamily: F.body,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: "#C9A84C",
+    fontWeight: 700,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  modalTitle: {
+    fontFamily: F.display,
+    fontSize: 28,
+    fontWeight: 700,
+    color: "#1B2A4A",
+    marginBottom: 4,
+  },
+
+  // Step indicator
   stepRow: { display: "flex", alignItems: "center", gap: 6, marginBottom: 24, marginTop: 6 },
-  stepItem: (active, done) => ({ fontFamily: F.body, fontSize: 9, letterSpacing: 1.5, fontWeight: 700, color: done ? "#C9A84C" : active ? "#fff" : "#5A6A8A", display: "flex", alignItems: "center", gap: 4 }),
-  stepDot: (active, done) => ({ width: 6, height: 6, borderRadius: "50%", background: done ? "#C9A84C" : active ? "#fff" : "#3A4A6A" }),
-  stepDivider: { flex: 1, height: 1, background: "#3A4A6A", maxWidth: 20 },
+  stepItem: (active, done) => ({
+    fontFamily: F.body, fontSize: 9, letterSpacing: 1.5, fontWeight: 700,
+    color: done ? "#C9A84C" : active ? "#1B2A4A" : "#BBBBBB",
+    display: "flex", alignItems: "center", gap: 4,
+  }),
+  stepDot: (active, done) => ({
+    width: 6, height: 6, borderRadius: "50%",
+    background: done ? "#C9A84C" : active ? "#1B2A4A" : "#DDDDDD",
+  }),
+  stepDivider: { flex: 1, height: 1, background: "#E0E0E0", maxWidth: 20 },
+
+  // Counter (guest count step)
   counterWrap: { textAlign: "center", margin: "24px 0 8px" },
   counterRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 24, marginBottom: 6 },
-  counterBtn: { width: 32, height: 32, borderRadius: "50%", border: "2px solid #C9A84C", background: "transparent", color: "#C9A84C", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" },
-  counterNum: { fontFamily: F.display, fontSize: 52, fontWeight: 700, color: "#fff", lineHeight: 1 },
-  counterLabel: { fontFamily: F.body, fontSize: 9, letterSpacing: 2, color: "#A0AABB", fontWeight: 700, textTransform: "uppercase" },
-  counterNote: { fontFamily: F.body, fontSize: 12, color: "#A0AABB", marginBottom: 24, lineHeight: 1.6, textAlign: "center" },
-  continueBtn: { width: "100%", padding: "14px 0", background: "#1B2A4A", color: "#fff", border: "2px solid #fff", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 12, letterSpacing: 2, cursor: "pointer", marginBottom: 10, textTransform: "uppercase" },
-  cancelBtn: { width: "100%", padding: "10px 0", background: "transparent", color: "#A0AABB", border: "none", fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 2, cursor: "pointer" },
-  formLabel: { fontFamily: F.body, fontSize: 10, fontWeight: 700, letterSpacing: 1, color: "#A0AABB", marginBottom: 4, display: "block", textTransform: "uppercase" },
-  formInput: { width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #3A4A6A", background: "#0F1E38", color: "#fff", fontFamily: F.body, fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none" },
-  formRow: { display: "flex", gap: 10 },
-  timerBar: { background: "#0F1E38", borderRadius: 8, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, fontSize: 11, fontFamily: F.body, color: "#A0AABB", letterSpacing: 1 },
+  counterBtn: {
+    width: 32, height: 32, borderRadius: "50%",
+    border: "2px solid #C9A84C", background: "transparent",
+    color: "#C9A84C", fontSize: 18, cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold",
+  },
+  counterNum: { fontFamily: F.display, fontSize: 52, fontWeight: 700, color: "#1B2A4A", lineHeight: 1 },
+  counterLabel: { fontFamily: F.body, fontSize: 9, letterSpacing: 2, color: "#999", fontWeight: 700, textTransform: "uppercase" },
+  counterNote: { fontFamily: F.body, fontSize: 12, color: "#666", marginBottom: 24, lineHeight: 1.6, textAlign: "center" },
+
+  // Buttons inside modals
+  continueBtn: {
+    width: "100%", padding: "14px 0",
+    background: "#1B2A4A", color: "#fff",
+    border: "none", borderRadius: 6,
+    fontFamily: F.body, fontWeight: 700, fontSize: 12, letterSpacing: 2,
+    cursor: "pointer", marginBottom: 10, textTransform: "uppercase",
+  },
+  cancelBtn: {
+    width: "100%", padding: "10px 0",
+    background: "transparent", color: "#999",
+    border: "none",
+    fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 2,
+    cursor: "pointer",
+  },
+
+  // Timer + info badge (details step)
+  timerBar: {
+    background: "#F7F3EA", borderRadius: 8,
+    padding: "10px 14px",
+    display: "flex", justifyContent: "space-between", alignItems: "center",
+    marginBottom: 14, fontSize: 11, fontFamily: F.body, color: "#666", letterSpacing: 1,
+    border: "1px solid #E8E3DC",
+  },
   timerNum: { color: "#C9A84C", fontWeight: 700, fontSize: 16 },
-  infoBadge: { background: "#0F1E38", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 16, marginBottom: 16, fontSize: 12, fontFamily: F.body, color: "#A0AABB" },
+  infoBadge: {
+    background: "#F7F3EA", borderRadius: 8,
+    padding: "10px 14px",
+    display: "flex", gap: 16, marginBottom: 16,
+    fontSize: 12, fontFamily: F.body, color: "#666",
+    border: "1px solid #E8E3DC",
+  },
   infoBadgeItem: { display: "flex", flexDirection: "column" },
-  infoBadgeLabel: { fontSize: 8, letterSpacing: 1.5, color: "#5A6A8A", fontWeight: 700, textTransform: "uppercase" },
-  infoBadgeVal: { color: "#fff", fontWeight: 700, fontSize: 12 },
-  reviewBtn: { width: "100%", padding: "13px 0", background: "#1B2A4A", color: "#fff", border: "2px solid #fff", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 12, letterSpacing: 2, cursor: "pointer", marginTop: 6 },
+  infoBadgeLabel: { fontSize: 8, letterSpacing: 1.5, color: "#999", fontWeight: 700, textTransform: "uppercase" },
+  infoBadgeVal: { color: "#1B2A4A", fontWeight: 700, fontSize: 12 },
+
+  // Form fields (details step)
+  formLabel: {
+    fontFamily: F.body, fontSize: 10, fontWeight: 700,
+    letterSpacing: 1, color: "#888",
+    marginBottom: 4, display: "block", textTransform: "uppercase",
+  },
+  formInput: {
+    width: "100%", padding: "10px 12px", borderRadius: 6,
+    border: "1.5px solid #E0DAD0",
+    background: "#FAFAF7", color: "#1B2A4A",
+    fontFamily: F.body, fontSize: 13,
+    marginBottom: 14, boxSizing: "border-box", outline: "none",
+  },
+  formRow: { display: "flex", gap: 10 },
+  reviewBtn: {
+    width: "100%", padding: "13px 0",
+    background: "#1B2A4A", color: "#fff",
+    border: "none", borderRadius: 6,
+    fontFamily: F.body, fontWeight: 700, fontSize: 12, letterSpacing: 2,
+    cursor: "pointer", marginTop: 6, textTransform: "uppercase",
+  },
 
   // Review modal
-  reviewModal: { background: "#fff", borderRadius: 14, padding: "36px 40px", width: 440, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.18)", position: "relative", maxHeight: "90vh", overflowY: "auto" },
-  reviewTitle: { fontFamily: F.display, fontSize: 28, fontWeight: 700, color: "#1B2A4A", marginBottom: 4 },
-  sectionLabel: { fontFamily: F.body, fontSize: 9, letterSpacing: 2, fontWeight: 700, color: "#C9A84C", marginBottom: 10, marginTop: 16, textTransform: "uppercase" },
-  reviewRow: { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #F0EDE4", padding: "9px 0", fontFamily: F.body, fontSize: 13 },
+  sectionLabel: {
+    fontFamily: F.body, fontSize: 9, letterSpacing: 2, fontWeight: 700,
+    color: "#C9A84C", marginBottom: 10, marginTop: 16, textTransform: "uppercase",
+  },
+  reviewRow: {
+    display: "flex", justifyContent: "space-between",
+    borderBottom: "1px solid #F0EDE4",
+    padding: "9px 0", fontFamily: F.body, fontSize: 13,
+  },
   reviewKey: { color: "#888" },
   reviewVal: { color: "#1B2A4A", fontWeight: 600, textAlign: "right" },
-  pendingBadge: { background: "#FFF3E0", color: "#E8A838", borderRadius: 4, padding: "2px 8px", fontFamily: F.body, fontSize: 10, fontWeight: 700, letterSpacing: 1 },
-  editBtn: { flex: 1, padding: "12px 0", border: "2px solid #1B2A4A", background: "transparent", color: "#1B2A4A", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 2, cursor: "pointer", textTransform: "uppercase" },
-  submitBtn: { flex: 1, padding: "12px 0", border: "none", background: "#1B2A4A", color: "#fff", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 2, cursor: "pointer", textTransform: "uppercase" },
+  pendingBadge: {
+    background: "#FFF3E0", color: "#E8A838",
+    borderRadius: 4, padding: "2px 8px",
+    fontFamily: F.body, fontSize: 10, fontWeight: 700, letterSpacing: 1,
+  },
+  editBtn: {
+    flex: 1, padding: "12px 0",
+    border: "2px solid #1B2A4A", background: "transparent", color: "#1B2A4A",
+    borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11,
+    letterSpacing: 2, cursor: "pointer", textTransform: "uppercase",
+  },
+  submitBtn: {
+    flex: 1, padding: "12px 0",
+    border: "none", background: "#1B2A4A", color: "#fff",
+    borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11,
+    letterSpacing: 2, cursor: "pointer", textTransform: "uppercase",
+  },
 
   // Success modal
-  successModal: { background: "#fff", borderRadius: 14, padding: "48px 40px", width: 380, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.14)", textAlign: "center" },
-  checkCircle: { width: 60, height: 60, borderRadius: "50%", background: "#E8F5EE", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", fontSize: 30, color: "#4CAF79" },
+  successModal: {
+    background: "#fff", borderRadius: 14, padding: "48px 40px",
+    width: 380, maxWidth: "90vw",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.14)", textAlign: "center",
+    position: "relative",
+  },
+  checkCircle: {
+    width: 60, height: 60, borderRadius: "50%",
+    background: "#E8F5EE",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    margin: "0 auto 18px", fontSize: 30, color: "#4CAF79",
+  },
   successTitle: { fontFamily: F.display, fontSize: 30, fontWeight: 700, color: "#1B2A4A", marginBottom: 12 },
   successNote: { fontFamily: F.body, fontSize: 13, color: "#777", lineHeight: 1.7, marginBottom: 22 },
-  refCode: { background: "#1B2A4A", color: "#C9A84C", borderRadius: 6, padding: "14px 20px", fontFamily: F.body, fontWeight: 700, fontSize: 16, letterSpacing: 3, marginBottom: 8, display: "block", textAlign: "center" },
+  refCode: {
+    background: "#1B2A4A", color: "#C9A84C",
+    borderRadius: 6, padding: "14px 20px",
+    fontFamily: F.body, fontWeight: 700, fontSize: 16, letterSpacing: 3,
+    marginBottom: 8, display: "block", textAlign: "center",
+  },
   refNote: { fontFamily: F.body, fontSize: 11, color: "#AAA", marginBottom: 22, letterSpacing: 1 },
-  backMapBtn: { width: "100%", padding: "12px 0", border: "2px solid #1B2A4A", background: "transparent", color: "#1B2A4A", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 12, cursor: "pointer", letterSpacing: 1, textTransform: "uppercase" },
+  closeBtn: {
+    position: "absolute", top: 14, right: 16,
+    width: 32, height: 32, borderRadius: "50%",
+    background: "transparent", border: "1.5px solid #E0DAD0",
+    color: "#888", fontSize: 16, cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontFamily: F.body, fontWeight: 400, lineHeight: 1,
+    transition: "all 0.15s",
+  },
+  backMapBtn: {
+    width: "100%", padding: "12px 0",
+    border: "2px solid #1B2A4A", background: "transparent", color: "#1B2A4A",
+    borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 12,
+    cursor: "pointer", letterSpacing: 1, textTransform: "uppercase",
+  },
 };
 
 // ─── STEP INDICATOR ───────────────────────────────────────────────────────────
@@ -240,10 +377,16 @@ function ModalGuestCount({ tableData, mode, onContinue, onCancel }) {
   const capacity = tableData?.capacity || 8;
   return (
     <div style={s.overlay}>
-      <div style={s.modalNavy}>
+      <div style={s.modalWhite}>
+        <button style={s.closeBtn} onClick={onCancel}
+          onMouseEnter={e => { e.currentTarget.style.background = "#F0EDE4"; e.currentTarget.style.color = "#1B2A4A"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }}>
+          ✕
+        </button>
         <div style={s.modalTag}>{mode === "individual" ? "INDIVIDUAL SEAT RESERVATION" : "WHOLE TABLE RESERVATION"}</div>
         <div style={s.modalTitle}>Reserve this table?</div>
         <StepIndicator step={1} />
+
         <div style={s.counterWrap}>
           <div style={s.counterRow}>
             <button style={s.counterBtn} onClick={() => setGuests(g => Math.max(1, g - 1))}>−</button>
@@ -252,10 +395,12 @@ function ModalGuestCount({ tableData, mode, onContinue, onCancel }) {
           </div>
           <div style={s.counterLabel}>NUMBER OF GUESTS</div>
         </div>
+
         <div style={s.counterNote}>
-          Table {tableData?.id} seats up to <strong style={{ color: "#fff" }}>{capacity} guests</strong>.<br />
+          Table {tableData?.id} seats up to <strong style={{ color: "#1B2A4A" }}>{capacity} guests</strong>.<br />
           Each occupied seat will be marked <span style={{ color: "#E8A838", fontWeight: 700 }}>Pending</span> under your booking.
         </div>
+
         <button style={s.continueBtn} onClick={() => onContinue(guests)}>CONTINUE</button>
         <button style={s.cancelBtn} onClick={onCancel}>CANCEL</button>
       </div>
@@ -265,24 +410,50 @@ function ModalGuestCount({ tableData, mode, onContinue, onCancel }) {
 
 function ModalDetails({ tableData, mode, guests, onReview, onCancel }) {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", eventDate: "", eventTime: "", specialRequests: "" });
-  const [timer] = useState("24:00");
+  const [secondsLeft, setSecondsLeft] = useState(24 * 60);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) { onCancel(); return; }
+    const id = setInterval(() => setSecondsLeft(s => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [secondsLeft]);
+
+  const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const secs = String(secondsLeft % 60).padStart(2, "0");
+  const timer = `${mins}:${secs}`;
+  const isUrgent = secondsLeft <= 60;
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const allFilled = form.firstName && form.lastName && form.email && form.phone && form.eventDate;
   return (
     <div style={s.overlay}>
-      <div style={s.modalNavy}>
+      <div style={s.modalWhite}>
+        <button style={s.closeBtn} onClick={onCancel}
+          onMouseEnter={e => { e.currentTarget.style.background = "#F0EDE4"; e.currentTarget.style.color = "#1B2A4A"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }}>
+          ✕
+        </button>
         <div style={s.modalTag}>STEP 2 OF 3 · TABLE RESERVATION</div>
         <div style={s.modalTitle}>Your Information</div>
         <StepIndicator step={2} />
-        <div style={s.timerBar}>
-          <span>Seat is being held for you<br /><span style={{ fontSize: 10 }}>Complete this form before the timer expires</span></span>
-          <span style={s.timerNum}>{timer}<span style={{ fontSize: 9, color: "#A0AABB", marginLeft: 2 }}>min</span></span>
+
+        <div style={{ ...s.timerBar, border: isUrgent ? "1px solid #E0524433" : "1px solid #E8E3DC", background: isUrgent ? "#FFF5F5" : "#F7F3EA" }}>
+          <span style={{ color: "#555" }}>
+            Seat is being held for you<br />
+            <span style={{ fontSize: 10, color: isUrgent ? "#E05252" : "#888" }}>
+              {isUrgent ? "⚠ Hurry! Your hold is about to expire." : "Complete this form before the timer expires"}
+            </span>
+          </span>
+          <span style={{ ...s.timerNum, color: isUrgent ? "#E05252" : "#C9A84C" }}>
+            {timer}<span style={{ fontSize: 9, color: "#AAA", marginLeft: 2 }}>min</span>
+          </span>
         </div>
+
         <div style={s.infoBadge}>
           <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>ROOM</span><span style={s.infoBadgeVal}>{ROOM}</span></div>
           <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>TABLE</span><span style={s.infoBadgeVal}>{tableData?.id || "T1"}</span></div>
           <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>GUESTS</span><span style={s.infoBadgeVal}>{guests}</span></div>
         </div>
+
         <div style={s.formRow}>
           <div style={{ flex: 1 }}><label style={s.formLabel}>FIRST NAME *</label><input style={s.formInput} value={form.firstName} onChange={set("firstName")} /></div>
           <div style={{ flex: 1 }}><label style={s.formLabel}>LAST NAME *</label><input style={s.formInput} value={form.lastName} onChange={set("lastName")} /></div>
@@ -297,7 +468,10 @@ function ModalDetails({ tableData, mode, guests, onReview, onCancel }) {
         </div>
         <label style={s.formLabel}>SPECIAL REQUESTS</label>
         <textarea style={{ ...s.formInput, resize: "vertical", minHeight: 56 }} value={form.specialRequests} onChange={set("specialRequests")} />
-        <button style={{ ...s.reviewBtn, opacity: allFilled ? 1 : 0.5 }} disabled={!allFilled} onClick={() => onReview(form)}>REVIEW BOOKING</button>
+
+        <button style={{ ...s.reviewBtn, opacity: allFilled ? 1 : 0.45 }} disabled={!allFilled} onClick={() => onReview(form)}>
+          REVIEW BOOKING
+        </button>
       </div>
     </div>
   );
@@ -312,23 +486,48 @@ function ModalReview({ form, guests, tableData, onSubmit, onEdit }) {
   };
   return (
     <div style={s.overlay}>
-      <div style={s.reviewModal}>
-        <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>STEP 3 OF 3 · TABLE RESERVATION</div>
-        <div style={s.reviewTitle}>Review Your Booking</div>
+      <div style={s.modalWhite}>
+        <button style={s.closeBtn} onClick={onEdit}
+          onMouseEnter={e => { e.currentTarget.style.background = "#F0EDE4"; e.currentTarget.style.color = "#1B2A4A"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }}>
+          ✕
+        </button>
+        <div style={s.modalTag}>STEP 3 OF 3 · TABLE RESERVATION</div>
+        <div style={s.modalTitle}>Review Your Booking</div>
         <StepIndicator step={3} />
+
         <div style={s.sectionLabel}>RESERVATION DETAILS</div>
-        {[["Venue", "The Bellevue Manila"], ["Room", `${WING} — ${ROOM}`], ["Table", `Table ${tableData?.id || "T1"}`], ["Number of Guests", `${guests} guests`], ["Event Date", form.eventDate || "—"], ["Event Time", form.eventTime ? formatTime(form.eventTime) : null]].map(([k, v]) => (
+        {[
+          ["Venue",            "The Bellevue Manila"],
+          ["Room",             `${WING} — ${ROOM}`],
+          ["Table",            `Table ${tableData?.id || "T1"}`],
+          ["Number of Guests", `${guests} guests`],
+          ["Event Date",       form.eventDate || "—"],
+          ["Event Time",       form.eventTime ? formatTime(form.eventTime) : null],
+        ].map(([k, v]) => (
           <div key={k} style={s.reviewRow}>
             <span style={s.reviewKey}>{k}</span>
-            {k === "Event Time" && !form.eventTime ? <span style={s.pendingBadge}>Pending</span> : <span style={s.reviewVal}>{v}</span>}
+            {k === "Event Time" && !form.eventTime
+              ? <span style={s.pendingBadge}>Pending</span>
+              : <span style={s.reviewVal}>{v}</span>}
           </div>
         ))}
+
         <div style={s.sectionLabel}>GUEST INFORMATION</div>
-        {[["Full Name", `${form.firstName} ${form.lastName}`], ["Email", form.email], ["Phone", form.phone], ["Special Requests", form.specialRequests || "None"]].map(([k, v]) => (
-          <div key={k} style={s.reviewRow}><span style={s.reviewKey}>{k}</span><span style={s.reviewVal}>{v}</span></div>
+        {[
+          ["Full Name",        `${form.firstName} ${form.lastName}`],
+          ["Email",            form.email],
+          ["Phone",            form.phone],
+          ["Special Requests", form.specialRequests || "None"],
+        ].map(([k, v]) => (
+          <div key={k} style={s.reviewRow}>
+            <span style={s.reviewKey}>{k}</span>
+            <span style={s.reviewVal}>{v}</span>
+          </div>
         ))}
+
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-          <button style={s.editBtn} onClick={onEdit}>EDIT DETAILS</button>
+          <button style={s.editBtn}   onClick={onEdit}>EDIT DETAILS</button>
           <button style={s.submitBtn} onClick={onSubmit}>SUBMIT</button>
         </div>
       </div>
@@ -340,9 +539,16 @@ function ModalSuccess({ refCode, onBack }) {
   return (
     <div style={s.overlay}>
       <div style={s.successModal}>
+        <button style={{ ...s.closeBtn, position: "absolute", top: 14, right: 16 }} onClick={onBack}
+          onMouseEnter={e => { e.currentTarget.style.background = "#F0EDE4"; e.currentTarget.style.color = "#1B2A4A"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }}>
+          ✕
+        </button>
         <div style={s.checkCircle}>✓</div>
         <div style={s.successTitle}>Reservation<br />Submitted!</div>
-        <div style={s.successNote}>Your reservation request has been received. You will get an email confirmation once the admin approves your booking.</div>
+        <div style={s.successNote}>
+          Your reservation request has been received. You will get an email confirmation once the admin approves your booking.
+        </div>
         <div style={s.refCode}>{refCode}</div>
         <div style={s.refNote}>Screenshot or copy this reference code for your records.</div>
         <button style={s.backMapBtn} onClick={onBack}>BACK TO SEAT MAP</button>
@@ -435,7 +641,7 @@ export default function AlabangReserve() {
         {/* Back button + breadcrumb */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, marginTop: 8 }}>
           <button
-            onClick={() => navigate("/", { state: { scrollTo: "event" } })}
+            onClick={() => navigate("/venues")}
             title="Back to home" aria-label="Back to home"
             style={{ width: 40, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: 999, border: "2px solid #C9A84C", color: "#C9A84C", cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,0.06)", fontSize: 16, flexShrink: 0 }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = "#9B7A35"; e.currentTarget.style.color = "#9B7A35"; }}
@@ -462,7 +668,7 @@ export default function AlabangReserve() {
         {/* Main layout */}
         <div style={{ ...s.layout, ...responsiveLayout }}>
 
-          {/* ── Seat Map — no extra wrapper background, SeatMap owns its canvas ── */}
+          {/* Seat Map */}
           <div style={{ ...s.mapCard }}>
             <SeatMap
               tableData={tableData}
@@ -527,10 +733,26 @@ export default function AlabangReserve() {
       </div>
 
       {/* MODALS */}
-      {modal === "guestCount" && <ModalGuestCount tableData={selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData)} mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} />}
-      {modal === "details"    && <ModalDetails tableData={selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData)} mode={mode} guests={guests} onReview={handleReview} onCancel={() => setModal(null)} />}
-      {modal === "review"     && formData && <ModalReview form={formData} guests={guests} tableData={selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData)} onSubmit={handleSubmit} onEdit={() => setModal("details")} />}
-      {modal === "success"    && <ModalSuccess refCode={refCode} onBack={handleBack} />}
+      {modal === "guestCount" && (
+        <ModalGuestCount
+          tableData={selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData)}
+          mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)}
+        />
+      )}
+      {modal === "details" && (
+        <ModalDetails
+          tableData={selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData)}
+          mode={mode} guests={guests} onReview={handleReview} onCancel={() => setModal(null)}
+        />
+      )}
+      {modal === "review" && formData && (
+        <ModalReview
+          form={formData} guests={guests}
+          tableData={selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData)}
+          onSubmit={handleSubmit} onEdit={() => setModal("details")}
+        />
+      )}
+      {modal === "success" && <ModalSuccess refCode={refCode} onBack={handleBack} />}
     </div>
   );
 }
