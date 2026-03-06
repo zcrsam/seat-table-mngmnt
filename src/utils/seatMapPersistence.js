@@ -4,13 +4,13 @@
 
 const STORAGE_PREFIX = "seatmap";
 const CHANNEL_NAME   = "seatmap_updates";
-const LEGACY_KEY     = "seatMapData"; // for loadSeatMapData / saveSeatMapData
+const LEGACY_KEY     = "seatMapData";
 
 function buildKey(wing, room) {
   return `${STORAGE_PREFIX}:${wing}:${room}`;
 }
 
-// ─── Per-room save (called by dispatchSeatMapUpdate inside SeatMap) ───────────
+// ─── Per-room save ────────────────────────────────────────────────────────────
 export function saveRoomData(wing, room, tableData) {
   const key = buildKey(wing, room);
   try {
@@ -25,7 +25,7 @@ export function saveRoomData(wing, room, tableData) {
   } catch {}
 }
 
-// ─── Per-room load (used by AlabangReserve on mount) ─────────────────────────
+// ─── Per-room load ────────────────────────────────────────────────────────────
 export function getRoomData(wing, room, defaultData) {
   const key = buildKey(wing, room);
   try {
@@ -37,7 +37,7 @@ export function getRoomData(wing, room, defaultData) {
   return defaultData;
 }
 
-// ─── Whole-map save (used by Dashboard) ──────────────────────────────────────
+// ─── Whole-map save ───────────────────────────────────────────────────────────
 export function saveSeatMapData(wing, room, data) {
   try {
     saveRoomData(wing, room, data);
@@ -54,7 +54,7 @@ export function saveSeatMapData(wing, room, data) {
   }
 }
 
-// ─── Whole-map load (used by Dashboard on mount) ──────────────────────────────
+// ─── Whole-map load ───────────────────────────────────────────────────────────
 export function loadSeatMapData() {
   try {
     const raw = localStorage.getItem(LEGACY_KEY);
@@ -65,7 +65,7 @@ export function loadSeatMapData() {
   return null;
 }
 
-// ─── Subscribe to live changes ─────────────────────────────────────────────────
+// ─── Subscribe to live changes ────────────────────────────────────────────────
 export function subscribeToSeatMapChanges(callback) {
   let bc = null;
   try {
@@ -100,7 +100,7 @@ export function subscribeToSeatMapChanges(callback) {
   };
 }
 
-// ─── Dispatch same-tab event (save + notify same-tab listeners) ───────────────
+// ─── Dispatch same-tab event ──────────────────────────────────────────────────
 export function dispatchSeatMapUpdate(wing, room, data) {
   saveRoomData(wing, room, data);
   window.dispatchEvent(

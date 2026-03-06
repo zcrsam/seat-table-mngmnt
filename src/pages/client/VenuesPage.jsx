@@ -29,7 +29,8 @@ function useResponsive() {
 }
 
 /* -------------------- Theme Colors -------------------- */
-const C = { gold: "#C9A84C", goldDark: "#9B7A35", goldDarker: "#7f5f1a", dark: "#7f5f1a", muted: "#6b6256" };
+// Primary accent = gold. Navy used only for badge overlays/image overlays.
+const C = { gold: "#C9A74D", goldDark: "#9B7A35", goldDarker: "#7f5f1a", dark: "#C9A74D", navy: "#1B2A4A", muted: "#6b6256" };
 const F = { display: "'Cormorant Garamond', Georgia, serif", body: "'DM Sans', sans-serif" };
 
 /* -------------------- Subcategories / Data -------------------- */
@@ -80,7 +81,7 @@ function VenueCard({ venue, onClick }) {
           <motion.div style={{ position: "absolute", inset: 0, background: C.gold, opacity: 0, pointerEvents: "none" }} animate={{ opacity: isHovered ? 0.06 : 0 }} transition={{ duration: 0.18 }} />
 
           {/* Availability badge */}
-          <div style={{ position: "absolute", top: 12, right: 12, background: "rgba(201,168,76,0.85)", color: "#FFFFFF", borderRadius: 6, padding: "5px 10px", fontFamily: F.body, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, backdropFilter: "blur(4px)" }}>
+          <div style={{ position: "absolute", top: 12, right: 12, background: "rgba(27,42,74,0.85)", color: "#C9A84C", borderRadius: 6, padding: "5px 10px", fontFamily: F.body, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, backdropFilter: "blur(4px)" }}>
             {venue.tables} tables available
           </div>
         </div>
@@ -89,7 +90,7 @@ function VenueCard({ venue, onClick }) {
         <div style={{ padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
           {/* Name + seats row */}
           <div>
-            <div style={{ fontFamily: F.display, fontSize: 22, fontWeight: 700, color: C.dark, lineHeight: 1.1, marginBottom: 4 }}>{venue.name}</div>
+            <div style={{ fontFamily: F.display, fontSize: 22, fontWeight: 700, color: "#1B2A4A", lineHeight: 1.1, marginBottom: 4 }}>{venue.name}</div>
             <div style={{ fontFamily: F.body, fontSize: 13, color: "#888", fontWeight: 400 }}>{venue.seats} seats available</div>
           </div>
 
@@ -122,17 +123,17 @@ function VenueCard({ venue, onClick }) {
           <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
             <button
               onClick={(e) => { e.stopPropagation(); onClick(venue.id); }}
-              style={{ flex: 1, padding: "11px 12px", background: C.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: F.body, transition: "all 0.14s", letterSpacing: 0.3 }}
+              style={{ flex: 1, padding: "11px 12px", background: C.gold, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: F.body, transition: "all 0.14s", letterSpacing: 0.3 }}
               onMouseEnter={(e) => { e.currentTarget.style.background = C.goldDark; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = C.dark; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; }}
             >
               View & Reserve
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); alert("More info — implement modal"); }}
-              style={{ padding: "11px 14px", background: "transparent", border: `1px solid rgba(0,0,0,0.1)`, borderRadius: 8, cursor: "pointer", transition: "all 0.14s", color: C.dark, fontFamily: F.body, fontWeight: 500, fontSize: 13 }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(201,168,76,0.1)"; e.currentTarget.style.borderColor = C.gold; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)"; }}
+              style={{ padding: "11px 14px", background: "transparent", border: `1px solid rgba(201,167,77,0.35)`, borderRadius: 8, cursor: "pointer", transition: "all 0.14s", color: C.gold, fontFamily: F.body, fontWeight: 500, fontSize: 13 }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(201,167,77,0.1)"; e.currentTarget.style.borderColor = C.gold; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(201,167,77,0.35)"; }}
             >
               Info
             </button>
@@ -147,8 +148,8 @@ function VenueCard({ venue, onClick }) {
 function SectionHeader({ title, subtitle }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <h2 style={{ color: C.dark, fontSize: "clamp(26px,3.2vw,34px)", fontWeight: 700, marginBottom: 6, margin: 0, fontFamily: F.display, lineHeight: 1.1 }}>{title}</h2>
-      <div style={{ width: 40, height: 3, background: C.gold, borderRadius: 2, margin: "8px 0 10px" }} />
+      <h2 style={{ color: "#C9A74D", fontSize: "clamp(26px,3.2vw,34px)", fontWeight: 700, marginBottom: 6, margin: 0, fontFamily: F.display, lineHeight: 1.1 }}>{title}</h2>
+      <div style={{ width: 40, height: 3, background: "#C9A74D", borderRadius: 2, margin: "8px 0 10px" }} />
       <div style={{ color: C.muted, fontSize: 14, fontFamily: F.body }}>{subtitle}</div>
     </div>
   );
@@ -177,7 +178,7 @@ export default function VenuesPage() {
   };
 
   return (
-    <div style={{ background: "#FAF6F0", minHeight: "100vh", fontFamily: F.body }}>
+    <div style={{ background: "#F7F3EA", minHeight: "100vh", fontFamily: F.body }}>
 
       {/* ── Header ── */}
       <div style={{ padding: isMobile ? "20px 16px 0" : "32px 32px 0", maxWidth: 1200, margin: "0 auto" }}>
@@ -198,7 +199,7 @@ export default function VenuesPage() {
           <div style={{ color: C.gold, fontSize: 12, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", fontFamily: F.body }}>ALL VENUES</div>
         </div>
 
-        <h1 style={{ margin: "0 0 8px 0", fontFamily: F.display, fontSize: "clamp(32px,4.2vw,52px)", color: C.dark, lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 style={{ margin: "0 0 8px 0", fontFamily: F.display, fontSize: "clamp(32px,4.2vw,52px)", color: "#C9A74D", lineHeight: 1.05, fontWeight: 700 }}>
           Browse venues and reserve your space.
         </h1>
         <p style={{ margin: "0 0 24px 0", color: C.muted, fontSize: 14, maxWidth: 820, fontFamily: F.body, lineHeight: 1.6 }}>
