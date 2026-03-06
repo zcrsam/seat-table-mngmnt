@@ -469,7 +469,7 @@ function Dashboard({ onLogout }) {
                 );
               })()}
 
-              {/* Main Layout: Room List | Seat Map | Recent Reservations */}
+              {/* Main Layout: Room List | Seat Map */}
               <div style={{ display: "flex", gap: 24 }}>
 
                 {/* Left: Room List */}
@@ -520,29 +520,7 @@ function Dashboard({ onLogout }) {
                   </div>
                 </div>
 
-                {/* Right: Recent Reservations */}
-                <div style={{ minWidth: 250, flexShrink: 0 }}>
-                  <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 12, letterSpacing: 1.5, color: "#6B7280", fontWeight: 600, marginBottom: 12, textTransform: "uppercase" }}>
-                    Recent Reservations
-                  </div>
-                  <div style={{ background: "#F8F9FA", borderRadius: 8, padding: 16, border: "1px solid #E1E4E8", maxHeight: 400, overflowY: "auto" }}>
-                    {reservations
-                      .filter(r => r.room.includes(selectedRoom.split(" ")[0]))
-                      .slice(0, 5)
-                      .map(reservation => (
-                        <div key={reservation.id} style={{ padding: "8px 0", borderBottom: "1px solid #E1E4E8", fontSize: 11 }}>
-                          <div style={{ fontFamily: "Montserrat, sans-serif", fontWeight: 600, color: "#333333", marginBottom: 2 }}>{reservation.name}</div>
-                          <div style={{ color: "#6B7280", fontSize: 10 }}>{reservation.id} • {reservation.eventDate}</div>
-                          <div style={{ marginTop: 2 }}><StatusPill status={reservation.status} /></div>
-                        </div>
-                      ))
-                    }
-                    {reservations.filter(r => r.room.includes(selectedRoom.split(" ")[0])).length === 0 && (
-                      <div style={{ textAlign: "center", color: "#6B7280", fontSize: 11, padding: 20 }}>No recent reservations</div>
-                    )}
-                  </div>
                 </div>
-              </div>
             </div>
           )}
 
