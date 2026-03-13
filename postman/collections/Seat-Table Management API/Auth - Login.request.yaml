@@ -1,0 +1,35 @@
+$kind: http-request
+name: 'Auth - Login'
+method: POST
+url: '{{base_url}}/auth/login'
+order: 2000
+
+headers:
+  - key: Content-Type
+    value: application/json
+
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{admin_username}}",
+      "password": "{{admin_password}}"
+    }
+
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const json = pm.response.json();
+      const token = json.token || json.access_token || json.data?.token;
+
+      pm.test('Login succeeded (200/201)', function () {
+        pm.expect(pm.response.code).to.be.oneOf([200, 201]);
+      });
+
+      if (token) {
+        pm.environment.set('admin_token', token);
+        console.log('Saved admin_token to environment');
+      } else {
+        console.log('No token found in response; update token extraction in Tests tab if needed.');
+      }

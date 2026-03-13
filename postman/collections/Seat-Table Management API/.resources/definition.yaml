@@ -1,0 +1,11 @@
+$kind: collection
+name: 'Seat-Table Management API'
+description: |-
+  Starter Postman collection for the Laravel backend in this repo.
+
+  Base URL is controlled by the environment variable {{base_url}}.
+
+variables:
+  - key: base_url
+    value: 'http://127.0.0.1:8000'
+    description: 'Default local Laravel server URL'

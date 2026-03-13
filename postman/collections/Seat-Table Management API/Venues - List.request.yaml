@@ -1,0 +1,8 @@
+$kind: http-request
+name: 'Venues - List'
+method: GET
+url: '{{base_url}}/api/venues'
+order: 4000
+headers:
+  - key: Authorization
+    value: 'Bearer {{admin_token}}'

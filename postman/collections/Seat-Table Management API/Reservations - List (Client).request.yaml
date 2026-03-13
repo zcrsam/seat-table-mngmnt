@@ -1,0 +1,5 @@
+$kind: http-request
+name: 'Reservations - List (Client)'
+method: GET
+url: '{{base_url}}/api/reservations'
+order: 5000

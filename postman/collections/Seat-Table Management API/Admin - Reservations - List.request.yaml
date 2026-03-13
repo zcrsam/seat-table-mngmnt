@@ -1,0 +1,8 @@
+$kind: http-request
+name: 'Admin - Reservations - List'
+method: GET
+url: '{{base_url}}/api/admin/reservations'
+order: 7000
+headers:
+  - key: Authorization
+    value: 'Bearer {{admin_token}}'

@@ -1,0 +1,30 @@
+import api from './api.js';
+
+export const reservationAPI = {
+  // Get all admin reservations
+  getAll: () => api.get('/admin/reservations'),
+
+  // Get reservation statistics
+  getStats: () => api.get('/admin/reservations/stats'),
+
+  // Get single reservation
+  getById: (id) => api.get(`/admin/reservations/${id}`),
+
+  // Get seatmap data for a venue
+  getSeatmap: (wing, room) => api.get(`/seatmap/${wing}/${room}`),
+
+  // Create new reservation
+  create: (reservationData) => api.post('/reservations', reservationData),
+
+  // Update reservation
+  update: (id, reservationData) => api.put(`/reservations/${id}`, reservationData),
+
+  // Delete reservation
+  delete: (id) => api.delete(`/admin/reservations/${id}`),
+
+  // Approve reservation
+  approve: (id) => api.post(`/admin/reservations/${id}/approve`),
+
+  // Reject reservation
+  reject: (id) => api.post(`/admin/reservations/${id}/reject`),
+};
