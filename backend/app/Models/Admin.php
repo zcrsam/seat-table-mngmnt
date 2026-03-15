@@ -27,5 +27,6 @@ class Admin extends Model
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'role' => 'string',
     ];
 }

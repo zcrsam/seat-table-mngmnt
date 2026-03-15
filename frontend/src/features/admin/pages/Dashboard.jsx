@@ -74,7 +74,10 @@ function seedAndLoadReservations() {
 
 function Dashboard({ onLogout }) {
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [activeNav,      setActiveNav]      = useState("reservations");
+  const [activeNav,      setActiveNav]      = useState(() => {
+    // Load last active tab from localStorage, default to seat-map
+    return localStorage.getItem('admin_active_nav') || 'seat-map';
+  });
   const [reservations,   setReservations]   = useState([]);
   const [stats,          setStats]          = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
   const [filterStatus,   setFilterStatus]   = useState("ALL");
@@ -114,10 +117,24 @@ function Dashboard({ onLogout }) {
   // ── Seat Map state ────────────────────────────────────────────────────────
   const [selectedWing, setSelectedWing] = useState("Main Wing");
   const [selectedRoom, setSelectedRoom] = useState("Alabang Function Room");
-  const [seatMapData,  setSeatMapData]  = useState(() => ({
-    ...SEAT_MAP_DATA,
-    ...loadSeatMapData(),
-  }));
+  const [seatMapData,  setSeatMapData]  = useState(() => {
+    const savedData = loadSeatMapData();
+    // Ensure all default rooms are present, but override with any saved data
+    return {
+      "Main Wing": {
+        ...SEAT_MAP_DATA["Main Wing"],
+        ...(savedData?.["Main Wing"] || {})
+      },
+      "Tower Wing": {
+        ...SEAT_MAP_DATA["Tower Wing"],
+        ...(savedData?.["Tower Wing"] || {})
+      },
+      "Dining": {
+        ...SEAT_MAP_DATA["Dining"],
+        ...(savedData?.["Dining"] || {})
+      }
+    };
+  });
   const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
@@ -148,6 +165,11 @@ function Dashboard({ onLogout }) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+  // ── Persist active navigation tab ─────────────────────────────────────────────
+  useEffect(() => {
+    localStorage.setItem('admin_active_nav', activeNav);
+  }, [activeNav]);
 
   const persistReservations = (updated) => {
     try {
@@ -249,8 +271,16 @@ function Dashboard({ onLogout }) {
         });
 
         const payload = updated.length === 1 ? updated[0] : updated;
-        localStorage.setItem(key, JSON.stringify(payload));
-        window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(payload) }));
+        
+        // Check if current data has seats (manual admin edit) vs just reservation data
+        const currentData = localStorage.getItem(key);
+        const hasManualEdits = currentData && JSON.parse(currentData)?.seats;
+        
+        // Only overwrite with reservation data if there are no manual edits
+        if (!hasManualEdits) {
+          localStorage.setItem(key, JSON.stringify(payload));
+          window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(payload) }));
+        }
 
         // Also update in-memory seatMapData
         setSeatMapData(prev => ({

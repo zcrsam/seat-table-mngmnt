@@ -436,6 +436,9 @@ export default function VenuesPage() {
 
   const handleVenueClick = (id) => {
     if (id === "alabang") navigate("/alabang-reserve");
+    else if (id === "laguna") navigate("/laguna-ballroom");
+    else if (id === "twenty-twenty") navigate("/function-room-2020");
+    else if (id === "business-center") navigate("/business-center");
     else navigate(`/reserve/${id}`);
   };
 

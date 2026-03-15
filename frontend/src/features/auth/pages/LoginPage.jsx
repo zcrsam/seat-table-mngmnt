@@ -22,7 +22,8 @@ function LoginScreen({ onLogin }) {
         setError(response.message || "Login failed");
       }
     } catch (err) {
-      setError("Invalid credentials. Please try again.");
+      console.error("Login error details:", err);
+      setError(`Login failed: ${err.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }

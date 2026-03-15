@@ -13,8 +13,7 @@ class ClientReservationController extends Controller
 {
     public function index(): JsonResponse
     {
-        $reservations = Reservation::with(['venue', 'seats'])
-            ->orderBy('event_date', 'asc')
+        $reservations = Reservation::orderBy('event_date', 'asc')
             ->get();
         return response()->json($reservations);
     }
@@ -47,7 +46,7 @@ class ClientReservationController extends Controller
 
     public function show(Reservation $reservation): JsonResponse
     {
-        $reservation->load(['venue', 'seats']);
+        $reservation->load(['venue']);
         return response()->json($reservation);
     }
 
@@ -77,7 +76,6 @@ class ClientReservationController extends Controller
     public function getVenueReservations(Venue $venue): JsonResponse
     {
         $reservations = $venue->reservations()
-            ->with(['seats'])
             ->orderBy('event_date', 'asc')
             ->get();
             

