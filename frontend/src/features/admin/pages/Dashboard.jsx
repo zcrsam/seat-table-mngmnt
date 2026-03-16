@@ -1,6 +1,65 @@
 // src/features/admin/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { reservationAPI } from "../../../services/reservationAPI";
+
+// Direct API fallback — used when reservationAPI methods fail or are missing
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const directAPI = {
+  approve: (id) => fetch(`${API_BASE}/reservations/${id}/approve`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+  }).then(async r => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.message || `HTTP ${r.status}`);
+    return data;
+  }),
+  reject: (id) => fetch(`${API_BASE}/reservations/${id}/reject`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+  }).then(async r => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.message || `HTTP ${r.status}`);
+    return data;
+  }),
+  delete: (id) => fetch(`${API_BASE}/reservations/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+  }).then(async r => {
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data?.message || `HTTP ${r.status}`);
+    }
+    return true;
+  }),
+};
+
+// Extract the numeric DB primary key from a reservation object.
+// The API returns the integer "id" as the PK and may use "reference_code"
+// for the human-readable ref. r.id from the API response IS the integer PK,
+// but it may have been stringified. Always coerce to Number before sending.
+function getNumericId(res) {
+  // db_id is set during fetch normalisation above.
+  // Fall back through common field names just in case.
+  const raw = res?.db_id ?? res?.numeric_id ?? res?.reservation_id;
+  const n = Number(raw);
+  if (!isNaN(n) && n > 0 && Number.isInteger(n)) return n;
+  throw new Error(
+    `No numeric DB id on reservation — db_id="${res?.db_id}" id="${res?.id}". ` +
+    `Check that the API returns a numeric "id" or "reference_code" field.`
+  );
+}
+
+// Call reservationAPI method, fall back to directAPI if it throws "not a function"
+async function callAPI(method, numericId) {
+  try {
+    if (typeof reservationAPI[method] === "function") {
+      return await reservationAPI[method](numericId);
+    }
+  } catch (err) {
+    if (!err.message?.includes("not a function")) throw err;
+  }
+  return await directAPI[method](numericId);
+}
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
@@ -73,7 +132,18 @@ function Dashboard({ onLogout }) {
           reservationAPI.getAll(),
           reservationAPI.getStats(),
         ]);
-        const reservationsData = reservationsResponse.data || [];
+        const raw = reservationsResponse.data || [];
+        // Log first item so we can see all field names from the API
+        if (raw.length > 0) console.log("[Dashboard] Raw reservation fields:", Object.keys(raw[0]), raw[0]);
+        // Normalise each reservation so:
+        //   r.db_id  = numeric database PK  (sent to Laravel API endpoints)
+        //   r.id     = reference code string (used as React key + display)
+        // Laravel returns { id: 5, reference_code: "REF-2025-ABC", ... }
+        const reservationsData = raw.map(r => ({
+          ...r,
+          db_id: Number(r.db_id ?? r.id),          // always a safe integer
+          id:    r.reference_code ?? String(r.id),  // display / React key
+        }));
         setReservations(reservationsData);
         setStats(statsData);
         // hasSyncedRef useEffect will run syncSeatMapFromReservations once data arrives
@@ -350,12 +420,27 @@ function Dashboard({ onLogout }) {
 
   // ── Approve ───────────────────────────────────────────────────────────────
   const handleApprove = async (id) => {
-    // Snapshot BEFORE any state change — React setState is async so reading
-    // from `reservations` after setReservations() would return stale data.
     const res = reservations.find(r => r.id === id);
     if (!res) { showToast("Reservation not found", "#E05252"); return; }
 
-    // 1. Update UI immediately — don't wait for API so the admin sees instant feedback
+    // 1. Call API first — we need this persisted in DB before updating UI
+    let numericId;
+    try {
+      numericId = getNumericId(res);
+    } catch (e) {
+      showToast(`Cannot approve: ${e.message}`, "#E05252");
+      return;
+    }
+    try {
+      await callAPI("approve", numericId);
+    } catch (error) {
+      const msg = error?.response?.data?.message || error?.message || "Unknown error";
+      console.error("Approve API failed:", error);
+      showToast(`Failed to approve: ${msg}`, "#E05252");
+      return;
+    }
+
+    // 2. API succeeded — now update UI state
     setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "reserved" } : r));
     setStats(prev => ({
       ...prev,
@@ -363,17 +448,10 @@ function Dashboard({ onLogout }) {
       approved: prev.approved + 1,
     }));
 
-    // 2. Turn seats RED on both admin seatmap and client seatmap immediately
+    // 3. Turn seats RED on both admin seatmap and client seatmap
     syncSeatToStorage(res, "reserved");
 
     showToast("Reservation approved — seats reserved (red).", "#4CAF79");
-
-    // 3. Persist to DB in background — failure won't break the UI
-    try {
-      await reservationAPI.approve(id);
-    } catch (error) {
-      console.error("API approve failed (UI already updated):", error);
-    }
   };
 
   // ── Reject ────────────────────────────────────────────────────────────────
@@ -381,7 +459,24 @@ function Dashboard({ onLogout }) {
     const res = reservations.find(r => r.id === id);
     if (!res) { showToast("Reservation not found", "#E05252"); return; }
 
-    // 1. Update UI immediately
+    // 1. Call API first
+    let numericId;
+    try {
+      numericId = getNumericId(res);
+    } catch (e) {
+      showToast(`Cannot reject: ${e.message}`, "#E05252");
+      return;
+    }
+    try {
+      await callAPI("reject", numericId);
+    } catch (error) {
+      const msg = error?.response?.data?.message || error?.message || "Unknown error";
+      console.error("Reject API failed:", error);
+      showToast(`Failed to reject: ${msg}`, "#E05252");
+      return;
+    }
+
+    // 2. API succeeded — update UI state
     setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected" } : r));
     setStats(prev => ({
       ...prev,
@@ -389,17 +484,10 @@ function Dashboard({ onLogout }) {
       rejected: prev.rejected + 1,
     }));
 
-    // 2. Free seats — turn GREEN on both admin and client seatmap immediately
+    // 3. Free seats — turn GREEN on both admin and client seatmap
     syncSeatToStorage(res, "rejected");
 
     showToast("Reservation rejected — seats freed (green).", "#E05252");
-
-    // 3. Persist to DB in background
-    try {
-      await reservationAPI.reject(id);
-    } catch (error) {
-      console.error("API reject failed (UI already updated):", error);
-    }
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -407,7 +495,24 @@ function Dashboard({ onLogout }) {
     if (!window.confirm("Delete this reservation? This cannot be undone.")) return;
     const res = reservations.find(r => r.id === id);
 
-    // 1. Update UI immediately
+    // 1. Call API first
+    let numericId;
+    try {
+      numericId = getNumericId(res);
+    } catch (e) {
+      showToast(`Cannot delete: ${e.message}`, "#E05252");
+      return;
+    }
+    try {
+      await callAPI("delete", numericId);
+    } catch (error) {
+      const msg = error?.response?.data?.message || error?.message || "Unknown error";
+      console.error("Delete API failed:", error);
+      showToast(`Failed to delete: ${msg}`, "#E05252");
+      return;
+    }
+
+    // 2. API succeeded — update UI state
     setReservations(rs => rs.filter(r => r.id !== id));
     setStats(prev => ({
       ...prev,
@@ -417,17 +522,10 @@ function Dashboard({ onLogout }) {
       rejected: res?.status === "rejected" ? Math.max(0, prev.rejected - 1) : prev.rejected,
     }));
 
-    // 2. Free seats immediately
+    // 3. Free seats
     if (res) syncSeatToStorage(res, "rejected");
 
     showToast("Reservation deleted.", "#6C757D");
-
-    // 3. Persist to DB in background
-    try {
-      await reservationAPI.delete(id);
-    } catch (error) {
-      console.error("API delete failed (UI already updated):", error);
-    }
   };
 
   // ── Seat Map helpers ──────────────────────────────────────────────────────
@@ -492,7 +590,10 @@ function Dashboard({ onLogout }) {
         if (subVenues.length > 0 && filterSubVenue !== "All Venues") mR = r.room === filterSubVenue;
       }
     }
-    const mQ = !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
+    const mQ = !search
+      || String(r.name  || "").toLowerCase().includes(search.toLowerCase())
+      || String(r.id    || "").toLowerCase().includes(search.toLowerCase())
+      || String(r.db_id || "").includes(search);
     return mS && mR && mQ;
   });
 

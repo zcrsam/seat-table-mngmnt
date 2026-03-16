@@ -113,6 +113,7 @@ class ReservationService
                     
                     return [
                         'id' => $reservation->reference_code,
+                        'db_id' => $reservation->id,
                         'name' => $reservation->name,
                         'email' => $reservation->email,
                         'phone' => $reservation->phone,
@@ -172,7 +173,7 @@ class ReservationService
         return [
             'total' => $reservations->count(),
             'pending' => $reservations->where('status', 'pending')->count(),
-            'approved' => $reservations->where('status', 'approved')->count(),
+            'approved' => $reservations->where('status', 'reserved')->count(),
             'rejected' => $reservations->where('status', 'rejected')->count(),
         ];
     }
