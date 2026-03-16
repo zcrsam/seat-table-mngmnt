@@ -129,30 +129,30 @@ class AdminReservationController extends Controller
         return response()->json($reservations);
     }
 
-    public function approve(string $referenceCode): JsonResponse
+    public function approve(int $id): JsonResponse
     {
         try {
-            $reservation = Reservation::where('reference_code', $referenceCode)->firstOrFail();
+            $reservation = Reservation::findOrFail($id);
             $this->reservationService->approveReservation($reservation);
             return response()->json([
                 'success' => true,
                 'message' => 'Reservation approved successfully',
-                'reservation_id' => $referenceCode
+                'reservation_id' => $reservation->reference_code
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
-    public function reject(string $referenceCode): JsonResponse
+    public function reject(int $id): JsonResponse
     {
         try {
-            $reservation = Reservation::where('reference_code', $referenceCode)->firstOrFail();
+            $reservation = Reservation::findOrFail($id);
             $this->reservationService->rejectReservation($reservation);
             return response()->json([
                 'success' => true,
                 'message' => 'Reservation rejected successfully',
-                'reservation_id' => $referenceCode
+                'reservation_id' => $reservation->reference_code
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);

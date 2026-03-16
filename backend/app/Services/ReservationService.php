@@ -34,14 +34,14 @@ class ReservationService
      */
     public function approveReservation(Reservation $reservation): Reservation
     {
-        $reservation->update(['status' => 'approved']);
+        $reservation->update(['status' => 'reserved']);
 
-        // Reserve all associated seats if they exist
-        if ($reservation->seats()->count() > 0) {
-            $reservation->seats()->each(function ($seat) {
-                $seat->status = 'reserved';
-                $seat->save();
-            });
+        // Update the specific seat status if seat_number is specified
+        if ($reservation->seat_number) {
+            Seat::where('venue_id', $reservation->venue_id)
+                ->where('table_number', $reservation->table_number)
+                ->where('seat_number', $reservation->seat_number)
+                ->update(['status' => 'reserved']);
         }
 
         return $reservation->fresh(['venue']);
@@ -54,13 +54,12 @@ class ReservationService
     {
         $reservation->update(['status' => 'rejected']);
 
-        // Release all associated seats if they exist
-        if ($reservation->seats()->count() > 0) {
-            $reservation->seats()->each(function ($seat) {
-                $seat->status = 'available';
-                $seat->reservation_id = null;
-                $seat->save();
-            });
+        // Update the specific seat status back to available if seat_number is specified
+        if ($reservation->seat_number) {
+            Seat::where('venue_id', $reservation->venue_id)
+                ->where('table_number', $reservation->table_number)
+                ->where('seat_number', $reservation->seat_number)
+                ->update(['status' => 'available']);
         }
 
         return $reservation->fresh(['venue']);

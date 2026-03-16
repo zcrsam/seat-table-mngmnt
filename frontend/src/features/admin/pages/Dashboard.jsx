@@ -1,5 +1,5 @@
 // src/features/admin/pages/Dashboard.jsx
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { reservationAPI } from "../../../services/reservationAPI";
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
@@ -76,6 +76,7 @@ function Dashboard({ onLogout }) {
         const reservationsData = reservationsResponse.data || [];
         setReservations(reservationsData);
         setStats(statsData);
+        // hasSyncedRef useEffect will run syncSeatMapFromReservations once data arrives
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
         showToast("Failed to load data", "#E05252");
@@ -132,17 +133,22 @@ function Dashboard({ onLogout }) {
   // ── Persist active nav tab ────────────────────────────────────────────────
   useEffect(() => { localStorage.setItem("admin_active_nav", activeNav); }, [activeNav]);
 
+  const findWingForRoom = (room) => {
+    for (const [w, venues] of Object.entries(ROOM_CATEGORIES["All Venues"])) {
+      for (const [venue, subVenues] of Object.entries(venues)) {
+        if (venue === room || subVenues.includes(room)) return w;
+      }
+    }
+    return null;
+  };
+
+
   // ─────────────────────────────────────────────────────────────────────────
-  // syncSeatToStorage — called after approve / reject / delete so the correct
-  // seat color is immediately written to localStorage and broadcast to every
-  // open tab (including the client-facing AlabangReserve page).
-  //
-  //   newStatus: "reserved" → seat turns red
-  //              "rejected" → seat turns green (available)
-  //              "pending"  → seat turns orange
-  // ─────────────────────────────────────────────────────────────────────────
-  const syncSeatToStorage = (reservationId, newStatus) => {
-    const res = reservations.find(r => r.id === reservationId);
+  // syncSeatToStorage(resObject, newStatus)
+  // Always pass the full reservation object — do NOT pass just an id, because
+  // React state updates (setReservations) are async and the lookup would return
+  // stale/undefined data if called in the same tick as setReservations.
+  const syncSeatToStorage = (res, newStatus) => {
     if (!res) return;
 
     const wing = findWingForRoom(res.room);
@@ -156,41 +162,43 @@ function Dashboard({ onLogout }) {
       const parsed = JSON.parse(raw);
       const tables = Array.isArray(parsed) ? parsed : [parsed];
 
-      // Map reservation status → seat color
+      // Map admin action → seat color
       const seatStatus =
-        newStatus === "reserved" ? "reserved"  :
-        newStatus === "rejected" ? "available" :
-        "pending";
+        newStatus === "reserved" ? "reserved"  :   // approve  → red
+        newStatus === "rejected" ? "available" :   // reject   → green
+        "pending";                                  // (unused) → orange
 
       const updated = tables.map(t => {
-        // Skip tables that don't match (when reservation has a table id)
+        // When reservation specifies a table id, skip non-matching tables
         if (res.table && String(t.id) !== String(res.table)) return t;
 
         let newSeats;
 
         if (res.type === "whole") {
-          // For whole-table reservations only update the first N seats that were
-          // previously marked as pending/reserved by this reservation.
-          let slotsLeft = seatStatus === "available"
-            ? 0
-            : (parseInt(res.guests) || t.seats.length);
-
-          newSeats = t.seats.map(s => {
-            if (
-              slotsLeft > 0 &&
+          if (seatStatus === "available") {
+            // Reject / delete — free ALL seats that were pending or reserved
+            newSeats = t.seats.map(s =>
               (s.status === "pending" || s.status === "reserved")
-            ) {
-              slotsLeft--;
-              return { ...s, status: seatStatus };
-            }
-            return s;
-          });
+                ? { ...s, status: "available" }
+                : s
+            );
+          } else {
+            // Approve — mark the first N seats as reserved (red)
+            let slotsLeft = parseInt(res.guests) || t.seats.length;
+            newSeats = t.seats.map(s => {
+              if (slotsLeft > 0 && (s.status === "pending" || s.status === "available")) {
+                slotsLeft--;
+                return { ...s, status: seatStatus };
+              }
+              return s;
+            });
+          }
         } else {
-          // Individual seat — match by seat number
+          // Individual seat — match by seat number extracted from res.seat
           const seatNum = parseInt(String(res.seat || "").replace(/\D/g, ""));
-          newSeats = t.seats.map(s =>
-            s.num === seatNum ? { ...s, status: seatStatus } : s
-          );
+          newSeats = isNaN(seatNum)
+            ? t.seats
+            : t.seats.map(s => s.num === seatNum ? { ...s, status: seatStatus } : s);
         }
 
         return { ...t, seats: newSeats };
@@ -198,13 +206,13 @@ function Dashboard({ onLogout }) {
 
       const payload = updated.length === 1 ? updated[0] : updated;
 
-      // Update in-memory seatMapData so the admin seat map re-renders
+      // Update in-memory seatMapData so the admin seat map re-renders immediately
       setSeatMapData(prev => ({
         ...prev,
         [wing]: { ...prev[wing], [res.room]: Array.isArray(payload) ? payload[0] : payload },
       }));
 
-      // Write to localStorage and fire events so every tab (incl. client) reacts
+      // Persist to localStorage + broadcast to all tabs (incl. client SeatMap)
       dispatchSeatMapUpdate(wing, res.room, payload);
     } catch (e) {
       console.error("[Dashboard] syncSeatToStorage failed:", e);
@@ -217,7 +225,7 @@ function Dashboard({ onLogout }) {
   // always reflects the current reservation states after a page reload.
   // ─────────────────────────────────────────────────────────────────────────
   const syncSeatMapFromReservations = (resList) => {
-    // Group by seatmap key
+    // Build a map of room → reservations
     const byKey = {};
     for (const r of resList) {
       const wing = findWingForRoom(r.room);
@@ -232,6 +240,9 @@ function Dashboard({ onLogout }) {
       if (!raw) continue;
       try {
         const parsed = JSON.parse(raw);
+        // CRITICAL: always work with the FULL table array from localStorage.
+        // Never filter or reduce tables — the admin layout editor owns the
+        // table structure. We only update seat STATUS colors here.
         const tables = Array.isArray(parsed) ? parsed : [parsed];
 
         const updated = tables.map(t => {
@@ -239,20 +250,26 @@ function Dashboard({ onLogout }) {
           let wholeRes = null;
 
           for (const r of rList) {
-            if (r.table && String(r.table) !== String(t.id)) continue;
+            // Match reservation to this table (table id may be stored as
+            // "T6", "6", or the full label — normalise both sides)
+            if (r.table) {
+              const rTable = String(r.table).replace(/^T/i, "");
+              const tTable = String(t.id).replace(/^T/i, "");
+              if (rTable !== tTable) continue;
+            }
 
             const seatStatus =
-              r.status === "pending"  ? "pending"   :
-              r.status === "reserved" ? "reserved"  :
+              r.status === "pending"  ? "pending"  :
+              r.status === "reserved" ? "reserved" :
               "available";
 
             if (r.type === "whole") {
               const priority = { reserved: 2, pending: 1, available: 0 };
               if (!wholeRes || priority[seatStatus] >= priority[wholeRes.status]) {
-                wholeRes = { status: seatStatus, guests: r.guests || t.seats.length };
+                wholeRes = { status: seatStatus, guests: parseInt(r.guests) || t.seats.length };
               }
             } else if (r.seat) {
-              const num = parseInt(r.seat.replace(/\D/g, ""));
+              const num = parseInt(String(r.seat).replace(/\D/g, ""));
               if (!isNaN(num)) {
                 const priority = { reserved: 2, pending: 1, available: 0 };
                 if (seatOverrides[num] === undefined || priority[seatStatus] > priority[seatOverrides[num]]) {
@@ -262,15 +279,26 @@ function Dashboard({ onLogout }) {
             }
           }
 
+          // Apply status overrides — structure (seats array, positions, count) unchanged
           let newSeats;
-          if (wholeRes) {
-            let slotsLeft = wholeRes.status === "available" ? 0 : (wholeRes.guests || t.seats.length);
+          if (wholeRes && wholeRes.status !== "available") {
+            let slotsLeft = wholeRes.guests || t.seats.length;
             newSeats = t.seats.map(s => {
-              if (slotsLeft > 0) { slotsLeft--; return { ...s, status: wholeRes.status }; }
-              return { ...s, status: "available" };
+              if (slotsLeft > 0 && (s.status === "pending" || s.status === "available")) {
+                slotsLeft--;
+                return { ...s, status: wholeRes.status };
+              }
+              return s;
             });
+          } else if (wholeRes && wholeRes.status === "available") {
+            // Reservation was rejected/deleted — free all seats
+            newSeats = t.seats.map(s => ({ ...s, status: "available" }));
           } else {
-            newSeats = t.seats.map(s => ({ ...s, status: seatOverrides[s.num] ?? "available" }));
+            // Individual seat overrides only — leave untouched seats as-is
+            newSeats = t.seats.map(s => ({
+              ...s,
+              status: seatOverrides[s.num] !== undefined ? seatOverrides[s.num] : s.status,
+            }));
           }
 
           const newTableStatus =
@@ -282,11 +310,10 @@ function Dashboard({ onLogout }) {
           return { ...t, tableStatus: newTableStatus, seats: newSeats };
         });
 
-        const payload = updated.length === 1 ? updated[0] : updated;
+        // Preserve original array/object shape — don't collapse multi-table
+        // layouts into a single object just because one table was updated
+        const payload = Array.isArray(parsed) ? updated : updated[0];
 
-        // Always write — reservation list is source of truth for seat status.
-        // (Previously this was guarded by a hasManualEdits check that was
-        //  almost always true, silently preventing any sync from happening.)
         localStorage.setItem(key, JSON.stringify(payload));
         window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(payload) }));
 
@@ -294,7 +321,7 @@ function Dashboard({ onLogout }) {
           ...prev,
           [wing]: {
             ...prev[wing],
-            [room]: Array.isArray(payload) ? payload[0] : payload,
+            [room]: payload,
           },
         }));
       } catch (e) {
@@ -303,9 +330,15 @@ function Dashboard({ onLogout }) {
     }
   };
 
-  // Run full sync on mount
+  // Run seat map sync ONCE after the first successful fetch from the API.
+  // Using a ref so it only fires once even if reservations updates later
+  // (approve/reject/delete should not re-trigger a full overwrite).
+  const hasSyncedRef = React.useRef(false);
   useEffect(() => {
-    if (reservations.length > 0) syncSeatMapFromReservations(reservations);
+    if (reservations.length > 0 && !hasSyncedRef.current) {
+      hasSyncedRef.current = true;
+      syncSeatMapFromReservations(reservations);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservations]);
 
@@ -315,79 +348,85 @@ function Dashboard({ onLogout }) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const findWingForRoom = (room) => {
-    for (const [w, venues] of Object.entries(ROOM_CATEGORIES["All Venues"])) {
-      for (const [venue, subVenues] of Object.entries(venues)) {
-        if (venue === room || subVenues.includes(room)) return w;
-      }
-    }
-    return null;
-  };
-
   // ── Approve ───────────────────────────────────────────────────────────────
-  // 1. Calls the API to persist the status change in MySQL
-  // 2. syncSeatToStorage → writes seat color red to localStorage → fires
-  //    BroadcastChannel so the client SeatMap turns the seat red in real time
   const handleApprove = async (id) => {
+    // Snapshot BEFORE any state change — React setState is async so reading
+    // from `reservations` after setReservations() would return stale data.
+    const res = reservations.find(r => r.id === id);
+    if (!res) { showToast("Reservation not found", "#E05252"); return; }
+
+    // 1. Update UI immediately — don't wait for API so the admin sees instant feedback
+    setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "reserved" } : r));
+    setStats(prev => ({
+      ...prev,
+      pending:  Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)),
+      approved: prev.approved + 1,
+    }));
+
+    // 2. Turn seats RED on both admin seatmap and client seatmap immediately
+    syncSeatToStorage(res, "reserved");
+
+    showToast("Reservation approved — seats reserved (red).", "#4CAF79");
+
+    // 3. Persist to DB in background — failure won't break the UI
     try {
       await reservationAPI.approve(id);
-
-      // Update local reservation state first (syncSeatToStorage reads from it)
-      setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "reserved" } : r));
-      setStats(prev => ({ ...prev, pending: prev.pending - 1, approved: prev.approved + 1 }));
-
-      // Write reserved (red) seat color to localStorage + broadcast
-      syncSeatToStorage(id, "reserved");
-
-      showToast("Reservation approved — status set to Reserved.", "#4CAF79");
     } catch (error) {
-      console.error("Failed to approve reservation:", error);
-      showToast("Failed to approve reservation", "#E05252");
+      console.error("API approve failed (UI already updated):", error);
     }
   };
 
   // ── Reject ────────────────────────────────────────────────────────────────
-  // Mirrors handleApprove but frees the seat (turns it green / available)
   const handleReject = async (id) => {
+    const res = reservations.find(r => r.id === id);
+    if (!res) { showToast("Reservation not found", "#E05252"); return; }
+
+    // 1. Update UI immediately
+    setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected" } : r));
+    setStats(prev => ({
+      ...prev,
+      pending:  Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)),
+      rejected: prev.rejected + 1,
+    }));
+
+    // 2. Free seats — turn GREEN on both admin and client seatmap immediately
+    syncSeatToStorage(res, "rejected");
+
+    showToast("Reservation rejected — seats freed (green).", "#E05252");
+
+    // 3. Persist to DB in background
     try {
       await reservationAPI.reject(id);
-
-      setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected" } : r));
-      setStats(prev => ({ ...prev, pending: prev.pending - 1, rejected: prev.rejected + 1 }));
-
-      // Write available (green) seat color to localStorage + broadcast
-      syncSeatToStorage(id, "rejected");
-
-      showToast("Reservation rejected — seat returned to Available.", "#E05252");
     } catch (error) {
-      console.error("Failed to reject reservation:", error);
-      showToast("Failed to reject reservation", "#E05252");
+      console.error("API reject failed (UI already updated):", error);
     }
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this reservation? This cannot be undone.")) return;
+    const res = reservations.find(r => r.id === id);
+
+    // 1. Update UI immediately
+    setReservations(rs => rs.filter(r => r.id !== id));
+    setStats(prev => ({
+      ...prev,
+      total:    Math.max(0, prev.total - 1),
+      pending:  res?.status === "pending"  ? Math.max(0, prev.pending  - 1) : prev.pending,
+      approved: res?.status === "reserved" ? Math.max(0, prev.approved - 1) : prev.approved,
+      rejected: res?.status === "rejected" ? Math.max(0, prev.rejected - 1) : prev.rejected,
+    }));
+
+    // 2. Free seats immediately
+    if (res) syncSeatToStorage(res, "rejected");
+
+    showToast("Reservation deleted.", "#6C757D");
+
+    // 3. Persist to DB in background
     try {
       await reservationAPI.delete(id);
-      const res = reservations.find(r => r.id === id);
-
-      setReservations(rs => rs.filter(r => r.id !== id));
-      setStats(prev => ({
-        ...prev,
-        total:    prev.total    - 1,
-        pending:  res?.status === "pending"  ? prev.pending  - 1 : prev.pending,
-        approved: res?.status === "reserved" ? prev.approved - 1 : prev.approved,
-        rejected: res?.status === "rejected" ? prev.rejected - 1 : prev.rejected,
-      }));
-
-      // Free the seat when a reservation is deleted
-      syncSeatToStorage(id, "rejected");
-
-      showToast("Reservation deleted.", "#6C757D");
     } catch (error) {
-      console.error("Failed to delete reservation:", error);
-      showToast("Failed to delete reservation", "#E05252");
+      console.error("API delete failed (UI already updated):", error);
     }
   };
 
@@ -444,20 +483,15 @@ function Dashboard({ onLogout }) {
   const filtered = reservations.filter(r => {
     const statusMap = { "PENDING": "pending", "APPROVED": "reserved", "REJECTED": "rejected" };
     const mS = filterStatus === "ALL" || r.status === (statusMap[filterStatus] || filterStatus.toLowerCase());
-    
-    // Fix room filtering - check if room matches the filter
     let mR = true;
-    if (filterWing !== "All Wings") {
-      if (filterVenue === "All Venues") {
-        // Just filter by wing - check if room belongs to this wing
-        const wingVenues = ROOM_CATEGORIES["All Venues"][filterWing] || {};
-        mR = Object.keys(wingVenues).includes(r.room);
-      } else {
-        // Filter by specific venue
-        mR = r.room === filterVenue;
+    if (filterWing !== "All Wings" && filterVenue !== "All Venues") {
+      const wingVenues = ROOM_CATEGORIES["All Venues"][filterWing];
+      if (wingVenues?.[filterVenue]) {
+        const subVenues = wingVenues[filterVenue];
+        mR = subVenues.length === 0 ? r.room === filterVenue : subVenues.includes(r.room);
+        if (subVenues.length > 0 && filterSubVenue !== "All Venues") mR = r.room === filterSubVenue;
       }
     }
-    
     const mQ = !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
     return mS && mR && mQ;
   });
@@ -657,11 +691,11 @@ function Dashboard({ onLogout }) {
                         </td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                           <button onClick={() => setViewRes(r)} style={{ padding: "5px 12px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>VIEW</button>
-                          {r.status === "pending" && (
-                            <>
-                              <button onClick={() => handleApprove(r.id)} style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓</button>
-                              <button onClick={() => handleReject(r.id)}  style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕</button>
-                            </>
+                          {r.status !== "reserved" && (
+                            <button onClick={() => handleApprove(r.id)} title="Approve" style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓ Approve</button>
+                          )}
+                          {r.status !== "rejected" && (
+                            <button onClick={() => handleReject(r.id)} title="Reject" style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕ Reject</button>
                           )}
                           <button
                             onClick={() => handleDelete(r.id)}

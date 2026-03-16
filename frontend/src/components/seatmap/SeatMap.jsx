@@ -539,6 +539,7 @@ export default function SeatMap({
       const raw = localStorage.getItem(`seatmap:${wing}:${room}`);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // normalize always returns array; filter keeps only tables with seats
         let norm = normalize(parsed).filter(t => t.seats && t.seats.length > 0);
 
         if (norm.length > 0) {
@@ -707,7 +708,10 @@ export default function SeatMap({
   // same tab without needing to reload.
   const handleSave = () => {
     if (wing && room) {
-      const payload = tables.length === 1 ? tables[0] : tables;
+      // Always save as an array — syncSeatMapFromReservations checks
+      // Array.isArray() to decide whether to preserve multi-table layouts.
+      // Collapsing to a single object caused layout resets after refresh.
+      const payload = tables;
       dispatchSeatMapUpdate(wing, room, payload);
       try {
         const labelKey = `seatmap_labels:${wing}:${room}`;
