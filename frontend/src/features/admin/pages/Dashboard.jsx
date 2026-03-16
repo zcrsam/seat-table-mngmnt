@@ -6,16 +6,12 @@ import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import SeatMap, { STATUS_COLORS, STATUS_LABELS } from "../../../components/seatmap/SeatMap";
 import { SEAT_MAP_DATA } from "../../../data/seatMapData";
-import { saveSeatMapData, loadSeatMapData, subscribeToSeatMapChanges } from "../../../utils/seatMapPersistence";
-
-const MOCK_RESERVATIONS = [
-  { id: "BLV-2025-0015", name: "David Lee",        email: "david.lee@email.com",     phone: "09155566677", room: "20/20 Function Room C",   table: "T3", seat: null,     guests: 4, eventDate: "March 25, 2026", eventTime: "6:30 PM",  specialRequests: "Corporate event setup",    status: "reserved",  type: "whole",      submittedAt: "Feb 20, 2026 · 2:15 PM",  submittedTimestamp: 1740042900000 },
-  { id: "BLV-2025-0028", name: "James Reyes",      email: "james@email.com",         phone: "09555666777", room: "Business Center",         table: "T2", seat: "Seat 4", guests: 1, eventDate: "March 8, 2026",  eventTime: "2:00 PM",  specialRequests: "None",                   status: "rejected",  type: "individual", submittedAt: "Feb 25, 2026 · 11:30 AM", submittedTimestamp: 1740480600000 },
-  { id: "BLV-2025-0031", name: "Lia Santos",       email: "lia.santos@gmail.com",    phone: "09111222333", room: "Laguna Ballroom",         table: "T3", seat: null,     guests: 5, eventDate: "March 10, 2026", eventTime: "5:30 PM",  specialRequests: "Birthday setup",           status: "reserved",  type: "whole",      submittedAt: "Feb 28, 2026 · 9:00 AM",  submittedTimestamp: 1740736800000 },
-  { id: "BLV-2025-0019", name: "Anna Tan",         email: "anna.tan@email.com",      phone: "09222333444", room: "20/20 Function Room B",   table: "T2", seat: null,     guests: 3, eventDate: "April 1, 2026",  eventTime: "8:00 PM",  specialRequests: "Vegan menu",               status: "pending",   type: "whole",      submittedAt: "Mar 01, 2026 · 8:20 AM",  submittedTimestamp: 1740824400000 },
-  { id: "BLV-2025-0039", name: "Marco dela Cruz",  email: "marco@email.com",         phone: "09987654321", room: "Alabang Function Room",   table: "T1", seat: "Seat 9", guests: 1, eventDate: "March 20, 2026", eventTime: "6:00 PM",  specialRequests: "Wheelchair access needed", status: "pending",   type: "individual", submittedAt: "Mar 02, 2026 · 3:15 PM",  submittedTimestamp: 1740918900000 },
-  { id: "BLV-2025-0042", name: "Sarah Kim",        email: "sarahkim@gmail.com",      phone: "09123456789", room: "20/20 Function Room A",   table: "T1", seat: null,     guests: 2, eventDate: "March 15, 2026", eventTime: "7:00 PM",  specialRequests: "None",                   status: "pending",   type: "whole",      submittedAt: "Mar 03, 2026 · 10:42 AM", submittedTimestamp: 1741002120000 },
-];
+import {
+  saveSeatMapData,
+  loadSeatMapData,
+  subscribeToSeatMapChanges,
+  dispatchSeatMapUpdate,
+} from "../../../utils/seatMapPersistence.js";
 
 const ROOM_CATEGORIES = {
   "All Venues": {
@@ -37,7 +33,7 @@ const ROOM_CATEGORIES = {
   },
 };
 
-// ── Sort helper: primary = event date asc, secondary = submission timestamp asc ──
+// ── Sort helper ───────────────────────────────────────────────────────────────
 function parseEventDate(dateStr) {
   if (!dateStr) return Infinity;
   const d = new Date(dateStr);
@@ -46,38 +42,17 @@ function parseEventDate(dateStr) {
 function sortReservations(a, b) {
   const evA = parseEventDate(a.eventDate);
   const evB = parseEventDate(b.eventDate);
-  if (evA !== evB) return evA - evB;                          // primary: soonest event first
+  if (evA !== evB) return evA - evB;
   const tsA = a.submittedTimestamp || 0;
   const tsB = b.submittedTimestamp || 0;
-  return tsA - tsB;                                           // secondary: who booked first
+  return tsA - tsB;
 }
 
 const RESERVATIONS_KEY = "bellevue_reservations";
 
-// Seed localStorage with mock data on first run (adds mock entries not yet stored)
-function seedAndLoadReservations() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(RESERVATIONS_KEY) || "[]");
-    const storedIds = new Set(stored.map(r => r.id));
-    // Inject any mock entries missing from storage (first-run or new mocks added)
-    const missing = MOCK_RESERVATIONS.filter(r => !storedIds.has(r.id));
-    if (missing.length > 0) {
-      const seeded = [...stored, ...missing].sort(sortReservations);
-      localStorage.setItem(RESERVATIONS_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
-    return stored.sort(sortReservations);
-  } catch {
-    return [...MOCK_RESERVATIONS].sort(sortReservations);
-  }
-}
-
 function Dashboard({ onLogout }) {
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [activeNav,      setActiveNav]      = useState(() => {
-    // Load last active tab from localStorage, default to seat-map
-    return localStorage.getItem('admin_active_nav') || 'seat-map';
-  });
+  const [activeNav,      setActiveNav]      = useState(() => localStorage.getItem("admin_active_nav") || "seat-map");
   const [reservations,   setReservations]   = useState([]);
   const [stats,          setStats]          = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
   const [filterStatus,   setFilterStatus]   = useState("ALL");
@@ -89,28 +64,25 @@ function Dashboard({ onLogout }) {
   const [toast,          setToast]          = useState(null);
   const [loading,        setLoading]        = useState(true);
 
-  // ── Fetch data from backend ───────────────────────────────────────────────
+  // ── Fetch reservations + stats from backend ───────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const [reservationsResponse, statsData] = await Promise.all([
           reservationAPI.getAll(),
-          reservationAPI.getStats()
+          reservationAPI.getStats(),
         ]);
-        
-        // Handle the paginated response structure
         const reservationsData = reservationsResponse.data || [];
         setReservations(reservationsData);
         setStats(statsData);
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-        showToast('Failed to load data', '#E05252');
+        console.error("Failed to fetch dashboard data:", error);
+        showToast("Failed to load data", "#E05252");
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
@@ -119,24 +91,15 @@ function Dashboard({ onLogout }) {
   const [selectedRoom, setSelectedRoom] = useState("Alabang Function Room");
   const [seatMapData,  setSeatMapData]  = useState(() => {
     const savedData = loadSeatMapData();
-    // Ensure all default rooms are present, but override with any saved data
     return {
-      "Main Wing": {
-        ...SEAT_MAP_DATA["Main Wing"],
-        ...(savedData?.["Main Wing"] || {})
-      },
-      "Tower Wing": {
-        ...SEAT_MAP_DATA["Tower Wing"],
-        ...(savedData?.["Tower Wing"] || {})
-      },
-      "Dining": {
-        ...SEAT_MAP_DATA["Dining"],
-        ...(savedData?.["Dining"] || {})
-      }
+      "Main Wing":   { ...SEAT_MAP_DATA["Main Wing"],   ...(savedData?.["Main Wing"]   || {}) },
+      "Tower Wing":  { ...SEAT_MAP_DATA["Tower Wing"],  ...(savedData?.["Tower Wing"]  || {}) },
+      "Dining":      { ...SEAT_MAP_DATA["Dining"],      ...(savedData?.["Dining"]      || {}) },
     };
   });
   const [editMode, setEditMode] = useState(false);
 
+  // ── Subscribe to seat map changes (client reservations + same-tab saves) ──
   useEffect(() => {
     const unsub = subscribeToSeatMapChanges(({ wing, room, data }) => {
       setSeatMapData(prev => ({
@@ -147,6 +110,7 @@ function Dashboard({ onLogout }) {
     return unsub;
   }, []);
 
+  // ── Sync reservations from localStorage (cross-tab) ───────────────────────
   useEffect(() => {
     const syncFromStorage = () => {
       try {
@@ -154,9 +118,8 @@ function Dashboard({ onLogout }) {
         setReservations(prev => {
           const storedMap = new Map(stored.map(r => [r.id, r]));
           const prevIds   = new Set(prev.map(r => r.id));
-          // Update existing entries + add brand-new ones
-          const updated = prev.map(r => storedMap.has(r.id) ? { ...r, ...storedMap.get(r.id) } : r);
-          const incoming = stored.filter(r => !prevIds.has(r.id));
+          const updated   = prev.map(r => storedMap.has(r.id) ? { ...r, ...storedMap.get(r.id) } : r);
+          const incoming  = stored.filter(r => !prevIds.has(r.id));
           return [...updated, ...incoming].sort(sortReservations);
         });
       } catch {}
@@ -166,42 +129,95 @@ function Dashboard({ onLogout }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // ── Persist active navigation tab ─────────────────────────────────────────────
-  useEffect(() => {
-    localStorage.setItem('admin_active_nav', activeNav);
-  }, [activeNav]);
+  // ── Persist active nav tab ────────────────────────────────────────────────
+  useEffect(() => { localStorage.setItem("admin_active_nav", activeNav); }, [activeNav]);
 
-  const persistReservations = (updated) => {
+  // ─────────────────────────────────────────────────────────────────────────
+  // syncSeatToStorage — called after approve / reject / delete so the correct
+  // seat color is immediately written to localStorage and broadcast to every
+  // open tab (including the client-facing AlabangReserve page).
+  //
+  //   newStatus: "reserved" → seat turns red
+  //              "rejected" → seat turns green (available)
+  //              "pending"  → seat turns orange
+  // ─────────────────────────────────────────────────────────────────────────
+  const syncSeatToStorage = (reservationId, newStatus) => {
+    const res = reservations.find(r => r.id === reservationId);
+    if (!res) return;
+
+    const wing = findWingForRoom(res.room);
+    if (!wing) return;
+
+    const key = `seatmap:${wing}:${res.room}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+
     try {
-      // Save ALL reservations (mock + real) so status changes persist across reloads
-      localStorage.setItem(RESERVATIONS_KEY, JSON.stringify(updated));
-    } catch {}
-  };
+      const parsed = JSON.parse(raw);
+      const tables = Array.isArray(parsed) ? parsed : [parsed];
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const showToast = (msg, color) => {
-    setToast({ msg, color });
-    setTimeout(() => setToast(null), 3000);
-  };
+      // Map reservation status → seat color
+      const seatStatus =
+        newStatus === "reserved" ? "reserved"  :
+        newStatus === "rejected" ? "available" :
+        "pending";
 
-  // ── Find the wing a room belongs to ──────────────────────────────────────
-  const findWingForRoom = (room) => {
-    for (const [w, venues] of Object.entries(ROOM_CATEGORIES["All Venues"])) {
-      for (const [venue, subVenues] of Object.entries(venues)) {
-        if (venue === room || subVenues.includes(room)) return w;
-      }
+      const updated = tables.map(t => {
+        // Skip tables that don't match (when reservation has a table id)
+        if (res.table && String(t.id) !== String(res.table)) return t;
+
+        let newSeats;
+
+        if (res.type === "whole") {
+          // For whole-table reservations only update the first N seats that were
+          // previously marked as pending/reserved by this reservation.
+          let slotsLeft = seatStatus === "available"
+            ? 0
+            : (parseInt(res.guests) || t.seats.length);
+
+          newSeats = t.seats.map(s => {
+            if (
+              slotsLeft > 0 &&
+              (s.status === "pending" || s.status === "reserved")
+            ) {
+              slotsLeft--;
+              return { ...s, status: seatStatus };
+            }
+            return s;
+          });
+        } else {
+          // Individual seat — match by seat number
+          const seatNum = parseInt(String(res.seat || "").replace(/\D/g, ""));
+          newSeats = t.seats.map(s =>
+            s.num === seatNum ? { ...s, status: seatStatus } : s
+          );
+        }
+
+        return { ...t, seats: newSeats };
+      });
+
+      const payload = updated.length === 1 ? updated[0] : updated;
+
+      // Update in-memory seatMapData so the admin seat map re-renders
+      setSeatMapData(prev => ({
+        ...prev,
+        [wing]: { ...prev[wing], [res.room]: Array.isArray(payload) ? payload[0] : payload },
+      }));
+
+      // Write to localStorage and fire events so every tab (incl. client) reacts
+      dispatchSeatMapUpdate(wing, res.room, payload);
+    } catch (e) {
+      console.error("[Dashboard] syncSeatToStorage failed:", e);
     }
-    return null;
   };
 
-  // ── Rebuild every seatmap key in localStorage from the reservations list ──
-  // This is the single source of truth sync: reservation status → seat status.
-  // reservation status mapping:
-  //   pending  → seat = "pending"
-  //   reserved → seat = "reserved"
-  //   rejected → seat = "available"  (seat freed up)
+  // ─────────────────────────────────────────────────────────────────────────
+  // syncSeatMapFromReservations — rebuilds every seatmap key in localStorage
+  // from the full reservations list.  Called once on mount so the seat map
+  // always reflects the current reservation states after a page reload.
+  // ─────────────────────────────────────────────────────────────────────────
   const syncSeatMapFromReservations = (resList) => {
-    // Group reservations by seatmap key
+    // Group by seatmap key
     const byKey = {};
     for (const r of resList) {
       const wing = findWingForRoom(r.room);
@@ -218,22 +234,19 @@ function Dashboard({ onLogout }) {
         const parsed = JSON.parse(raw);
         const tables = Array.isArray(parsed) ? parsed : [parsed];
 
-        // Start from a clean "available" baseline for every seat,
-        // then apply reservation statuses on top.
         const updated = tables.map(t => {
-          const seatOverrides = {};   // seatNum → status  (for individual reservations)
-          // For whole-table: track { status, guests } so we only mark N seats
+          const seatOverrides = {};
           let wholeRes = null;
 
           for (const r of rList) {
-            if (r.table && r.table !== t.id) continue;
+            if (r.table && String(r.table) !== String(t.id)) continue;
+
             const seatStatus =
-              r.status === "pending"  ? "pending"  :
-              r.status === "reserved" ? "reserved" :
+              r.status === "pending"  ? "pending"   :
+              r.status === "reserved" ? "reserved"  :
               "available";
 
             if (r.type === "whole") {
-              // Keep the reservation with the highest-priority status
               const priority = { reserved: 2, pending: 1, available: 0 };
               if (!wholeRes || priority[seatStatus] >= priority[wholeRes.status]) {
                 wholeRes = { status: seatStatus, guests: r.guests || t.seats.length };
@@ -251,8 +264,6 @@ function Dashboard({ onLogout }) {
 
           let newSeats;
           if (wholeRes) {
-            // Only mark the first `guests` seats with the reservation status;
-            // remaining seats stay available.
             let slotsLeft = wholeRes.status === "available" ? 0 : (wholeRes.guests || t.seats.length);
             newSeats = t.seats.map(s => {
               if (slotsLeft > 0) { slotsLeft--; return { ...s, status: wholeRes.status }; }
@@ -267,103 +278,147 @@ function Dashboard({ onLogout }) {
             newSeats.some(s => s.status === "pending")   ? "pending"  :
             newSeats.some(s => s.status === "reserved")  ? "reserved" :
             "available";
+
           return { ...t, tableStatus: newTableStatus, seats: newSeats };
         });
 
         const payload = updated.length === 1 ? updated[0] : updated;
-        
-        // Check if current data has seats (manual admin edit) vs just reservation data
-        const currentData = localStorage.getItem(key);
-        const hasManualEdits = currentData && JSON.parse(currentData)?.seats;
-        
-        // Only overwrite with reservation data if there are no manual edits
-        if (!hasManualEdits) {
-          localStorage.setItem(key, JSON.stringify(payload));
-          window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(payload) }));
-        }
 
-        // Also update in-memory seatMapData
+        // Always write — reservation list is source of truth for seat status.
+        // (Previously this was guarded by a hasManualEdits check that was
+        //  almost always true, silently preventing any sync from happening.)
+        localStorage.setItem(key, JSON.stringify(payload));
+        window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(payload) }));
+
         setSeatMapData(prev => ({
           ...prev,
-          [wing]: { ...prev[wing], [room]: Array.isArray(payload) ? payload[0] : payload },
+          [wing]: {
+            ...prev[wing],
+            [room]: Array.isArray(payload) ? payload[0] : payload,
+          },
         }));
-      } catch(e) { console.error("Seat sync error:", e); }
+      } catch (e) {
+        console.error("[Dashboard] syncSeatMapFromReservations error:", e);
+      }
     }
   };
 
-  // Run a full sync on mount so seatmap reflects the reservation list from the start
+  // Run full sync on mount
   useEffect(() => {
-    syncSeatMapFromReservations(reservations);
+    if (reservations.length > 0) syncSeatMapFromReservations(reservations);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reservations]);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const showToast = (msg, color) => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const findWingForRoom = (room) => {
+    for (const [w, venues] of Object.entries(ROOM_CATEGORIES["All Venues"])) {
+      for (const [venue, subVenues] of Object.entries(venues)) {
+        if (venue === room || subVenues.includes(room)) return w;
+      }
+    }
+    return null;
+  };
+
+  // ── Approve ───────────────────────────────────────────────────────────────
+  // 1. Calls the API to persist the status change in MySQL
+  // 2. syncSeatToStorage → writes seat color red to localStorage → fires
+  //    BroadcastChannel so the client SeatMap turns the seat red in real time
   const handleApprove = async (id) => {
     try {
       await reservationAPI.approve(id);
+
+      // Update local reservation state first (syncSeatToStorage reads from it)
       setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "reserved" } : r));
-      setStats(prev => ({
-        ...prev,
-        pending: prev.pending - 1,
-        approved: prev.approved + 1,
-      }));
+      setStats(prev => ({ ...prev, pending: prev.pending - 1, approved: prev.approved + 1 }));
+
+      // Write reserved (red) seat color to localStorage + broadcast
+      syncSeatToStorage(id, "reserved");
+
       showToast("Reservation approved — status set to Reserved.", "#4CAF79");
     } catch (error) {
-      console.error('Failed to approve reservation:', error);
-      showToast('Failed to approve reservation', '#E05252');
+      console.error("Failed to approve reservation:", error);
+      showToast("Failed to approve reservation", "#E05252");
     }
   };
 
+  // ── Reject ────────────────────────────────────────────────────────────────
+  // Mirrors handleApprove but frees the seat (turns it green / available)
   const handleReject = async (id) => {
     try {
       await reservationAPI.reject(id);
+
       setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected" } : r));
-      setStats(prev => ({
-        ...prev,
-        pending: prev.pending - 1,
-        rejected: prev.rejected + 1,
-      }));
+      setStats(prev => ({ ...prev, pending: prev.pending - 1, rejected: prev.rejected + 1 }));
+
+      // Write available (green) seat color to localStorage + broadcast
+      syncSeatToStorage(id, "rejected");
+
       showToast("Reservation rejected — seat returned to Available.", "#E05252");
     } catch (error) {
-      console.error('Failed to reject reservation:', error);
-      showToast('Failed to reject reservation', '#E05252');
+      console.error("Failed to reject reservation:", error);
+      showToast("Failed to reject reservation", "#E05252");
     }
   };
 
+  // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this reservation? This cannot be undone.")) return;
     try {
       await reservationAPI.delete(id);
       const res = reservations.find(r => r.id === id);
+
       setReservations(rs => rs.filter(r => r.id !== id));
       setStats(prev => ({
         ...prev,
-        total: prev.total - 1,
-        pending: res?.status === 'pending' ? prev.pending - 1 : prev.pending,
-        approved: res?.status === 'reserved' ? prev.approved - 1 : prev.approved,
-        rejected: res?.status === 'rejected' ? prev.rejected - 1 : prev.rejected,
+        total:    prev.total    - 1,
+        pending:  res?.status === "pending"  ? prev.pending  - 1 : prev.pending,
+        approved: res?.status === "reserved" ? prev.approved - 1 : prev.approved,
+        rejected: res?.status === "rejected" ? prev.rejected - 1 : prev.rejected,
       }));
+
+      // Free the seat when a reservation is deleted
+      syncSeatToStorage(id, "rejected");
+
       showToast("Reservation deleted.", "#6C757D");
     } catch (error) {
-      console.error('Failed to delete reservation:', error);
-      showToast('Failed to delete reservation', '#E05252');
+      console.error("Failed to delete reservation:", error);
+      showToast("Failed to delete reservation", "#E05252");
     }
   };
 
+  // ── Seat Map helpers ──────────────────────────────────────────────────────
   const getRoomStatusCounts = (roomData) => {
-    if (!roomData?.seats) return { available: 0, pending: 0, reserved: 0 };
+    const seats = Array.isArray(roomData)
+      ? roomData.flatMap(t => t.seats || [])
+      : (roomData?.seats || []);
     return {
-      available: roomData.seats.filter(s => s.status === "available").length,
-      pending:   roomData.seats.filter(s => s.status === "pending").length,
-      reserved:  roomData.seats.filter(s => s.status === "reserved").length,
+      available: seats.filter(s => s.status === "available").length,
+      pending:   seats.filter(s => s.status === "pending").length,
+      reserved:  seats.filter(s => s.status === "reserved").length,
     };
   };
 
-  // ── Seat Map handlers ─────────────────────────────────────────────────────
   const handleSeatClick = (seat) => {
     const currentRoom = seatMapData[selectedWing]?.[selectedRoom];
     if (!currentRoom) return;
     const CYCLE = { available: "pending", pending: "reserved", reserved: "available" };
-    const updated = { ...currentRoom, seats: currentRoom.seats.map(s => s.id === seat.id ? { ...s, status: CYCLE[s.status] || "available" } : s) };
+
+    const applyToTable = (t) => ({
+      ...t,
+      seats: t.seats.map(s =>
+        s.id === seat.id ? { ...s, status: CYCLE[s.status] || "available" } : s
+      ),
+    });
+
+    const updated = Array.isArray(currentRoom)
+      ? currentRoom.map(applyToTable)
+      : applyToTable(currentRoom);
+
     setSeatMapData(prev => ({ ...prev, [selectedWing]: { ...prev[selectedWing], [selectedRoom]: updated } }));
     showToast(`Seat ${seat.num} status updated`, "#C9A84C");
   };
@@ -372,7 +427,7 @@ function Dashboard({ onLogout }) {
     const currentRoom = seatMapData[selectedWing]?.[selectedRoom];
     if (!currentRoom) return;
     const newStatus = currentRoom.tableStatus === "available" ? "reserved" : "available";
-    const updated = { ...currentRoom, tableStatus: newStatus };
+    const updated   = { ...currentRoom, tableStatus: newStatus };
     setSeatMapData(prev => ({ ...prev, [selectedWing]: { ...prev[selectedWing], [selectedRoom]: updated } }));
     showToast(`${selectedRoom} table updated to ${newStatus}`, "#C9A84C");
   };
@@ -384,22 +439,25 @@ function Dashboard({ onLogout }) {
   };
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const pending  = stats.pending;
-  const approved = stats.approved;
-  const rejected = stats.rejected;
+  const { pending, approved, rejected } = stats;
 
   const filtered = reservations.filter(r => {
     const statusMap = { "PENDING": "pending", "APPROVED": "reserved", "REJECTED": "rejected" };
     const mS = filterStatus === "ALL" || r.status === (statusMap[filterStatus] || filterStatus.toLowerCase());
+    
+    // Fix room filtering - check if room matches the filter
     let mR = true;
-    if (filterWing !== "All Wings" && filterVenue !== "All Venues") {
-      const wingVenues = ROOM_CATEGORIES["All Venues"][filterWing];
-      if (wingVenues?.[filterVenue]) {
-        const subVenues = wingVenues[filterVenue];
-        mR = subVenues.length === 0 ? r.room === filterVenue : subVenues.includes(r.room);
-        if (subVenues.length > 0 && filterSubVenue !== "All Venues") mR = r.room === filterSubVenue;
+    if (filterWing !== "All Wings") {
+      if (filterVenue === "All Venues") {
+        // Just filter by wing - check if room belongs to this wing
+        const wingVenues = ROOM_CATEGORIES["All Venues"][filterWing] || {};
+        mR = Object.keys(wingVenues).includes(r.room);
+      } else {
+        // Filter by specific venue
+        mR = r.room === filterVenue;
       }
     }
+    
     const mQ = !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
     return mS && mR && mQ;
   });
@@ -414,7 +472,7 @@ function Dashboard({ onLogout }) {
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 60px)" }}>
 
-        {/* ── SIDEBAR ── */}
+        {/* SIDEBAR */}
         <Sidebar
           activeNav={activeNav}
           onNavChange={setActiveNav}
@@ -423,12 +481,12 @@ function Dashboard({ onLogout }) {
           rejected={rejected}
         />
 
-        {/* ── MAIN CONTENT ── */}
+        {/* MAIN CONTENT */}
         <main style={{ flex: 1, padding: "32px 36px", overflowY: "auto", background: "#FFFFFF" }}>
 
-          {/* ════════════════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════════════════════════
               RESERVATIONS TAB
-          ════════════════════════════════════════════════════════════════ */}
+          ══════════════════════════════════════════════════════════════ */}
           {activeNav === "reservations" && (
             <>
               {/* Header */}
@@ -537,7 +595,6 @@ function Dashboard({ onLogout }) {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      {/* ↓ Added DATE SUBMITTED column header */}
                       {["REFERENCE", "GUEST", "VENUES/EVENTS", "EVENT DATE", "DATE SUBMITTED", "GUESTS", "TYPE", "STATUS", "ACTIONS"].map(h => (
                         <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 9, letterSpacing: 2, fontWeight: 700, color: "#6C757D", borderBottom: "1px solid #E1E4E8", background: "#FFFFFF" }}>{h}</th>
                       ))}
@@ -558,8 +615,6 @@ function Dashboard({ onLogout }) {
                           <div style={{ color: "#333", fontSize: 12 }}>{r.room}</div>
                         </td>
                         <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", verticalAlign: "middle" }}>{r.eventDate}</td>
-
-                        {/* ↓ New DATE SUBMITTED cell */}
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
                           {r.submittedAt ? (
                             (() => {
@@ -567,9 +622,7 @@ function Dashboard({ onLogout }) {
                               return (
                                 <>
                                   <div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>{parts[0]}</div>
-                                  {parts[1] && (
-                                    <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>{parts[1]}</div>
-                                  )}
+                                  {parts[1] && <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>{parts[1]}</div>}
                                 </>
                               );
                             })()
@@ -577,7 +630,6 @@ function Dashboard({ onLogout }) {
                             <span style={{ fontSize: 11, color: "#CCC" }}>—</span>
                           )}
                         </td>
-
                         <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", textAlign: "center", verticalAlign: "middle" }}>{r.guests}</td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
                           <span style={{ background: r.type === "whole" ? "rgba(201,168,76,0.12)" : "rgba(100,160,255,0.12)", color: r.type === "whole" ? "#C9A84C" : "#6AA0FF", padding: "2px 8px", borderRadius: 10, fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>
@@ -591,10 +643,10 @@ function Dashboard({ onLogout }) {
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
                           {(() => {
                             const cfg = {
-                              pending:  { bg: "rgba(244,158,12,0.12)",  color: "#F49E0C", label: "Pending"  },
-                              reserved: { bg: "rgba(15,186,129,0.12)",  color: "#0FBA81", label: "Approved" },
-                              rejected: { bg: "rgba(244,63,95,0.12)",   color: "#F43F5F", label: "Rejected" },
-                              available:{ bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Available"},
+                              pending:   { bg: "rgba(244,158,12,0.12)",  color: "#F49E0C", label: "Pending"   },
+                              reserved:  { bg: "rgba(15,186,129,0.12)",  color: "#0FBA81", label: "Approved"  },
+                              rejected:  { bg: "rgba(244,63,95,0.12)",   color: "#F43F5F", label: "Rejected"  },
+                              available: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Available" },
                             }[r.status] || { bg: "#f0f0f0", color: "#888", label: r.status };
                             return (
                               <span style={{ background: cfg.bg, color: cfg.color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, whiteSpace: "nowrap" }}>
@@ -605,10 +657,12 @@ function Dashboard({ onLogout }) {
                         </td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                           <button onClick={() => setViewRes(r)} style={{ padding: "5px 12px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>VIEW</button>
-                          {r.status === "pending" && <>
-                            <button onClick={() => handleApprove(r.id)} style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓</button>
-                            <button onClick={() => handleReject(r.id)}  style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕</button>
-                          </>}
+                          {r.status === "pending" && (
+                            <>
+                              <button onClick={() => handleApprove(r.id)} style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓</button>
+                              <button onClick={() => handleReject(r.id)}  style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕</button>
+                            </>
+                          )}
                           <button
                             onClick={() => handleDelete(r.id)}
                             title="Delete reservation"
@@ -625,9 +679,9 @@ function Dashboard({ onLogout }) {
             </>
           )}
 
-          {/* ════════════════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════════════════════════
               SEAT MAP TAB
-          ════════════════════════════════════════════════════════════════ */}
+          ══════════════════════════════════════════════════════════════ */}
           {activeNav === "seat-map" && (
             <div>
               <div style={{ fontSize: 10, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 4 }}>ADMIN · SEAT MAP</div>
@@ -724,15 +778,14 @@ function Dashboard({ onLogout }) {
         </main>
       </div>
 
+      {/* Detail modal */}
       {viewRes && (
         <DetailModal
           res={{
             ...viewRes,
-            // Override "seat" display: for whole-table show "X / Y seats", for individual show seat label
             seat: viewRes.type === "whole"
               ? `${viewRes.guests}${viewRes.tableCapacity ? ` / ${viewRes.tableCapacity}` : ""} seats reserved`
               : (viewRes.seat || "—"),
-            // Override "type" display: meaningful label instead of "Whole Table"
             typeLabel: viewRes.type === "whole"
               ? `Partial Table (${viewRes.guests} guest${viewRes.guests !== 1 ? "s" : ""})`
               : "Individual Seat",
@@ -742,6 +795,7 @@ function Dashboard({ onLogout }) {
           onReject={id  => { handleReject(id);  setViewRes(null); }}
         />
       )}
+
       {toast && <Toast msg={toast.msg} color={toast.color} onDismiss={() => setToast(null)} />}
     </div>
   );

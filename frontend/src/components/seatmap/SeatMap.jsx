@@ -1,14 +1,8 @@
 // src/components/seatmap/SeatMap.jsx
 import { useState, useRef, useCallback, useEffect } from "react";
 
-// ─── Persistence util (inline fallback — replace with your actual import) ─────
-const dispatchSeatMapUpdate = (wing, room, data) => {
-  try {
-    const key = `seatmap:${wing}:${room}`;
-    localStorage.setItem(key, JSON.stringify(data));
-    window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(data) }));
-  } catch {}
-};
+// ─── Persistence util ─────────────────────────────────────────────────────────
+import { dispatchSeatMapUpdate } from "../../utils/seatMapPersistence.js";
 
 // ─── Shared constants ─────────────────────────────────────────────────────────
 export const STATUS_COLORS = {
@@ -29,7 +23,6 @@ const F = {
   body:    "'DM Sans', sans-serif",
 };
 
-// Both edit and client views share the same canvas height so layouts match
 const CANVAS_H = 760;
 
 let _tableCounter = 1;
@@ -57,7 +50,7 @@ const DEFAULT_LABELS = [
   { id: "exit",     type: "exit",     label: "EXIT",     x: 16,  y: 630 },
 ];
 
-// ─── StaticLabel — used ONLY in client (read-only) view ───────────────────────
+// ─── StaticLabel ──────────────────────────────────────────────────────────────
 function StaticLabel({ item }) {
   const isScreen = item.type === "screen";
   return (
@@ -86,7 +79,7 @@ function StaticLabel({ item }) {
   );
 }
 
-// ─── DraggableLabel — used ONLY in admin (edit) view ─────────────────────────
+// ─── DraggableLabel ───────────────────────────────────────────────────────────
 function DraggableLabel({ item, onDragStart, isDragging }) {
   const [hovered, setHovered] = useState(false);
   const isScreen = item.type === "screen";
@@ -141,10 +134,11 @@ function DraggableLabel({ item, onDragStart, isDragging }) {
 
 // ─── Seat Node ────────────────────────────────────────────────────────────────
 function SeatNode({ seat, isSelected, editMode, isDragging, onSeatClick, onSeatDragStart }) {
-  const color = STATUS_COLORS[seat.status] || STATUS_COLORS.available;
+  const color   = STATUS_COLORS[seat.status] || STATUS_COLORS.available;
   const [hovered, setHovered] = useState(false);
   const blocked = !editMode && (seat.status === "reserved" || seat.status === "pending");
   const canHover = !editMode && !blocked;
+
   return (
     <div
       onClick={e => { e.stopPropagation(); if (!isDragging && !blocked) onSeatClick && onSeatClick(seat); }}
@@ -237,7 +231,7 @@ function TableNode({
       const r  = tableBodyRef.current.getBoundingClientRect();
       const cx = e.clientX - r.left, cy = e.clientY - r.top;
       const dists = { top: cy, bottom: r.height - cy, left: cx, right: r.width - cx };
-      const side  = Object.entries(dists).sort((a,b)=>a[1]-b[1])[0][0];
+      const side  = Object.entries(dists).sort((a,b) => a[1] - b[1])[0][0];
       setDropSide(side);
     };
     const onUp = () => {
@@ -247,7 +241,7 @@ function TableNode({
       setDraggingSeatId(null); setDropSide(null); setGhostXY(null);
     };
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("mouseup",   onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, [draggingSeatId, dropSide, onSeatMove, table.id]);
 
@@ -256,13 +250,13 @@ function TableNode({
     const horiz = side === "top" || side === "bottom";
     const rowPx = seats.length * (SEAT_D + SEAT_GAP) - SEAT_GAP;
     const pos   = {
-      top:    { top: 0,                          left: tOffX + tableW/2 - rowPx/2 },
-      bottom: { top: tOffY + tableH + SEAT_OFF,  left: tOffX + tableW/2 - rowPx/2 },
-      left:   { left: 0,                         top:  tOffY + tableH/2 - rowPx/2 },
-      right:  { left: tOffX + tableW + SEAT_OFF, top:  tOffY + tableH/2 - rowPx/2 },
+      top:    { top: 0,                          left: tOffX + tableW / 2 - rowPx / 2 },
+      bottom: { top: tOffY + tableH + SEAT_OFF,  left: tOffX + tableW / 2 - rowPx / 2 },
+      left:   { left: 0,                         top:  tOffY + tableH / 2 - rowPx / 2 },
+      right:  { left: tOffX + tableW + SEAT_OFF, top:  tOffY + tableH / 2 - rowPx / 2 },
     }[side];
     return (
-      <div key={side} style={{ position:"absolute", display:"flex", flexDirection: horiz?"row":"column", gap: SEAT_GAP, ...pos }}>
+      <div key={side} style={{ position: "absolute", display: "flex", flexDirection: horiz ? "row" : "column", gap: SEAT_GAP, ...pos }}>
         {seats.map(seat => (
           <SeatNode key={seat.id} seat={seat} editMode={editMode}
             isSelected={seat.id === selectedSeatId}
@@ -278,58 +272,61 @@ function TableNode({
   return (
     <>
       {editMode && draggingSeatId && ghostXY && (() => {
-        const seat  = table.seats.find(s => s.id === draggingSeatId);
+        const seat = table.seats.find(s => s.id === draggingSeatId);
         if (!seat) return null;
         return (
           <div style={{
-            position:"fixed", left: ghostXY.x - 22, top: ghostXY.y - 22,
-            width:44, height:44, borderRadius:"50%",
+            position: "fixed", left: ghostXY.x - 22, top: ghostXY.y - 22,
+            width: 44, height: 44, borderRadius: "50%",
             background: STATUS_COLORS[seat.status] || STATUS_COLORS.available,
-            border:"2.5px solid rgba(255,255,255,0.8)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            pointerEvents:"none", zIndex:9999,
-            boxShadow:"0 8px 24px rgba(0,0,0,0.35), 0 0 0 3px #C9A84C",
-            transform:"scale(1.2)", opacity:0.93,
+            border: "2.5px solid rgba(255,255,255,0.8)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            pointerEvents: "none", zIndex: 9999,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35), 0 0 0 3px #C9A84C",
+            transform: "scale(1.2)", opacity: 0.93,
           }}>
-            <span style={{ color:"#fff", fontSize:14, fontWeight:800, fontFamily:F.body }}>{seat.num}</span>
+            <span style={{ color: "#fff", fontSize: 14, fontWeight: 800, fontFamily: F.body }}>{seat.num}</span>
           </div>
         );
       })()}
 
-      <div style={{ position:"absolute", left:table.x, top:table.y, width:contW, height:contH, overflow:"visible", zIndex:isTableSelected?10:1 }}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-
-        {["top","bottom","left","right"].map(side => renderSide(byPos[side], side))}
+      <div
+        style={{ position: "absolute", left: table.x, top: table.y, width: contW, height: contH, overflow: "visible", zIndex: isTableSelected ? 10 : 1 }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {["top", "bottom", "left", "right"].map(side => renderSide(byPos[side], side))}
 
         <div ref={tableBodyRef} style={{
-            position:"absolute", left:tOffX, top:tOffY, width:tableW, height:tableH,
+            position: "absolute", left: tOffX, top: tOffY, width: tableW, height: tableH,
             background: isTableSelected ? "#162240" : "#2C3E6B",
             borderRadius: isCircle ? "50%" : 12,
-            display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column",
+            display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
             border: isTableSelected ? "2.5px solid #C9A84C"
-                  : hovered ? "2.5px solid rgba(201,168,76,0.6)"
+                  : hovered          ? "2.5px solid rgba(201,168,76,0.6)"
                   : "2.5px solid rgba(255,255,255,0.08)",
             boxShadow: isTableSelected ? "0 0 0 3px #C9A84C66, 0 4px 16px rgba(0,0,0,0.22)"
-                     : hovered ? "0 0 0 2px rgba(201,168,76,0.35), 0 4px 16px rgba(0,0,0,0.22)"
-                     : isDragging ? "0 8px 24px rgba(0,0,0,0.30)" : "0 3px 10px rgba(0,0,0,0.22)",
-            transition:"border 0.15s, box-shadow 0.15s",
+                     : hovered         ? "0 0 0 2px rgba(201,168,76,0.35), 0 4px 16px rgba(0,0,0,0.22)"
+                     : isDragging      ? "0 8px 24px rgba(0,0,0,0.30)"
+                     : "0 3px 10px rgba(0,0,0,0.22)",
+            transition: "border 0.15s, box-shadow 0.15s",
             cursor: editMode ? (isDragging ? "grabbing" : "grab") : "pointer",
-            zIndex:2, overflow:"visible",
+            zIndex: 2, overflow: "visible",
           }}
           onMouseDown={editMode ? e => { if (!draggingSeatId) { e.stopPropagation(); onDragStart(e, table.id); } } : undefined}
           onClick={e => { e.stopPropagation(); onSelectTable(table); }}
           onDoubleClick={editMode ? e => { e.stopPropagation(); setEditingLabel(true); } : undefined}
         >
-          {editMode && draggingSeatId && ["top","bottom","left","right"].map(side => {
+          {editMode && draggingSeatId && ["top", "bottom", "left", "right"].map(side => {
             const active = dropSide === side;
-            const s = { position:"absolute", zIndex:10, pointerEvents:"none", borderRadius:6, transition:"all 0.1s",
+            const sStyle = { position: "absolute", zIndex: 10, pointerEvents: "none", borderRadius: 6, transition: "all 0.1s",
               background: active ? "rgba(201,168,76,0.25)" : "rgba(201,168,76,0.07)",
-              border: active ? "2px dashed #C9A84C" : "2px dashed rgba(201,168,76,0.3)" };
+              border:     active ? "2px dashed #C9A84C"    : "2px dashed rgba(201,168,76,0.3)" };
             const P = 5;
-            if (side==="top")    return <div key={side} style={{ ...s, top:P,    left:P,  right:P,  height:30 }} />;
-            if (side==="bottom") return <div key={side} style={{ ...s, bottom:P, left:P,  right:P,  height:30 }} />;
-            if (side==="left")   return <div key={side} style={{ ...s, left:P,   top:P,   bottom:P, width:30  }} />;
-            if (side==="right")  return <div key={side} style={{ ...s, right:P,  top:P,   bottom:P, width:30  }} />;
+            if (side === "top")    return <div key={side} style={{ ...sStyle, top: P,    left: P,  right: P,  height: 30 }} />;
+            if (side === "bottom") return <div key={side} style={{ ...sStyle, bottom: P, left: P,  right: P,  height: 30 }} />;
+            if (side === "left")   return <div key={side} style={{ ...sStyle, left: P,   top: P,   bottom: P, width: 30  }} />;
+            if (side === "right")  return <div key={side} style={{ ...sStyle, right: P,  top: P,   bottom: P, width: 30  }} />;
             return null;
           })}
 
@@ -337,29 +334,37 @@ function TableNode({
             <input autoFocus value={labelVal}
               onChange={e => setLabelVal(e.target.value)}
               onBlur={() => { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); }}
-              onKeyDown={e => { if (e.key==="Enter") { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); } e.stopPropagation(); }}
+              onKeyDown={e => { if (e.key === "Enter") { setEditingLabel(false); onLabelEdit && onLabelEdit(table.id, labelVal); } e.stopPropagation(); }}
               onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
-              style={{ background:"transparent", border:"none", outline:"none", color:"#fff", fontFamily:F.body, fontWeight:700, fontSize:16, letterSpacing:1.5, textAlign:"center", width:"85%", textTransform:"uppercase" }}
+              style={{ background: "transparent", border: "none", outline: "none", color: "#fff", fontFamily: F.body, fontWeight: 700, fontSize: 16, letterSpacing: 1.5, textAlign: "center", width: "85%", textTransform: "uppercase" }}
             />
           ) : (
             <>
-              <div style={{ color:"#fff", fontFamily:F.body, fontWeight:700, fontSize:16, letterSpacing:1.5, textTransform:"uppercase", lineHeight:1.3, textAlign:"center", padding:"0 8px" }}>{table.label || table.id}</div>
-              {table.seats.length > 0 && <div style={{ color:"#A0AABB", fontFamily:F.body, fontSize:13, letterSpacing:1, marginTop:3 }}>{table.seats.length} SEATS</div>}
+              <div style={{ color: "#fff", fontFamily: F.body, fontWeight: 700, fontSize: 16, letterSpacing: 1.5, textTransform: "uppercase", lineHeight: 1.3, textAlign: "center", padding: "0 8px" }}>
+                {table.label || table.id}
+              </div>
+              {table.seats.length > 0 && (
+                <div style={{ color: "#A0AABB", fontFamily: F.body, fontSize: 13, letterSpacing: 1, marginTop: 3 }}>
+                  {table.seats.length} SEATS
+                </div>
+              )}
             </>
           )}
 
-          {editMode && isTableSelected && (<>
-            <div style={{ position:"absolute", width:10, height:10, background:"#C9A84C", borderRadius:2, cursor:"ew-resize", zIndex:20, border:"1.5px solid #fff", right:-5, top:"50%", transform:"translateY(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "e"); }} />
-            <div style={{ position:"absolute", width:10, height:10, background:"#C9A84C", borderRadius:2, cursor:"ns-resize", zIndex:20, border:"1.5px solid #fff", bottom:-5, left:"50%", transform:"translateX(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "s"); }} />
-            <div style={{ position:"absolute", width:10, height:10, background:"#C9A84C", borderRadius:2, cursor:"nwse-resize", zIndex:20, border:"1.5px solid #fff", right:-5, bottom:-5 }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "se"); }} />
-          </>)}
+          {editMode && isTableSelected && (
+            <>
+              <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "ew-resize",   zIndex: 20, border: "1.5px solid #fff", right: -5,  top: "50%",   transform: "translateY(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "e");  }} />
+              <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "ns-resize",   zIndex: 20, border: "1.5px solid #fff", bottom: -5, left: "50%",  transform: "translateX(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "s");  }} />
+              <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "nwse-resize", zIndex: 20, border: "1.5px solid #fff", right: -5,  bottom: -5 }}                               onMouseDown={e => { e.stopPropagation(); onResizeStart(e, table.id, "se"); }} />
+            </>
+          )}
         </div>
       </div>
     </>
   );
 }
 
-// ─── How To Use ───────────────────────────────────────────────────────────────
+// ─── HowToUse ─────────────────────────────────────────────────────────────────
 function HowToUse() {
   const [open, setOpen] = useState(false);
   const tips = [
@@ -425,7 +430,7 @@ function Inspector({ selected, selectedTable, selectedSeatObj, tables, setTables
           </div>
           {iLabel(`Seats · ${selectedTable.seats.length}`)}
           <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-            <button onClick={addSeat} style={{ flex: 1, padding: "8px 0", background: "transparent", color: "#4CAF79", border: "2px solid #4CAF79", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>＋ Add</button>
+            <button onClick={addSeat}   style={{ flex: 1, padding: "8px 0", background: "transparent", color: "#4CAF79", border: "2px solid #4CAF79", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>＋ Add</button>
             <button onClick={deleteSeat} style={{ flex: 1, padding: "8px 0", background: "transparent", color: "#E05252", border: "2px solid #E05252", borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>− Remove</button>
           </div>
           <div style={{ marginTop: 8, padding: "8px 10px", background: "#F7F3EA", borderRadius: 6, fontSize: 11, color: "#888", fontFamily: F.body, lineHeight: 1.5 }}>
@@ -490,24 +495,8 @@ function ScaledCanvas({ virtualW, virtualH, children, onScale }) {
   }, [virtualW, onScale]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100%",
-        height: virtualH * scale,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <div style={{
-        position: "absolute",
-        top: 0, left: 0,
-        width: virtualW,
-        height: virtualH,
-        transformOrigin: "top left",
-        transform: `scale(${scale})`,
-        overflow: "visible",
-      }}>
+    <div ref={containerRef} style={{ width: "100%", height: virtualH * scale, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, width: virtualW, height: virtualH, transformOrigin: "top left", transform: `scale(${scale})`, overflow: "visible" }}>
         {children}
       </div>
     </div>
@@ -532,18 +521,18 @@ export default function SeatMap({
     return [{ shape: "rect", width: 110, height: 70, ...td }];
   }, []);
 
-  const [tables, setTables]         = useState(() => editMode ? [] : normalize(tableData));
-  const [labels, setLabels]         = useState(DEFAULT_LABELS);
-  const [selected, setSelected]     = useState(null);
-  const [saved, setSaved]           = useState(false);
-  const [tool, setTool]             = useState("select");
+  const [tables, setTables]             = useState(() => editMode ? [] : normalize(tableData));
+  const [labels, setLabels]             = useState(DEFAULT_LABELS);
+  const [selected, setSelected]         = useState(null);
+  const [saved, setSaved]               = useState(false);
+  const [tool, setTool]                 = useState("select");
   const [activeDragId, setActiveDragId] = useState(null);
 
   const dragging      = useRef(null);
   const canvasRef     = useRef(null);
   const adminScaleRef = useRef(1);
 
-  // ── ADMIN: load saved layout from localStorage ────────────────────────────
+  // ── ADMIN: load saved layout ──────────────────────────────────────────────
   useEffect(() => {
     if (!editMode || !wing || !room) return;
     try {
@@ -628,8 +617,8 @@ export default function SeatMap({
           if (t.id !== d.id) return t;
           return {
             ...t,
-            width:  (d.dir === "e" || d.dir === "se") ? Math.max(60,  d.originW + dx) : t.width,
-            height: (d.dir === "s" || d.dir === "se") ? Math.max(40,  d.originH + dy) : t.height,
+            width:  (d.dir === "e" || d.dir === "se") ? Math.max(60, d.originW + dx) : t.width,
+            height: (d.dir === "s" || d.dir === "se") ? Math.max(40, d.originH + dy) : t.height,
           };
         }));
       }
@@ -692,41 +681,39 @@ export default function SeatMap({
   const deleteSeat = () => {
     if (!selected?.tableId) return;
     setTables(prev => {
-      const updated = prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.slice(0, -1) });
+      const updated  = prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.slice(0, -1) });
       const filtered = updated.filter(t => t.seats.length > 0);
       if (filtered.length < updated.length) setSelected(null);
       return filtered;
     });
   };
 
-  const updateTable         = (key, val) => { if (!selected?.tableId) return; setTables(prev => prev.map(t => t.id === selected.tableId ? { ...t, [key]: val } : t)); };
-  const handleLabelEdit     = (tableId, val) => setTables(prev => prev.map(t => t.id === tableId ? { ...t, label: val } : t));
-  const handleSeatLabelEdit = (val) => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
-  const handleSeatStatus    = (status) => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
-  const handleSeatPosition  = (position) => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, position } : s) })); };
+  const updateTable         = (key, val)       => { if (!selected?.tableId) return; setTables(prev => prev.map(t => t.id === selected.tableId ? { ...t, [key]: val } : t)); };
+  const handleLabelEdit     = (tableId, val)   => setTables(prev => prev.map(t => t.id === tableId ? { ...t, label: val } : t));
+  const handleSeatLabelEdit = (val)            => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
+  const handleSeatStatus    = (status)         => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
+  const handleSeatPosition  = (position)       => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, position } : s) })); };
   const handleSeatMove = (tableId, seatId, newPosition) => {
     setTables(prev => prev.map(t => t.id !== tableId ? t : {
       ...t,
-      seats: t.seats.map(s => s.id === seatId ? { ...s, position: newPosition } : s)
+      seats: t.seats.map(s => s.id === seatId ? { ...s, position: newPosition } : s),
     }));
   };
   const handleSeatClick   = (seat, tableId) => { if (!editMode) { onSeatClick && onSeatClick(seat, tableId); return; } setSelected({ type: "seat", tableId, seatId: seat.id }); };
-  const handleTableSelect = (table) => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick && onTableClick(table); };
+  const handleTableSelect = (table)         => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick && onTableClick(table); };
 
+  // ── Save layout (admin) ───────────────────────────────────────────────────
+  // Uses dispatchSeatMapUpdate so the client view reacts immediately in the
+  // same tab without needing to reload.
   const handleSave = () => {
     if (wing && room) {
       const payload = tables.length === 1 ? tables[0] : tables;
-      try {
-        const tableKey = `seatmap:${wing}:${room}`;
-        localStorage.setItem(tableKey, JSON.stringify(payload));
-        window.dispatchEvent(new StorageEvent("storage", { key: tableKey, newValue: JSON.stringify(payload) }));
-      } catch {}
+      dispatchSeatMapUpdate(wing, room, payload);
       try {
         const labelKey = `seatmap_labels:${wing}:${room}`;
         localStorage.setItem(labelKey, JSON.stringify(labels));
         window.dispatchEvent(new StorageEvent("storage", { key: labelKey, newValue: JSON.stringify(labels) }));
       } catch {}
-      dispatchSeatMapUpdate(wing, room, payload);
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -774,18 +761,16 @@ export default function SeatMap({
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ADMIN / EDIT VIEW — canvas LEFT, panels RIGHT
+  // ADMIN / EDIT VIEW
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ fontFamily: F.body, width: "100%" }}>
 
-      {/* Title */}
       <h2 style={{ margin: "0 0 16px 0", fontFamily: F.display, fontSize: 26, fontWeight: 700, color: "#1B2A4A", letterSpacing: 0.5 }}>
         Layout Editor
         {wing && room && <span style={{ fontSize: 14, fontFamily: F.body, fontWeight: 400, color: "#8A7F6E", marginLeft: 12 }}>{wing} — {room}</span>}
       </h2>
 
-      {/* Toolbar */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
         <TBtn label="☰ Select"  active={tool === "select"}   onClick={() => setTool("select")} />
         <TBtn label="＋ Table"  active={tool === "addTable"} onClick={() => setTool("addTable")} />
@@ -801,10 +786,9 @@ export default function SeatMap({
         </div>
       </div>
 
-      {/* Two-column layout: canvas LEFT, panels RIGHT */}
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-        {/* LEFT — editing canvas */}
+        {/* LEFT — canvas */}
         <div style={{ flex: "1 1 0", minWidth: 0 }}>
           <div style={{
             ...canvasStyle,
@@ -817,12 +801,7 @@ export default function SeatMap({
                 CLICK ANYWHERE BELOW TO PLACE A TABLE
               </div>
             )}
-            <ScaledCanvas
-              virtualW={1200}
-              virtualH={700}
-              onScale={s => { adminScaleRef.current = s; }}
-            >
-              {/* Invisible click/drag capture layer */}
+            <ScaledCanvas virtualW={1200} virtualH={700} onScale={s => { adminScaleRef.current = s; }}>
               <div
                 ref={canvasRef}
                 style={{ position: "absolute", inset: 0, cursor: tool === "addTable" ? "crosshair" : "default" }}
@@ -859,13 +838,9 @@ export default function SeatMap({
           </div>
         </div>
 
-        {/* RIGHT — side panels stacked vertically */}
+        {/* RIGHT — panels */}
         <div style={{ flex: "0 0 280px", width: 280, display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* How To Use */}
           <HowToUse />
-
-          {/* Inspector */}
           <Inspector
             selected={selected} selectedTable={selectedTable} selectedSeatObj={selectedSeatObj}
             tables={tables} setTables={setTables}
@@ -873,11 +848,7 @@ export default function SeatMap({
             updateTable={updateTable} handleSeatLabelEdit={handleSeatLabelEdit}
             handleSeatStatus={handleSeatStatus} handleSeatPosition={handleSeatPosition}
           />
-
-          {/* Legend */}
           <Legend />
-
-          {/* Draggable Labels list */}
           <div style={{ background: "#fff", borderRadius: 10, padding: "14px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 8, textTransform: "uppercase" }}>Draggable Labels</div>
             <div style={{ fontSize: 11, color: "#888", fontFamily: F.body, marginBottom: 8, lineHeight: 1.5 }}>Drag these on the canvas:</div>
@@ -889,11 +860,9 @@ export default function SeatMap({
               </div>
             ))}
           </div>
-
         </div>
-        {/* END right panel */}
+
       </div>
-      {/* END two-column layout */}
     </div>
   );
 }

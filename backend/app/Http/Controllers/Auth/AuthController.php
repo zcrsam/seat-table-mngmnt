@@ -43,6 +43,35 @@ class AuthController extends Controller
     }
 
     /**
+     * Admin login for frontend admin panel
+     */
+    public function adminLogin(Request $request): JsonResponse
+    {
+        try {
+            $credentials = $request->validate([
+                'username' => 'required|string',
+                'password' => 'required|string'
+            ]);
+
+            $result = $this->authService->login($credentials['username'], $credentials['password']);
+
+            if (!$result) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid admin credentials'
+                ], 401);
+            }
+
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Admin login failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Logout admin user
      */
     public function logout(Request $request): JsonResponse

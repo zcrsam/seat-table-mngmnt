@@ -26,6 +26,11 @@ Route::prefix('auth')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 });
 
+// Admin authentication routes
+Route::prefix('admin')->group(function () {
+    Route::post('/login', [AuthController::class, 'adminLogin']);
+});
+
 // Venue routes
 Route::prefix('venues')->group(function () {
     Route::get('/', [VenueController::class, 'index']);

@@ -23,7 +23,7 @@ class SeatMapController extends Controller
                 ->first();
 
             if (!$venue) {
-                return response()->json(['error' => 'Venue not found'], 404);
+                return response()->json(['success' => false, 'message' => 'Venue not found'], 404);
             }
 
             // Get all seats for this venue
@@ -35,50 +35,31 @@ class SeatMapController extends Controller
                 ->get();
 
             // Build seatmap data structure
-            $seatmapData = [
+            $seatData = [];
+            foreach ($seats as $seat) {
+                // Check if seat is reserved
+                $reservation = $reservations->firstWhere('seat_number', $seat->seat_number);
+                
+                $seatData[] = [
+                    'table' => $seat->table_number,
+                    'seat' => $seat->seat_number,
+                    'status' => $reservation ? $reservation->status : $seat->status,
+                    'x_position' => $seat->x_position,
+                    'y_position' => $seat->y_position,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $seatData,
                 'venue' => [
                     'id' => $venue->id,
                     'name' => $venue->name,
                     'wing' => $venue->wing,
-                    'type' => $venue->type,
-                ],
-                'seats' => $seats->map(function ($seat) use ($reservations) {
-                    // Check if seat is reserved
-                    $reservation = $reservations->firstWhere('seat_number', $seat->seat_number);
-                    
-                    return [
-                        'id' => $seat->id,
-                        'table_number' => $seat->table_number,
-                        'seat_number' => $seat->seat_number,
-                        'x_position' => $seat->x_position,
-                        'y_position' => $seat->y_position,
-                        'status' => $reservation ? 'reserved' : $seat->status,
-                        'reservation' => $reservation ? [
-                            'id' => $reservation->reference_code,
-                            'name' => $reservation->name,
-                            'status' => $reservation->status,
-                        ] : null,
-                    ];
-                })->groupBy('table_number'),
-                'reservations' => $reservations->map(function ($reservation) {
-                    return [
-                        'id' => $reservation->reference_code,
-                        'name' => $reservation->name,
-                        'email' => $reservation->email,
-                        'table_number' => $reservation->table_number,
-                        'seat_number' => $reservation->seat_number,
-                        'guests_count' => $reservation->guests_count,
-                        'status' => $reservation->status,
-                        'type' => $reservation->type,
-                        'event_date' => $reservation->event_date->format('Y-m-d'),
-                        'event_time' => $reservation->event_time,
-                    ];
-                }),
-            ];
-
-            return response()->json($seatmapData);
+                ]
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 }

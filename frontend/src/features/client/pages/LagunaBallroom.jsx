@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import MainWingNavbar from "../components/MainWingNavbar";
 // ── FIX: import SeatMap (the actual file), not the non-existent ClientSeatMap ──
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
-import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence";
+import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence.js";
 import { SEAT_MAP_DATA } from "../../../data/seatMapData";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";

@@ -31,7 +31,13 @@ class AuthService
 
         $admin = Admin::where('username', $username)->first();
 
-        if (!$admin || !Hash::check($password, $admin->password)) {
+        if (!$admin) {
+            \Log::error('Admin not found: ' . $username);
+            return null;
+        }
+
+        if (!Hash::check($password, $admin->password)) {
+            \Log::error('Password mismatch for admin: ' . $username);
             return null;
         }
 

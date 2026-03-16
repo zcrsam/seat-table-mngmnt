@@ -3,7 +3,7 @@
 // Edit:  <SeatMap tableData={t} tables={[...]} editMode={true} onTablesChange={fn} onUpdate={fn} wing="Main Wing" room="Alabang Function Room" />
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { dispatchSeatMapUpdate } from "../../utils/seatMapPersistence";
+import { dispatchSeatMapUpdate } from "../../../utils/seatMapPersistence.js";
 
 // ─── TOKENS ───────────────────────────────────────────────────────────────────
 export const STATUS_COLORS  = { available:"#4CAF79", pending:"#E8A838", reserved:"#E05252" };

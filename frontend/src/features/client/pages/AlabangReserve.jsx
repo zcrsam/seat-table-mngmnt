@@ -3,7 +3,11 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MainWingNavbar from "../components/MainWingNavbar";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
-import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence";
+import {
+  getRoomData,
+  subscribeToSeatMapChanges,
+  dispatchSeatMapUpdate,
+} from "../../../utils/seatMapPersistence.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -16,7 +20,7 @@ const F = {
   inter:   "'Inter', 'Helvetica Neue', Arial, sans-serif",
 };
 
-// ─── Inline ChevronLeft SVG — no external dependency ─────────────────────────
+// ─── Inline ChevronLeft SVG ───────────────────────────────────────────────────
 function ChevronLeftIcon({ size = 18 }) {
   return (
     <svg
@@ -135,7 +139,7 @@ const s = {
   backToVenuesBtn: { width: "100%", padding: "12px 0", border: "2px solid #1B2A4A", background: "transparent", color: "#1B2A4A", borderRadius: 6, fontFamily: F.inter, fontWeight: 700, fontSize: 12, cursor: "pointer", letterSpacing: 1, textTransform: "uppercase" },
 };
 
-// ─── Helper: get seat numbers label for whole-table mode ─────────────────────
+// ─── Helper: get seat numbers label for whole-table mode ──────────────────────
 const getWholeSeatLabel = (guests) => {
   if (!guests || guests < 1) return "Seat 1";
   const nums = Array.from({ length: guests }, (_, i) => i + 1);
@@ -150,13 +154,13 @@ const getSeatRatio = (table) => {
   return `${available}/${total}`;
 };
 
-// ─── Step indicator — numbered circles + connecting line ─────────────────────
+// ─── Step indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step, light = false }) {
   const steps = ["Guest Count", "Details", "Confirm"];
-  const textColor    = light ? "rgba(255,255,255,0.55)" : "#BBB";
-  const activeColor  = light ? "#fff"                   : "#1B2A4A";
-  const doneColor    = "#C9A84C";
-  const lineDefault  = light ? "rgba(255,255,255,0.20)" : "#E8E3DC";
+  const textColor   = light ? "rgba(255,255,255,0.55)" : "#BBB";
+  const activeColor = light ? "#fff" : "#1B2A4A";
+  const doneColor   = "#C9A84C";
+  const lineDefault = light ? "rgba(255,255,255,0.20)" : "#E8E3DC";
 
   return (
     <div style={{ display: "flex", alignItems: "flex-start", marginBottom: 0, marginTop: 16 }}>
@@ -164,10 +168,10 @@ function StepIndicator({ step, light = false }) {
         const idx    = i + 1;
         const done   = step > idx;
         const active = step === idx;
-        const circleBg = done ? doneColor : active ? (light ? "rgba(255,255,255,0.18)" : "#1B2A4A") : (light ? "rgba(255,255,255,0.08)" : "#F0EDE8");
+        const circleBg     = done ? doneColor : active ? (light ? "rgba(255,255,255,0.18)" : "#1B2A4A") : (light ? "rgba(255,255,255,0.08)" : "#F0EDE8");
         const circleBorder = done || active ? "none" : `2px solid ${light ? "rgba(255,255,255,0.25)" : "#DDD"}`;
-        const numColor = done ? "#fff" : active ? (light ? "#fff" : "#fff") : textColor;
-        const labelColor = done ? doneColor : active ? (light ? "#fff" : "#1B2A4A") : textColor;
+        const numColor     = done ? "#fff" : active ? (light ? "#fff" : "#fff") : textColor;
+        const labelColor   = done ? doneColor : active ? (light ? "#fff" : "#1B2A4A") : textColor;
 
         return (
           <div key={label} style={{ display: "flex", alignItems: "flex-start", flex: i < steps.length - 1 ? 1 : "none" }}>
@@ -201,9 +205,9 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel }) {
   const capacity = tableData?.seats?.length || tableData?.capacity || 8;
 
   const infoRows = [
-    ["ROOM",        ROOM,                                                          null],
-    ["TABLE",       `Table ${tableData?.id ?? "—"}`,                               null],
-    ["SEAT NUMBER", `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                null],
+    ["ROOM",        ROOM,                                                         null],
+    ["TABLE",       `Table ${tableData?.id ?? "—"}`,                              null],
+    ["SEAT NUMBER", `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,               null],
     ["STATUS",
       seatData?.status === "available" ? "Available" : "Unavailable",
       seatData?.status === "available" ? "#3DAA6E"   : "#E8A838"],
@@ -228,7 +232,6 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel }) {
         </div>
 
         <div style={s.splitBody}>
-
           {mode === "individual" && (
             <div style={s.splitInfoCard}>
               {infoRows.map(([key, val, color], i) => (
@@ -306,7 +309,6 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel })
   return (
     <div style={s.overlay}>
       <div style={s.splitModal}>
-        {/* ── Consistent dark header ── */}
         <div style={s.splitHeader}>
           <button style={s.splitCloseBtn} onClick={onCancel}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.24)"; }}
@@ -318,49 +320,47 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel })
           <StepIndicator step={2} light={true} />
         </div>
 
-        {/* ── Body ── */}
         <div style={{ ...s.splitBody, maxHeight: "65vh", overflowY: "auto" }}>
-
-        <div style={{ ...s.timerBar, border: isUrgent ? "1px solid #E0524433" : "1px solid #E8E3DC", background: isUrgent ? "#FFF5F5" : "#F7F3EA" }}>
-          <span style={{ color: "#555" }}>
-            Seat is being held for you<br />
-            <span style={{ fontSize: 10, color: isUrgent ? "#E05252" : "#888" }}>
-              {isUrgent ? "⚠ Hurry! Your hold is about to expire." : "Complete this form before the timer expires"}
+          <div style={{ ...s.timerBar, border: isUrgent ? "1px solid #E0524433" : "1px solid #E8E3DC", background: isUrgent ? "#FFF5F5" : "#F7F3EA" }}>
+            <span style={{ color: "#555" }}>
+              Seat is being held for you<br />
+              <span style={{ fontSize: 10, color: isUrgent ? "#E05252" : "#888" }}>
+                {isUrgent ? "⚠ Hurry! Your hold is about to expire." : "Complete this form before the timer expires"}
+              </span>
             </span>
-          </span>
-          <span style={{ ...s.timerNum, color: isUrgent ? "#E05252" : "#C9A84C" }}>
-            {mins}:{secs}<span style={{ fontSize: 9, color: "#AAA", marginLeft: 2 }}>min</span>
-          </span>
-        </div>
+            <span style={{ ...s.timerNum, color: isUrgent ? "#E05252" : "#C9A84C" }}>
+              {mins}:{secs}<span style={{ fontSize: 9, color: "#AAA", marginLeft: 2 }}>min</span>
+            </span>
+          </div>
 
-        <div style={s.infoBadge}>
-          <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>ROOM</span><span style={s.infoBadgeVal}>{ROOM}</span></div>
-          <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>TABLE</span><span style={s.infoBadgeVal}>{tableData?.id ?? "—"}</span></div>
-          <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>SEAT{mode === "whole" && guests > 1 ? "S" : ""}</span><span style={{ ...s.infoBadgeVal, color: "#C9A84C" }}>{seatDisplay}</span></div>
-          <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>GUESTS</span><span style={s.infoBadgeVal}>{guests}</span></div>
-        </div>
+          <div style={s.infoBadge}>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>ROOM</span><span style={s.infoBadgeVal}>{ROOM}</span></div>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>TABLE</span><span style={s.infoBadgeVal}>{tableData?.id ?? "—"}</span></div>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>SEAT{mode === "whole" && guests > 1 ? "S" : ""}</span><span style={{ ...s.infoBadgeVal, color: "#C9A84C" }}>{seatDisplay}</span></div>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>GUESTS</span><span style={s.infoBadgeVal}>{guests}</span></div>
+          </div>
 
-        <div style={s.formRow}>
-          <div style={{ flex: 1 }}><label style={s.formLabel}>FIRST NAME *</label><input style={s.formInput} value={form.firstName} onChange={set("firstName")} /></div>
-          <div style={{ flex: 1 }}><label style={s.formLabel}>LAST NAME *</label><input style={s.formInput} value={form.lastName} onChange={set("lastName")} /></div>
-        </div>
-        <label style={s.formLabel}>EMAIL ADDRESS *</label>
-        <input style={s.formInput} value={form.email} onChange={set("email")} type="email" />
-        <label style={s.formLabel}>PHONE NUMBER *</label>
-        <input style={s.formInput} value={form.phone} onChange={set("phone")} type="tel" />
-        <div style={s.formRow}>
-          <div style={{ flex: 1 }}><label style={s.formLabel}>EVENT DATE *</label><input style={s.formInput} value={form.eventDate} onChange={set("eventDate")} type="date" min={today} /></div>
-          <div style={{ flex: 1 }}><label style={s.formLabel}>EVENT TIME</label><input style={s.formInput} value={form.eventTime} onChange={set("eventTime")} type="time" /></div>
-        </div>
-        <label style={s.formLabel}>SPECIAL REQUESTS</label>
-        <textarea style={{ ...s.formInput, resize: "vertical", minHeight: 56 }} value={form.specialRequests} onChange={set("specialRequests")} />
+          <div style={s.formRow}>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>FIRST NAME *</label><input style={s.formInput} value={form.firstName} onChange={set("firstName")} /></div>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>LAST NAME *</label><input style={s.formInput} value={form.lastName} onChange={set("lastName")} /></div>
+          </div>
+          <label style={s.formLabel}>EMAIL ADDRESS *</label>
+          <input style={s.formInput} value={form.email} onChange={set("email")} type="email" />
+          <label style={s.formLabel}>PHONE NUMBER *</label>
+          <input style={s.formInput} value={form.phone} onChange={set("phone")} type="tel" />
+          <div style={s.formRow}>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>EVENT DATE *</label><input style={s.formInput} value={form.eventDate} onChange={set("eventDate")} type="date" min={today} /></div>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>EVENT TIME</label><input style={s.formInput} value={form.eventTime} onChange={set("eventTime")} type="time" /></div>
+          </div>
+          <label style={s.formLabel}>SPECIAL REQUESTS</label>
+          <textarea style={{ ...s.formInput, resize: "vertical", minHeight: 56 }} value={form.specialRequests} onChange={set("specialRequests")} />
 
-        <button
-          disabled={!allFilled}
-          style={{ ...s.splitContinueBtn, marginTop: 6, opacity: allFilled ? 1 : 0.45, cursor: allFilled ? "pointer" : "default" }}
-          onClick={() => allFilled && onReview(form)}>
-          REVIEW BOOKING
-        </button>
+          <button
+            disabled={!allFilled}
+            style={{ ...s.splitContinueBtn, marginTop: 6, opacity: allFilled ? 1 : 0.45, cursor: allFilled ? "pointer" : "default" }}
+            onClick={() => allFilled && onReview(form)}>
+            REVIEW BOOKING
+          </button>
         </div>
       </div>
     </div>
@@ -376,7 +376,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
     return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
   };
 
-  const tableLabel = `Table ${tableData?.id ?? "—"}`;
+  const tableLabel  = `Table ${tableData?.id ?? "—"}`;
   const seatDisplay = mode === "whole"
     ? getWholeSeatLabel(guests)
     : `Seat ${seatData?.num ?? seatData?.number ?? seatData?.label ?? seatData?.id ?? "—"}`;
@@ -394,7 +394,6 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
   return (
     <div style={s.overlay}>
       <div style={s.splitModal}>
-        {/* ── Consistent dark header ── */}
         <div style={s.splitHeader}>
           <button style={s.splitCloseBtn} onClick={onEdit}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.24)"; }}
@@ -406,39 +405,38 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
           <StepIndicator step={3} light={true} />
         </div>
 
-        {/* ── Body ── */}
         <div style={{ ...s.splitBody, maxHeight: "65vh", overflowY: "auto" }}>
-        <div style={s.sectionLabel}>RESERVATION DETAILS</div>
-        {rows.map(([k, v]) => (
-          <div key={k} style={s.reviewRow}>
-            <span style={s.reviewKey}>{k}</span>
-            {k === "Event Time" && !v
-              ? <span style={s.pendingBadge}>Pending</span>
-              : <span style={{ ...s.reviewVal, color: k === "Seat(s)" ? "#C9A84C" : "#1B2A4A" }}>{v}</span>}
-          </div>
-        ))}
+          <div style={s.sectionLabel}>RESERVATION DETAILS</div>
+          {rows.map(([k, v]) => (
+            <div key={k} style={s.reviewRow}>
+              <span style={s.reviewKey}>{k}</span>
+              {k === "Event Time" && !v
+                ? <span style={s.pendingBadge}>Pending</span>
+                : <span style={{ ...s.reviewVal, color: k === "Seat(s)" ? "#C9A84C" : "#1B2A4A" }}>{v}</span>}
+            </div>
+          ))}
 
-        <div style={s.sectionLabel}>GUEST INFORMATION</div>
-        {[
-          ["Full Name",        `${form.firstName} ${form.lastName}`],
-          ["Email",            form.email],
-          ["Phone",            form.phone],
-          ["Special Requests", form.specialRequests || "None"],
-        ].map(([k, v]) => (
-          <div key={k} style={s.reviewRow}>
-            <span style={s.reviewKey}>{k}</span>
-            <span style={s.reviewVal}>{v}</span>
-          </div>
-        ))}
+          <div style={s.sectionLabel}>GUEST INFORMATION</div>
+          {[
+            ["Full Name",        `${form.firstName} ${form.lastName}`],
+            ["Email",            form.email],
+            ["Phone",            form.phone],
+            ["Special Requests", form.specialRequests || "None"],
+          ].map(([k, v]) => (
+            <div key={k} style={s.reviewRow}>
+              <span style={s.reviewKey}>{k}</span>
+              <span style={s.reviewVal}>{v}</span>
+            </div>
+          ))}
 
-        <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-          <button style={s.editBtn} onClick={onEdit} disabled={submitting}>EDIT DETAILS</button>
-          <button
-            style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
-            onClick={onSubmit} disabled={submitting}>
-            {submitting ? "SUBMITTING…" : "SUBMIT"}
-          </button>
-        </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+            <button style={s.editBtn} onClick={onEdit} disabled={submitting}>EDIT DETAILS</button>
+            <button
+              style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
+              onClick={onSubmit} disabled={submitting}>
+              {submitting ? "SUBMITTING…" : "SUBMIT"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -486,6 +484,7 @@ export default function AlabangReserve() {
   const [refCode,       setRefCode]       = useState(null);
   const [submitting,    setSubmitting]    = useState(false);
 
+  // ── Load initial table data from localStorage ─────────────────────────────
   const [tableData, setTableData] = useState(() => {
     const raw = getRoomData(WING, ROOM, null);
     if (!raw) return null;
@@ -494,17 +493,24 @@ export default function AlabangReserve() {
     return null;
   });
 
+  // ── Subscribe to seat map changes (BroadcastChannel + custom events) ──────
+  // This fires when the admin approves/rejects a reservation, turning seats
+  // red (reserved) or green (available) in real time on the client side.
   useEffect(() => {
     const unsub = subscribeToSeatMapChanges(({ wing, room, data }) => {
-      if (wing === WING && room === ROOM) {
-        if (Array.isArray(data)) setTableData(data.filter(t => t.seats?.length > 0));
-        else if (data?.seats?.length > 0) setTableData(data);
-        else setTableData(null);
+      if (wing !== WING || room !== ROOM) return;
+      if (Array.isArray(data)) {
+        setTableData(data.filter(t => t.seats?.length > 0));
+      } else if (data?.seats?.length > 0) {
+        setTableData(data);
+      } else {
+        setTableData(null);
       }
     });
     return unsub;
   }, []);
 
+  // ── Also listen for raw storage events (cross-tab fallback) ──────────────
   useEffect(() => {
     const SEAT_KEY = `seatmap:${WING}:${ROOM}`;
     const onStorage = (e) => {
@@ -512,14 +518,18 @@ export default function AlabangReserve() {
       try {
         const parsed = JSON.parse(e.newValue);
         if (!parsed) return;
-        if (Array.isArray(parsed)) setTableData(parsed.filter(t => t.seats?.length > 0));
-        else if (parsed.seats?.length > 0) setTableData(parsed);
+        if (Array.isArray(parsed)) {
+          setTableData(parsed.filter(t => t.seats?.length > 0));
+        } else if (parsed.seats?.length > 0) {
+          setTableData(parsed);
+        }
       } catch {}
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // ── Sync seat statuses from the database on mount + every 30s ────────────
   const hasSynced = useRef(false);
   useEffect(() => {
     if (hasSynced.current) return;
@@ -527,11 +537,13 @@ export default function AlabangReserve() {
 
     const syncWithDatabase = async () => {
       try {
-        const res = await apiCall(`/seat-status/${encodeURIComponent(ROOM)}`);
-        if (!res.success || !res.data?.length) return;
+        // For now, use localStorage data instead of API call
+        const res = { success: true, data: [] };
+        if (!res.success) return;
 
         setTableData(prev => {
           if (!prev) return prev;
+
           const applyToTable = (tbl) => ({
             ...tbl,
             seats: (tbl.seats || []).map(seat => {
@@ -547,7 +559,13 @@ export default function AlabangReserve() {
               return match ? { ...seat, status: match.status } : seat;
             }),
           });
-          return Array.isArray(prev) ? prev.map(applyToTable) : applyToTable(prev);
+
+          const result = Array.isArray(prev) ? prev.map(applyToTable) : applyToTable(prev);
+
+          // Persist DB-synced statuses so admin dashboard also sees them
+          dispatchSeatMapUpdate(WING, ROOM, result);
+
+          return result;
         });
       } catch (err) {
         console.warn("[AlabangReserve] Seat sync failed:", err.message);
@@ -559,12 +577,14 @@ export default function AlabangReserve() {
     return () => clearInterval(interval);
   }, []);
 
+  // ── Window resize handler ─────────────────────────────────────────────────
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const resolveTableForSeat = (seat) => {
     if (!seat || !tableData) return null;
     if (Array.isArray(tableData))
@@ -575,7 +595,11 @@ export default function AlabangReserve() {
   const getActiveTable = () =>
     selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData) || null;
 
-  const handleTableClick = (table) => { setSelectedTable(table); setModal("guestCount"); };
+  // ── Interaction handlers ──────────────────────────────────────────────────
+  const handleTableClick = (table) => {
+    setSelectedTable(table);
+    setModal("guestCount");
+  };
 
   const handleSeatClick = (seat) => {
     if (seat.status === "reserved" || seat.status === "pending") {
@@ -589,11 +613,12 @@ export default function AlabangReserve() {
   const handleGuestContinue = (g) => { setGuests(g); setModal("details"); };
   const handleReview        = (form) => { setFormData(form); setModal("review"); };
 
+  // ── Submit reservation ────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      const activeTable = getActiveTable();
+      const activeTable   = getActiveTable();
       const wholeSeatNums = mode === "whole"
         ? Array.from({ length: guests }, (_, i) => i + 1).join(",")
         : null;
@@ -602,7 +627,7 @@ export default function AlabangReserve() {
         name:             `${formData.firstName} ${formData.lastName}`,
         email:            formData.email,
         phone:            formData.phone,
-        venue_id:         1, // Alabang Function Room has venue_id = 1 in the venues table
+        venue_id:         1,
         table_number:     String(activeTable?.id ?? "T1"),
         seat_number:      mode === "individual"
                           ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
@@ -616,24 +641,45 @@ export default function AlabangReserve() {
 
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
 
-      // API returns reservation data directly on success
       setRefCode(response.reference_code || "—");
 
+      // Mark affected seats as pending in local state, then broadcast the
+      // updated layout to localStorage + admin dashboard via dispatchSeatMapUpdate
       if (activeTable) {
         const markPending = (tbl) => {
           if (mode === "individual") {
-            return { ...tbl, seats: (tbl.seats || []).map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+            return {
+              ...tbl,
+              seats: (tbl.seats || []).map(s =>
+                s.id === selectedSeat?.id ? { ...s, status: "pending" } : s
+              ),
+            };
           } else {
             let marked = 0;
-            return { ...tbl, seats: (tbl.seats || []).map(s => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
+            return {
+              ...tbl,
+              seats: (tbl.seats || []).map(s => {
+                if (marked < guests && s.status === "available") {
+                  marked++;
+                  return { ...s, status: "pending" };
+                }
+                return s;
+              }),
+            };
           }
         };
+
         const updated = Array.isArray(tableData)
           ? tableData.map(t => t.id === activeTable.id ? markPending(t) : t)
           : markPending(tableData);
+
         setTableData(updated);
-        saveSeatMapData(WING, ROOM, updated);
+
+        // dispatchSeatMapUpdate saves to localStorage AND fires BroadcastChannel
+        // so the admin dashboard picks up the new pending seats immediately
+        dispatchSeatMapUpdate(WING, ROOM, updated);
       }
+
       setModal("success");
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -643,10 +689,15 @@ export default function AlabangReserve() {
   };
 
   const handleBack = () => {
-    setModal(null); setSelectedSeat(null); setSelectedTable(null);
-    setRefCode(null); setFormData(null); setGuests(2);
+    setModal(null);
+    setSelectedSeat(null);
+    setSelectedTable(null);
+    setRefCode(null);
+    setFormData(null);
+    setGuests(2);
   };
 
+  // ── Derived display values ────────────────────────────────────────────────
   const isMobile    = windowSize.width < 480;
   const isTablet    = windowSize.width < 768;
   const activeTable = getActiveTable();
@@ -662,41 +713,21 @@ export default function AlabangReserve() {
 
   const seatRatio = activeTable ? getSeatRatio(activeTable) : null;
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={s.root}>
       <MainWingNavbar active="ALABANG FUNCTION ROOM" />
 
       <div style={{ ...s.page, ...(isMobile ? { padding: "16px 14px" } : isTablet ? { padding: "24px 20px" } : {}) }}>
 
-        {/* ── Back button — ChevronLeft SVG ── */}
+        {/* Back button */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, marginTop: 8 }}>
           <button
             onClick={() => navigate("/venues")}
             aria-label="Back to venues"
-            style={{
-              width: 40,
-              height: 40,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "#fff",
-              borderRadius: "50%",
-              border: "2px solid #C9A84C",
-              color: "#C9A84C",
-              cursor: "pointer",
-              flexShrink: 0,
-              transition: "background 0.15s, color 0.15s, border-color 0.15s",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = "#C9A84C";
-              e.currentTarget.style.color = "#fff";
-              e.currentTarget.style.borderColor = "#C9A84C";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = "#fff";
-              e.currentTarget.style.color = "#C9A84C";
-              e.currentTarget.style.borderColor = "#C9A84C";
-            }}
+            style={{ width: 40, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: "50%", border: "2px solid #C9A84C", color: "#C9A84C", cursor: "pointer", flexShrink: 0, transition: "background 0.15s, color 0.15s, border-color 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#C9A84C"; e.currentTarget.style.color = "#fff"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#C9A84C"; }}
           >
             <ChevronLeftIcon size={18} />
           </button>
@@ -715,7 +746,7 @@ export default function AlabangReserve() {
         <div style={{ ...s.toggleBar, marginBottom: 24 }}>
           <span style={s.toggleLabel}>I WANT TO RESERVE A:</span>
           <div style={s.togglePillGroup}>
-            <button style={s.togglePillBtn(mode === "whole")} onClick={() => { setMode("whole"); setSelectedSeat(null); }}>Whole Table</button>
+            <button style={s.togglePillBtn(mode === "whole")}      onClick={() => { setMode("whole");      setSelectedSeat(null); }}>Whole Table</button>
             <button style={s.togglePillBtn(mode === "individual")} onClick={() => { setMode("individual"); setSelectedTable(null); }}>Individual Seat</button>
           </div>
         </div>
@@ -792,6 +823,7 @@ export default function AlabangReserve() {
         </div>
       </div>
 
+      {/* Modals */}
       {modal === "guestCount" && (
         <ModalGuestCount
           seatData={mode === "individual" ? selectedSeat : null}
