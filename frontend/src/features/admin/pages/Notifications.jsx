@@ -2,8 +2,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // BELLEVUE · NOTIFICATION MONITOR
 // Typography to match the Reservation Dashboard:
-//   - Labels:      7–8px, weight 600, uppercase, muted color
-//   - Values:      11–12px, weight 500 (NOT bold)
+//   - Labels:      14px, weight 600, uppercase, muted color
+//   - Values:      14px, weight 500 (NOT bold)
 //   - Guest name:  14px, weight 600 (semi-bold, not 800)
 //   - Headers:     weight 600
 //   - Cinzel only for "NOTIFICATION MONITOR" title
@@ -87,7 +87,7 @@ function fmtDate(d) {
   const dt = new Date(d);
   return isNaN(dt)
     ? String(d)
-    : dt.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" });
+    : dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function clockStr() {
@@ -102,7 +102,6 @@ function dateStr() {
 }
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
-// Looping alert — keeps beeping every 4s until stopAlertSound() is called
 let _alertInterval = null;
 
 function _playOnce() {
@@ -123,9 +122,9 @@ function _playOnce() {
 }
 
 function playAlertSound() {
-  stopAlertSound();          // clear any previous loop
-  _playOnce();               // fire immediately
-  _alertInterval = setInterval(_playOnce, 4000); // repeat every 4s
+  stopAlertSound();
+  _playOnce();
+  _alertInterval = setInterval(_playOnce, 4000);
 }
 
 function stopAlertSound() {
@@ -180,20 +179,18 @@ function InfoGrid({ fields, labelColor = C.textTiny, valueColor = C.textSub }) {
         <div key={i}>
           {label && (
             <>
-              {/* Label — small, 600 weight, muted */}
               <div style={{
                 fontFamily:    "'Montserrat',sans-serif",
-                fontSize:      7,
+                fontSize:      12,
                 fontWeight:    600,
                 color:         labelColor,
                 letterSpacing: 1.3,
                 textTransform: "uppercase",
                 marginBottom:  3,
               }}>{label}</div>
-              {/* Value — normal size, 500 weight (not bold) */}
               <div style={{
                 fontFamily: "'Montserrat',sans-serif",
-                fontSize:   11,
+                fontSize:   12,
                 fontWeight: 500,
                 color:      valueColor,
                 lineHeight: 1.3,
@@ -305,25 +302,23 @@ function ReservationDetailModal({ res, onClose }) {
             }}>Reservation Details</div>
             <div style={{
               fontFamily: "'Montserrat',sans-serif",
-              fontSize:   11,
+              fontSize:   14,
               fontWeight: 400,
               color:      C.textMuted,
               marginTop:  2,
             }}>{res.guest_name || res.name || "Guest"}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Status badge */}
             <div style={{
               background:   `${statusColor()}18`,
               border:       `1px solid ${statusColor()}40`,
               borderRadius: 20,
               padding:      "3px 12px",
               fontFamily:   "'Montserrat',sans-serif",
-              fontSize:     11,
+              fontSize:     14,
               fontWeight:   600,
               color:        statusColor(),
             }}>{statusLabel()}</div>
-            {/* Close button */}
             <button
               onClick={onClose}
               style={{
@@ -355,10 +350,9 @@ function ReservationDetailModal({ res, onClose }) {
         }}>
           {sections.map(({ title, rows }) => (
             <div key={title} style={{ marginBottom: 20 }}>
-              {/* Section heading */}
               <div style={{
                 fontFamily:    "'Montserrat',sans-serif",
-                fontSize:      8,
+                fontSize:      14,
                 fontWeight:    700,
                 color:         C.gold,
                 letterSpacing: 1.8,
@@ -368,7 +362,6 @@ function ReservationDetailModal({ res, onClose }) {
                 borderBottom:  `1px solid ${C.borderLight}`,
               }}>{title}</div>
 
-              {/* Rows */}
               {rows.map(({ icon, label, value }) => (
                 <div key={label} style={{
                   display:       "flex",
@@ -376,12 +369,11 @@ function ReservationDetailModal({ res, onClose }) {
                   gap:           10,
                   marginBottom:  8,
                 }}>
-                  {/* Icon */}
                   <div style={{
                     width:          28,
                     height:         28,
                     borderRadius:   8,
-                    background:     C.goldLight || "rgba(201,168,76,0.08)",
+                    background:     "rgba(201,168,76,0.08)",
                     border:         "1px solid rgba(201,168,76,0.18)",
                     display:        "flex",
                     alignItems:     "center",
@@ -389,11 +381,10 @@ function ReservationDetailModal({ res, onClose }) {
                     flexShrink:     0,
                     marginTop:      1,
                   }}>{icon}</div>
-                  {/* Text */}
                   <div style={{ flex: 1 }}>
                     <div style={{
                       fontFamily:    "'Montserrat',sans-serif",
-                      fontSize:      8,
+                      fontSize:      14,
                       fontWeight:    600,
                       color:         C.textTiny,
                       letterSpacing: 1.2,
@@ -402,7 +393,7 @@ function ReservationDetailModal({ res, onClose }) {
                     }}>{label}</div>
                     <div style={{
                       fontFamily: "'Montserrat',sans-serif",
-                      fontSize:   12,
+                      fontSize:   14,
                       fontWeight: 500,
                       color:      C.textSub,
                       lineHeight: 1.4,
@@ -431,7 +422,7 @@ function ReservationDetailModal({ res, onClose }) {
               border:       "none",
               borderRadius: 8,
               fontFamily:   "'Montserrat',sans-serif",
-              fontSize:     12,
+              fontSize:     14,
               fontWeight:   600,
               cursor:       "pointer",
               transition:   "opacity .15s",
@@ -445,11 +436,11 @@ function ReservationDetailModal({ res, onClose }) {
   );
 }
 
-// ── 1-Hour Reminder Popup — bubble corner card style ────────────────────────
-function ReminderPopup({ popup, onView, onClose }) {
+// ── 1-Hour Reminder Popup ────────────────────────────────────────────────────
+function ReminderPopup({ popup, onView, onClose, queueCount = 1 }) {
   const d = popup.eventDate ? new Date(popup.eventDate) : null;
-  const dateStr = d && !isNaN(d)
-    ? d.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })
+  const dStr = d && !isNaN(d)
+    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : popup.eventDate || "";
   const t = popup.eventTime || "";
   const m24 = t.match(/^(\d{1,2}):(\d{2})$/);
@@ -463,11 +454,10 @@ function ReminderPopup({ popup, onView, onClose }) {
       top:       66,
       right:     18,
       zIndex:    9999,
-      width:     280,
+      width:     popup.multiple ? 320 : 280,
       animation: "popupIn .35s cubic-bezier(.34,1.5,.64,1)",
       fontFamily:"-apple-system,'Montserrat',sans-serif",
     }}>
-      {/* Bell circle — sits above the card, top-left */}
       <div style={{
         position:       "absolute",
         top:            -26,
@@ -487,7 +477,6 @@ function ReminderPopup({ popup, onView, onClose }) {
         <BellDot size={24} color="#1A1F2E" strokeWidth={1.8} />
       </div>
 
-      {/* Card */}
       <div style={{
         background:   "#FFFFFF",
         borderRadius: "28px 12px 12px 12px",
@@ -496,58 +485,92 @@ function ReminderPopup({ popup, onView, onClose }) {
         position:     "relative",
         zIndex:       2,
       }}>
-        {/* Body */}
-        <div style={{
-          padding: "20px 20px 16px 20px",
-        }}>
-          {/* Space for bell to sit above */}
+        <div style={{ padding: "20px 20px 16px 20px" }}>
           <div style={{ height: 16 }} />
-
-          {/* Reminder! */}
           <div style={{
             fontWeight:   700,
             fontSize:     18,
             color:        "#111827",
             textAlign:    "center",
             marginBottom: 12,
-          }}>Reminder!</div>
-
-          {/* 1 HOUR TO GO */}
+          }}>
+            {popup.multiple ? `${popup.count} Reminders!` : "Reminder!"}
+          </div>
+          {queueCount > 1 && (
+            <div style={{
+              display:        "inline-flex",
+              alignItems:     "center",
+              gap:            5,
+              background:     "#FEF3C7",
+              border:         "1px solid #F59E0B",
+              borderRadius:   20,
+              padding:        "3px 10px",
+              fontFamily:     "'Montserrat',sans-serif",
+              fontWeight:     600,
+              fontSize:       12,
+              color:          "#92400E",
+              marginBottom:   8,
+            }}>
+              <Bell size={11} color="#92400E" />
+              {queueCount} reminders queued
+            </div>
+          )}
           <div style={{
             fontWeight:   700,
-            fontSize:     13,
+            fontSize:     14,
             color:        "#111827",
             marginBottom: 6,
           }}>1 HOUR TO GO</div>
-
-          {/* Guest */}
-          <div style={{
-            fontWeight:   400,
-            fontSize:     13,
-            color:        "#6B7280",
-            marginBottom: 3,
-          }}>Guest: {popup.name}</div>
-
-          {/* Date | Time */}
-          <div style={{
-            fontWeight:   400,
-            fontSize:     13,
-            color:        "#6B7280",
-            marginBottom: 3,
-          }}>{dateStr} | {timeStr}</div>
-
-          {/* Venue */}
-          <div style={{
-            fontWeight:   400,
-            fontSize:     13,
-            color:        "#6B7280",
-          }}>{popup.room}</div>
+          
+          {/* Show multiple reservations or single */}
+          {popup.multiple ? (
+            <div>
+              {popup.allReservations.map((res, index) => (
+                <div key={index} style={{ 
+                  marginBottom: index < popup.allReservations.length - 1 ? 8 : 0,
+                  paddingBottom: index < popup.allReservations.length - 1 ? 8 : 0,
+                  borderBottom: index < popup.allReservations.length - 1 ? "1px solid #F0F0F0" : "none"
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "#374151", marginBottom: 2 }}>
+                    {res.guest_name || res.name || "Guest"}
+                  </div>
+                  <div style={{ fontWeight: 400, fontSize: 12, color: "#6B7280" }}>
+                    {res.event_date ? new Date(res.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""} | {res.event_time || ""}
+                  </div>
+                  <div style={{ fontWeight: 400, fontSize: 12, color: "#6B7280" }}>
+                    {res.room || res.venue || "-"}
+                  </div>
+                </div>
+              ))}
+              {popup.count > 3 && (
+                <div style={{ 
+                  textAlign: "center", 
+                  fontSize: 12, 
+                  color: "#9CA3AF", 
+                  fontWeight: 600,
+                  marginTop: 8 
+                }}>
+                  ...and {popup.count - 3} more
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontWeight: 400, fontSize: 14, color: "#6B7280", marginBottom: 3 }}>
+                Guest: {popup.name}
+              </div>
+              <div style={{ fontWeight: 400, fontSize: 14, color: "#6B7280", marginBottom: 3 }}>
+                {dStr} | {timeStr}
+              </div>
+              <div style={{ fontWeight: 400, fontSize: 14, color: "#6B7280" }}>
+                {popup.room}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Divider */}
         <div style={{ height: 1, background: "#F0F0F0" }} />
 
-        {/* Buttons */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
           <button
             onClick={() => onView(popup)}
@@ -588,7 +611,6 @@ function ReminderPopup({ popup, onView, onClose }) {
   );
 }
 
-
 // ── Card fields ───────────────────────────────────────────────────────────────
 function cardFields(res) {
   return [
@@ -603,8 +625,10 @@ function cardFields(res) {
   ];
 }
 
-// ── Left card (white) ─────────────────────────────────────────────────────────
+// ── Left card (white — upcoming) ──────────────────────────────────────────────
 function NewResCard({ res, isNew }) {
+  const [popupQueue, setPopupQueue] = useState([]);
+  const popup = popupQueue[0] ?? null;   // always show the head of the queue
   const [hi, setHi] = useState(isNew);
   useEffect(() => {
     if (isNew) { const t = setTimeout(() => setHi(false), 4000); return () => clearTimeout(t); }
@@ -615,13 +639,12 @@ function NewResCard({ res, isNew }) {
       background:   C.surface,
       border:       `1px solid ${hi ? C.blue : C.border}`,
       borderRadius: 10,
-      padding:      "13px 14px",
+      padding:      "16px 18px",
       marginBottom: 9,
       boxShadow:    hi ? "0 4px 16px rgba(74,144,217,.12)" : `0 1px 4px ${C.shadow}`,
       transition:   "all .4s ease",
       animation:    isNew ? "cardSlideIn .4s cubic-bezier(.34,1.5,.64,1)" : "none",
     }}>
-      {/* Guest name — 600 weight, NOT 800 */}
       <div style={{
         fontFamily:   "'Montserrat',sans-serif",
         fontWeight:   600,
@@ -640,21 +663,21 @@ function NewResCard({ res, isNew }) {
   );
 }
 
-// ── Right card (green) ────────────────────────────────────────────────────────
+// ── Right card (green — done / past) ─────────────────────────────────────────
 function DoneCard({ res }) {
   return (
     <div style={{
       background:   C.greenPastel,
       border:       `1px solid ${C.greenBorder}`,
       borderRadius: 10,
-      padding:      "12px 14px",
+      padding:      "16px 18px",
       marginBottom: 8,
       boxShadow:    `0 1px 4px ${C.shadow}`,
     }}>
       <div style={{
         fontFamily:   "'Montserrat',sans-serif",
         fontWeight:   600,
-        fontSize:     14,
+        fontSize:     11,
         color:        C.navy,
         marginBottom: 10,
       }}>
@@ -676,8 +699,7 @@ function EmptyState({ msg }) {
       textAlign:  "center",
       padding:    "50px 20px",
       fontFamily: "'Montserrat',sans-serif",
-      fontSize:   12,
-      fontWeight: 400,
+      fontSize:   14,
       color:      C.textLight,
     }}>{msg}</div>
   );
@@ -688,7 +710,8 @@ const POLL_MS = 15000;
 
 export default function NotificationDashboard() {
   const [approvedCards, setApprovedCards] = useState([]);
-  const [popup,         setPopup]         = useState(null);
+  const [popupQueue, setPopupQueue] = useState([]);
+const popup = popupQueue[0] ?? null;   // always show the head of the queue
   const [detailRes,     setDetailRes]     = useState(null);
   const [newIds,        setNewIds]        = useState(new Set());
   const [clock,         setClock]         = useState(clockStr());
@@ -701,11 +724,19 @@ export default function NotificationDashboard() {
   const timerRef         = useRef(null);
   const leftRef          = useRef(null);
 
+  // Helper: dismiss head of queue (used in both onView and onClose)
+  const dismissPopup = useCallback(() => {
+    setPopupQueue(q => q.slice(1));
+    if (popupQueue.length <= 1) stopAlertSound(); // stop sound only when queue empties
+  }, [popupQueue.length]);
+
+  // ── Clock ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const t = setInterval(() => { setClock(clockStr()); setDate(dateStr()); }, 1000);
     return () => clearInterval(t);
   }, []);
 
+  // ── Countdown to next poll ─────────────────────────────────────────────────
   const resetCd = useCallback(() => {
     setCountdown(POLL_MS / 1000);
     clearInterval(timerRef.current);
@@ -715,8 +746,8 @@ export default function NotificationDashboard() {
   }, []);
   useEffect(() => { resetCd(); return () => clearInterval(timerRef.current); }, [resetCd]);
 
+  // ── 1-hour alert check ─────────────────────────────────────────────────────
   const checkAlerts = useCallback((list) => {
-    // Collect all reservations in the 0-2h window not yet fired
     const candidates = list
       .map(res => {
         const id  = res.id ?? res.db_id;
@@ -736,24 +767,36 @@ export default function NotificationDashboard() {
 
     if (candidates.length === 0) return;
 
-    // Fire even on initial page load
-    const { res, id, key } = candidates[0];
-    firedAlerts.current.add(key);
-    setPopup({
-      id,
-      name:      res.guest_name || res.name || "Guest",
-      room:      res.room || res.venue || "-",
-      eventDate: res.event_date  || res.eventDate  || res.reservationDate,
-      eventTime: res.event_time  || res.eventTime  || res.reservationTime,
-    });
+    // Mark all as fired immediately so re-polls don't re-queue them
+    candidates.forEach(({ key }) => firedAlerts.current.add(key));
+
+    // Push all into the queue
+    setPopupQueue(q => [
+      ...q,
+      ...candidates.map(({ res, id }) => ({
+        id,
+        name:      res.guest_name || res.name || "Guest",
+        room:      res.room || res.venue || "-",
+        eventDate: res.event_date  || res.eventDate  || res.reservationDate,
+        eventTime: res.event_time  || res.eventTime  || res.reservationTime,
+      })),
+    ]);
+
     playAlertSound();
-    speakText(
-      `Reminder. 1 hour to go. ` +
-      `${res.guest_name || res.name || "A guest"}'s reservation ` +
-      `at ${res.room || res.venue || "the venue"} starts in 1 hour.`,
-    );
+    // Announce the count if more than one
+    const first = candidates[0].res;
+    if (candidates.length === 1) {
+      speakText(
+        `Reminder. 1 hour to go. ` +
+        `${first.guest_name || first.name || "A guest"}'s reservation ` +
+        `at ${first.room || first.venue || "the venue"} starts in 1 hour.`,
+      );
+    } else {
+      speakText(`Reminder. ${candidates.length} reservations are starting in 1 hour.`);
+    }
   }, []);
 
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchData = useCallback(async (isInit = false) => {
     try {
       const resp = await reservationAPI.getAll();
@@ -802,6 +845,28 @@ export default function NotificationDashboard() {
     return () => clearInterval(t);
   }, [fetchData]);
 
+  // ── Split into pending (upcoming) and done (past event date) ───────────────
+  const now = new Date();
+
+  const pendingCards = approvedCards.filter(res => {
+    const dt = parseEventDate(
+      res.event_date || res.eventDate || res.reservationDate,
+      res.event_time || res.eventTime || res.reservationTime,
+    );
+    // No parseable date → treat as upcoming (keep in left column)
+    return !dt || dt.getTime() > now.getTime();
+  });
+
+  const doneCards = approvedCards.filter(res => {
+    const dt = parseEventDate(
+      res.event_date || res.eventDate || res.reservationDate,
+      res.event_time || res.eventTime || res.reservationTime,
+    );
+    // Has a date AND it's in the past → move to Done
+    return dt && dt.getTime() <= now.getTime();
+  });
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
       fontFamily:    "'Montserrat',sans-serif",
@@ -864,31 +929,22 @@ export default function NotificationDashboard() {
 
         <div style={{ width: 1, height: 28, background: C.border }} />
 
-        {/* Title — Cinzel for monitor text, Montserrat for sub */}
+        {/* Title */}
         <div style={{ flex: 1 }}>
           <div style={{
             fontFamily:    "'Cinzel',serif",
             fontWeight:    600,
             fontSize:      15,
-            color:         C.navy,
+            color:         C.gold,
             letterSpacing: 1.8,
             textTransform: "uppercase",
           }}>
             Notification Monitor
           </div>
-          <div style={{
-            fontFamily:    "'Montserrat',sans-serif",
-            fontSize:      8,
-            fontWeight:    400,
-            color:         C.textLight,
-            letterSpacing: 1.2,
-            marginTop:     2,
-          }}>
-            Live · Auto-refresh every {POLL_MS / 1000}s · Next in {countdown}s
-          </div>
+          
         </div>
 
-        {/* Bell icon — always visible, BellDot when alert active */}
+        {/* Bell icon */}
         <div style={{
           width:         40,
           height:        40,
@@ -906,9 +962,8 @@ export default function NotificationDashboard() {
         }}>
           {popup
             ? <BellDot size={18} color={C.gold} />
-            : <Bell    size={18} color={C.navy}  />
+            : <Bell    size={18} color={C.gold} />
           }
-          {/* Red dot badge when alert is active */}
           {popup && (
             <div style={{
               position:     "absolute",
@@ -938,7 +993,7 @@ export default function NotificationDashboard() {
           }}>{clock}</div>
           <div style={{
             fontFamily:    "'Montserrat',sans-serif",
-            fontSize:      8,
+            fontSize:      14,
             fontWeight:    400,
             color:         C.textLight,
             letterSpacing: 0.8,
@@ -967,7 +1022,7 @@ export default function NotificationDashboard() {
           }} />
           <div style={{
             fontFamily: "'Montserrat',sans-serif",
-            fontSize:   12,
+            fontSize:   14,
             fontWeight: 400,
             color:      C.textMuted,
           }}>Loading notifications…</div>
@@ -980,13 +1035,14 @@ export default function NotificationDashboard() {
           flex:                1,
           display:             "grid",
           gridTemplateColumns: "3.5fr 1.5fr",
-          gap:                 16,
+          rowGap:             0,
+          columnGap:           24,
           padding:             "16px 22px",
           minHeight:           0,
           animation:           "fadeUp .3s ease",
         }}>
 
-          {/* ── LEFT — New Reservation ─────────────────────────────────────── */}
+          {/* ── LEFT — New / Upcoming Reservations ────────────────────────── */}
           <div style={{
             background:    C.surface,
             border:        `1px solid ${C.border}`,
@@ -997,7 +1053,6 @@ export default function NotificationDashboard() {
             flexDirection: "column",
             minHeight:     0,
           }}>
-            {/* Column header */}
             <div style={{
               background:    C.bluePastel,
               borderBottom:  `1px solid ${C.blueBorder}`,
@@ -1010,7 +1065,7 @@ export default function NotificationDashboard() {
               <span style={{
                 fontFamily: "'Montserrat',sans-serif",
                 fontWeight: 600,
-                fontSize:   13,
+                fontSize:   14,
                 color:      C.navy,
               }}>New Reservation</span>
               <span style={{
@@ -1019,19 +1074,18 @@ export default function NotificationDashboard() {
                 borderRadius: 20,
                 padding:      "2px 12px",
                 fontFamily:   "'Montserrat',sans-serif",
-                fontSize:     12,
+                fontSize:     14,
                 fontWeight:   600,
-              }}>{approvedCards.length}</span>
+              }}>{pendingCards.length}</span>
             </div>
 
-            {/* Scrollable */}
             <div
               ref={leftRef}
               style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}
             >
-              {approvedCards.length === 0
-                ? <EmptyState msg="No approved reservations yet" />
-                : approvedCards.map(res => (
+              {pendingCards.length === 0
+                ? <EmptyState msg="No upcoming reservations" />
+                : pendingCards.map(res => (
                     <NewResCard
                       key={res.id ?? res.db_id}
                       res={res}
@@ -1042,7 +1096,7 @@ export default function NotificationDashboard() {
             </div>
           </div>
 
-          {/* ── RIGHT — Done ───────────────────────────────────────────────── */}
+          {/* ── RIGHT — Done (past event date/time) ───────────────────────── */}
           <div style={{
             background:    C.surface,
             border:        `1px solid ${C.border}`,
@@ -1053,7 +1107,6 @@ export default function NotificationDashboard() {
             flexDirection: "column",
             minHeight:     0,
           }}>
-            {/* Column header */}
             <div style={{
               background:    C.greenPastel,
               borderBottom:  `1px solid ${C.greenBorder}`,
@@ -1066,7 +1119,7 @@ export default function NotificationDashboard() {
               <span style={{
                 fontFamily: "'Montserrat',sans-serif",
                 fontWeight: 600,
-                fontSize:   13,
+                fontSize:   14,
                 color:      C.navy,
               }}>Done</span>
               <span style={{
@@ -1075,16 +1128,15 @@ export default function NotificationDashboard() {
                 borderRadius: 20,
                 padding:      "2px 12px",
                 fontFamily:   "'Montserrat',sans-serif",
-                fontSize:     12,
+                fontSize:     14,
                 fontWeight:   600,
-              }}>{approvedCards.length}</span>
+              }}>{doneCards.length}</span>
             </div>
 
-            {/* Scrollable */}
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}>
-              {approvedCards.length === 0
-                ? <EmptyState msg="No approved reservations" />
-                : approvedCards.map(res => (
+              {doneCards.length === 0
+                ? <EmptyState msg="No completed reservations" />
+                : doneCards.map(res => (
                     <DoneCard key={`done-${res.id ?? res.db_id}`} res={res} />
                   ))
               }
@@ -1098,13 +1150,13 @@ export default function NotificationDashboard() {
       {popup && (
         <ReminderPopup
           popup={popup}
+          queueCount={popupQueue.length}
           onView={(p) => {
-            stopAlertSound();
             const full = approvedCards.find(r => (r.id ?? r.db_id) === p.id) || p;
             setDetailRes(full);
-            setPopup(null);
+            dismissPopup();
           }}
-          onClose={() => { stopAlertSound(); setPopup(null); }}
+          onClose={dismissPopup}
         />
       )}
 
