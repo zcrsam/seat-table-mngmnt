@@ -5,7 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Broadcast;
 
-class AppServiceProvider extends ServiceProvider
+class BroadcastServiceProvider extends ServiceProvider
 {
     /**
      * Register services.
@@ -21,5 +21,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Broadcast::routes();
+        
+        // Configure channels that require authorization
+        Broadcast::channel('reservations', function ($user) {
+            return true; // Allow all authenticated users to listen to reservation events
+        });
     }
 }

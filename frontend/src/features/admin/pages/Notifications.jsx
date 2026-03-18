@@ -1,50 +1,65 @@
 // src/features/admin/pages/NotificationDashboard.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-// BELLEVUE · NOTIFICATION MONITOR
-// Typography to match the Reservation Dashboard:
-//   - Labels:      14px, weight 600, uppercase, muted color
-//   - Values:      14px, weight 500 (NOT bold)
-//   - Guest name:  14px, weight 600 (semi-bold, not 800)
-//   - Headers:     weight 600
-//   - Cinzel only for "NOTIFICATION MONITOR" title
+// BELLEVUE · NOTIFICATION MONITOR  –  v3
+// Fixes:
+//   • White screen — logo import wrapped in try/catch, errors caught gracefully
+//   • Multi-alert "View" — shows a picker modal when popup has 2+ events,
+//     letting admin choose WHICH reservation to view in detail
+//   • WebSocket — real-time via Laravel Echo (Pusher) instead of polling
+//   • Polling removed — Echo handles all live updates
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState, useEffect, useRef, useCallback, useMemo,
+} from "react";
+import Echo from "../../../utils/websocket.js";
 import {
-  Bell, BellDot, Clock, X, Eye, CalendarDays,
+  Bell, BellDot, Clock, X, CalendarDays,
   MapPin, Users, Phone, Mail, FileText, Hash, CheckCircle,
+  Wifi, WifiOff,
 } from "lucide-react";
 import { reservationAPI } from "../../../services/reservationAPI";
-import bellevueLogo from "../../../assets/bellevue-logo.png";
+
+// ── Safe logo import (prevents white screen if asset missing) ─────────────────
+let bellevueLogo = null;
+try {
+  bellevueLogo = (await import("../../../assets/bellevue-logo.png")).default;
+} catch (_) { /* logo missing — header will still render without it */ }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:          "#F7F4EF",
-  surface:     "#FFFFFF",
-  gold:        "#C9A84C",
-  goldBorder:  "rgba(201,168,76,0.35)",
-  navy:        "#1B2A4A",
-  navyLight:   "rgba(27,42,74,0.05)",
-  blue:        "#4A90D9",
-  bluePastel:  "#EBF3FC",
-  blueBorder:  "rgba(74,144,217,0.25)",
-  green:       "#2E9B6A",
-  greenPastel: "#EAF7F1",
-  greenBorder: "rgba(46,155,106,0.25)",
-  red:         "#D94A4A",
-  redPastel:   "#FEF0F0",
-  redBorder:   "rgba(217,74,74,0.22)",
-  text:        "#1A1F2E",
-  textSub:     "#374151",
-  textMuted:   "#6B7280",
-  textLight:   "#9CA3AF",
-  textTiny:    "#B0B7C3",
-  border:      "#E8E2D6",
-  borderLight: "#F0EBE1",
-  shadow:      "rgba(27,42,74,0.06)",
-  shadowMd:    "rgba(27,42,74,0.10)",
+  bg:           "#F5F6FA",
+  surface:      "#FFFFFF",
+  gold:         "#C9A84C",
+  goldBorder:   "rgba(201,168,76,0.30)",
+  navy:         "#1B2A4A",
+  navyLight:    "rgba(27,42,74,0.06)",
+  blue:         "#3B82F6",
+  bluePastel:   "#EFF6FF",
+  blueBorder:   "rgba(59,130,246,0.20)",
+  green:        "#16A34A",
+  greenPastel:  "#F0FDF4",
+  greenBorder:  "rgba(22,163,74,0.20)",
+  red:          "#DC2626",
+  redPastel:    "#FEF2F2",
+  redBorder:    "rgba(220,38,38,0.20)",
+  amber:        "#D97706",
+  amberPastel:  "#FFFBEB",
+  amberBorder:  "rgba(217,119,6,0.22)",
+  text:         "#111827",
+  textSub:      "#374151",
+  textMuted:    "#6B7280",
+  textLight:    "#9CA3AF",
+  textTiny:     "#D1D5DB",
+  border:       "#E5E7EB",
+  borderLight:  "#F3F4F6",
+  shadow:       "rgba(17,24,39,0.05)",
+  shadowMd:     "rgba(17,24,39,0.10)",
+  font:         "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
-// ── Status filter  ────────────────────────────────────────────────────────────
+const PAGE = 20;
+
+// ── Status helpers ─────────────────────────────────────────────────────────────
 function isApproved(r) {
   const s = (r.status || r.reservationStatus || r.reservation_status || "")
     .toLowerCase().trim();
@@ -90,6 +105,16 @@ function fmtDate(d) {
     : dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function relativeTimeLabel(diffMs) {
+  if (diffMs <= 0) return "now";
+  const totalMin = Math.round(diffMs / 60000);
+  if (totalMin < 60) return `${totalMin} min`;
+  const hrs  = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  const hLabel = hrs === 1 ? "1 hr" : `${hrs} hrs`;
+  return mins === 0 ? hLabel : `${hLabel} ${mins} min`;
+}
+
 function clockStr() {
   return new Date().toLocaleTimeString("en-PH", {
     hour: "2-digit", minute: "2-digit", second: "2-digit",
@@ -104,51 +129,57 @@ function dateStr() {
 // ── Audio ─────────────────────────────────────────────────────────────────────
 let _alertInterval = null;
 
-function _playOnce() {
+function _playAlertOnce(onDone) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [{ f:880,d:.12 },{ f:880,d:.12 },{ f:880,d:.12 },{ f:1100,d:.24 }]
-      .reduce((t, { f, d }) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = "square";
-        o.frequency.setValueAtTime(f, t);
-        g.gain.setValueAtTime(0.22, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + d);
-        o.start(t); o.stop(t + d);
-        return t + d + 0.06;
-      }, ctx.currentTime + 0.05);
-  } catch (e) {}
+    const notes = [
+      { f: 880, d: 0.12 }, { f: 880, d: 0.12 },
+      { f: 880, d: 0.12 }, { f: 1100, d: 0.24 },
+    ];
+    let t = ctx.currentTime + 0.05;
+    notes.forEach(({ f, d }) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "square";
+      o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.start(t); o.stop(t + d);
+      t += d + 0.06;
+    });
+    if (onDone) setTimeout(onDone, (t - ctx.currentTime) * 1000 + 500);
+  } catch (e) { if (onDone) onDone(); }
 }
 
-function playAlertSound() {
+function playAlertThenSpeak(text) {
   stopAlertSound();
-  _playOnce();
-  _alertInterval = setInterval(_playOnce, 4000);
+  _playAlertOnce(() => speakText(text));
+  _alertInterval = setInterval(() => _playAlertOnce(), 4000);
 }
 
 function stopAlertSound() {
-  if (_alertInterval !== null) {
-    clearInterval(_alertInterval);
-    _alertInterval = null;
-  }
+  if (_alertInterval !== null) { clearInterval(_alertInterval); _alertInterval = null; }
 }
 
-function playNewSound() {
+function playNewSound(onDone) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [{ f:523,d:.1 },{ f:659,d:.1 },{ f:784,d:.18 }]
-      .reduce((t, { f, d }) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = "sine";
-        o.frequency.setValueAtTime(f, t);
-        g.gain.setValueAtTime(0.13, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + d);
-        o.start(t); o.stop(t + d);
-        return t + d + 0.04;
-      }, ctx.currentTime + 0.05);
-  } catch (e) {}
+    const notes = [{ f: 523, d: 0.10 }, { f: 659, d: 0.10 }, { f: 784, d: 0.18 }];
+    let t = ctx.currentTime + 0.05;
+    notes.forEach(({ f, d }) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.13, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.start(t); o.stop(t + d);
+      t += d + 0.04;
+    });
+    if (onDone) setTimeout(onDone, (t - ctx.currentTime) * 1000 + 400);
+  } catch (e) { if (onDone) onDone(); }
 }
 
 function speakText(text) {
@@ -159,42 +190,23 @@ function speakText(text) {
   const voices = window.speechSynthesis.getVoices();
   const eng =
     voices.find(v => v.lang.startsWith("en") && /female|zira|samantha/i.test(v.name)) ||
-    voices.find(v => v.lang.startsWith("en")) ||
-    null;
+    voices.find(v => v.lang.startsWith("en")) || null;
   if (eng) u.voice = eng;
-  setTimeout(() => window.speechSynthesis.speak(u), 500);
+  window.speechSynthesis.speak(u);
 }
 
-// ── InfoGrid — 2 rows × 3 columns, light typography ──────────────────────────
-function InfoGrid({ fields, labelColor = C.textTiny, valueColor = C.textSub }) {
+// ── InfoGrid — 2 × 3 ──────────────────────────────────────────────────────────
+function InfoGrid({ fields, labelColor = C.textLight, valueColor = C.textSub }) {
   const slots = [...fields];
   while (slots.length < 6) slots.push({ label: "", value: "" });
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(3, 1fr)",
-      gap: "9px 10px",
-    }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 10px" }}>
       {slots.slice(0, 6).map(({ label, value }, i) => (
         <div key={i}>
           {label && (
             <>
-              <div style={{
-                fontFamily:    "'Montserrat',sans-serif",
-                fontSize:      12,
-                fontWeight:    600,
-                color:         labelColor,
-                letterSpacing: 1.3,
-                textTransform: "uppercase",
-                marginBottom:  3,
-              }}>{label}</div>
-              <div style={{
-                fontFamily: "'Montserrat',sans-serif",
-                fontSize:   12,
-                fontWeight: 500,
-                color:      valueColor,
-                lineHeight: 1.3,
-              }}>{value || "—"}</div>
+              <div style={{ fontFamily: C.font, fontSize: 10, fontWeight: 600, color: labelColor, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
+              <div style={{ fontFamily: C.font, fontSize: 12, fontWeight: 500, color: valueColor, lineHeight: 1.4 }}>{value || "—"}</div>
             </>
           )}
         </div>
@@ -203,201 +215,81 @@ function InfoGrid({ fields, labelColor = C.textTiny, valueColor = C.textSub }) {
   );
 }
 
-
-// ── Full Reservation Detail Modal ────────────────────────────────────────────
+// ── Reservation Detail Modal ──────────────────────────────────────────────────
 function ReservationDetailModal({ res, onClose }) {
   if (!res) return null;
 
-  const statusColor = () => {
-    const s = (res.status || res.reservationStatus || res.reservation_status || "").toLowerCase();
-    if (s === "reserved" || s === "approved" || s === "confirmed") return C.green;
-    if (s === "done") return C.blue;
-    return C.textMuted;
-  };
-
-  const statusLabel = () => {
-    const s = (res.status || res.reservationStatus || res.reservation_status || "").toLowerCase();
-    if (s === "reserved") return "Reserved";
-    if (s === "approved") return "Approved";
-    if (s === "confirmed") return "Confirmed";
-    if (s === "done") return "Done";
-    return s || "—";
-  };
+  const rawStatus = (res.status || res.reservationStatus || res.reservation_status || "").toLowerCase();
+  const statusColor = rawStatus === "done" ? C.blue
+    : (rawStatus === "reserved" || rawStatus === "approved" || rawStatus === "confirmed") ? C.green
+    : C.textMuted;
+  const statusLabel = rawStatus === "reserved" ? "Reserved"
+    : rawStatus === "approved"  ? "Approved"
+    : rawStatus === "confirmed" ? "Confirmed"
+    : rawStatus === "done"      ? "Done"
+    : rawStatus || "—";
 
   const sections = [
     {
       title: "Guest Information",
       rows: [
-        { icon: <Users size={13} color={C.gold} />,       label: "Guest Name",        value: res.guest_name || res.name || "—" },
-        { icon: <Mail size={13} color={C.gold} />,        label: "Email",             value: res.email || res.guest_email || "—" },
-        { icon: <Phone size={13} color={C.gold} />,       label: "Phone",             value: res.phone || res.contact || res.guest_phone || "—" },
-        { icon: <Users size={13} color={C.gold} />,       label: "Guests",            value: (res.guests_count ?? res.guests_number ?? res.guests) ? `${res.guests_count ?? res.guests_number ?? res.guests} Pax` : "1 Pax" },
+        { icon: <Users size={13} color={C.gold} />,    label: "Guest Name", value: res.guest_name || res.name || "—" },
+        { icon: <Mail  size={13} color={C.gold} />,    label: "Email",      value: res.email || res.guest_email || "—" },
+        { icon: <Phone size={13} color={C.gold} />,    label: "Phone",      value: res.phone || res.contact || res.guest_phone || "—" },
+        { icon: <Users size={13} color={C.gold} />,    label: "Guests",     value: (res.guests_count ?? res.guests_number ?? res.guests) ? `${res.guests_count ?? res.guests_number ?? res.guests} Pax` : "1 Pax" },
       ],
     },
     {
       title: "Reservation Details",
       rows: [
-        { icon: <Hash size={13} color={C.gold} />,        label: "Reference",         value: res.reference_code || res.ref_code || res.id || "—" },
-        { icon: <MapPin size={13} color={C.gold} />,      label: "Venue",             value: res.room || res.venue || "—" },
-        { icon: <FileText size={13} color={C.gold} />,    label: "Table",             value: res.table_number ?? res.table ?? "—" },
-        { icon: <FileText size={13} color={C.gold} />,    label: "Seat",              value: res.seat_number ?? res.seat ?? "—" },
-        { icon: <CalendarDays size={13} color={C.gold} />,label: "Event Date",        value: res.event_date || res.eventDate || res.reservationDate ? (() => { const d = new Date(res.event_date || res.eventDate || res.reservationDate); return isNaN(d) ? String(res.event_date || res.eventDate || res.reservationDate) : d.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }); })() : "—" },
-        { icon: <Clock size={13} color={C.gold} />,       label: "Event Time",        value: (() => { const t = res.event_time || res.eventTime || res.reservationTime; if (!t) return "—"; const m24 = t.match(/^(\d{1,2}):(\d{2})$/); if (m24) { const h = +m24[1]; return `${((h+11)%12)+1}:${m24[2]} ${h>=12?"PM":"AM"}`; } return t; })() },
+        { icon: <Hash         size={13} color={C.gold} />, label: "Reference",  value: res.reference_code || res.ref_code || res.id || "—" },
+        { icon: <MapPin       size={13} color={C.gold} />, label: "Venue",      value: res.room || res.venue || "—" },
+        { icon: <FileText     size={13} color={C.gold} />, label: "Table",      value: res.table_number ?? res.table ?? "—" },
+        { icon: <FileText     size={13} color={C.gold} />, label: "Seat",       value: res.seat_number  ?? res.seat  ?? "—" },
+        { icon: <CalendarDays size={13} color={C.gold} />, label: "Event Date", value: fmtDate(res.event_date || res.eventDate || res.reservationDate) },
+        { icon: <Clock        size={13} color={C.gold} />, label: "Event Time", value: fmtTime(res.event_time || res.eventTime || res.reservationTime) },
       ],
     },
     {
       title: "Additional Info",
       rows: [
-        { icon: <FileText size={13} color={C.gold} />,    label: "Special Requests",  value: res.special_requests || res.notes || res.remarks || "None" },
-        { icon: <CheckCircle size={13} color={C.gold} />, label: "Status",            value: statusLabel() },
+        { icon: <FileText    size={13} color={C.gold} />, label: "Special Requests", value: res.special_requests || res.notes || res.remarks || "None" },
+        { icon: <CheckCircle size={13} color={C.gold} />, label: "Status",            value: statusLabel },
       ],
     },
   ];
 
   return (
-    <div style={{
-      position:        "fixed",
-      inset:           0,
-      zIndex:          10000,
-      background:      "rgba(27,42,74,0.45)",
-      backdropFilter:  "blur(4px)",
-      display:         "flex",
-      alignItems:      "center",
-      justifyContent:  "center",
-      padding:         20,
-      animation:       "fadeUp .2s ease",
-    }}
-    onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(17,24,39,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeUp .2s ease" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
-        background:   C.surface,
-        borderRadius: 16,
-        width:        "100%",
-        maxWidth:     520,
-        maxHeight:    "85vh",
-        overflow:     "hidden",
-        display:      "flex",
-        flexDirection:"column",
-        boxShadow:    "0 24px 64px rgba(27,42,74,.22), 0 4px 20px rgba(0,0,0,.08)",
-        animation:    "popupIn .3s cubic-bezier(.34,1.5,.64,1)",
-      }}>
-        {/* Modal header */}
-        <div style={{
-          padding:         "18px 20px 16px",
-          borderBottom:    `1px solid ${C.borderLight}`,
-          display:         "flex",
-          alignItems:      "center",
-          justifyContent:  "space-between",
-          flexShrink:      0,
-          background:      C.surface,
-        }}>
+      <div style={{ background: C.surface, borderRadius: 14, width: "100%", maxWidth: 520, maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(17,24,39,.20), 0 4px 20px rgba(0,0,0,.06)", animation: "popupIn .3s cubic-bezier(.34,1.5,.64,1)" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div>
-            <div style={{
-              fontFamily:    "'Cinzel',serif",
-              fontWeight:    600,
-              fontSize:      14,
-              color:         C.navy,
-              letterSpacing: 1.2,
-              textTransform: "uppercase",
-            }}>Reservation Details</div>
-            <div style={{
-              fontFamily: "'Montserrat',sans-serif",
-              fontSize:   14,
-              fontWeight: 400,
-              color:      C.textMuted,
-              marginTop:  2,
-            }}>{res.guest_name || res.name || "Guest"}</div>
+            <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 15, color: C.navy }}>Reservation Details</div>
+            <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 400, color: C.textMuted, marginTop: 2 }}>{res.guest_name || res.name || "Guest"}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              background:   `${statusColor()}18`,
-              border:       `1px solid ${statusColor()}40`,
-              borderRadius: 20,
-              padding:      "3px 12px",
-              fontFamily:   "'Montserrat',sans-serif",
-              fontSize:     14,
-              fontWeight:   600,
-              color:        statusColor(),
-            }}>{statusLabel()}</div>
-            <button
-              onClick={onClose}
-              style={{
-                width:         30,
-                height:        30,
-                borderRadius:  "50%",
-                background:    C.bg,
-                border:        `1px solid ${C.border}`,
-                display:       "flex",
-                alignItems:    "center",
-                justifyContent:"center",
-                cursor:        "pointer",
-                flexShrink:    0,
-                transition:    "background .15s",
-              }}
-              onMouseOver={e => e.currentTarget.style.background = C.borderLight}
-              onMouseOut={e  => e.currentTarget.style.background = C.bg}
-            >
-              <X size={14} color={C.textMuted} />
+            <span style={{ background: `${statusColor}18`, border: `1px solid ${statusColor}40`, borderRadius: 20, padding: "3px 12px", fontFamily: C.font, fontSize: 12, fontWeight: 600, color: statusColor }}>{statusLabel}</span>
+            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", background: C.borderLight, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <X size={13} color={C.textMuted} />
             </button>
           </div>
         </div>
 
-        {/* Modal body — scrollable */}
-        <div style={{
-          flex:      1,
-          overflowY: "auto",
-          padding:   "16px 20px 20px",
-        }}>
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 20px" }}>
           {sections.map(({ title, rows }) => (
             <div key={title} style={{ marginBottom: 20 }}>
-              <div style={{
-                fontFamily:    "'Montserrat',sans-serif",
-                fontSize:      14,
-                fontWeight:    700,
-                color:         C.gold,
-                letterSpacing: 1.8,
-                textTransform: "uppercase",
-                marginBottom:  10,
-                paddingBottom: 6,
-                borderBottom:  `1px solid ${C.borderLight}`,
-              }}>{title}</div>
-
+              <div style={{ fontFamily: C.font, fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${C.borderLight}` }}>{title}</div>
               {rows.map(({ icon, label, value }) => (
-                <div key={label} style={{
-                  display:       "flex",
-                  alignItems:    "flex-start",
-                  gap:           10,
-                  marginBottom:  8,
-                }}>
-                  <div style={{
-                    width:          28,
-                    height:         28,
-                    borderRadius:   8,
-                    background:     "rgba(201,168,76,0.08)",
-                    border:         "1px solid rgba(201,168,76,0.18)",
-                    display:        "flex",
-                    alignItems:     "center",
-                    justifyContent: "center",
-                    flexShrink:     0,
-                    marginTop:      1,
-                  }}>{icon}</div>
+                <div key={label} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>{icon}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontFamily:    "'Montserrat',sans-serif",
-                      fontSize:      14,
-                      fontWeight:    600,
-                      color:         C.textTiny,
-                      letterSpacing: 1.2,
-                      textTransform: "uppercase",
-                      marginBottom:  2,
-                    }}>{label}</div>
-                    <div style={{
-                      fontFamily: "'Montserrat',sans-serif",
-                      fontSize:   14,
-                      fontWeight: 500,
-                      color:      C.textSub,
-                      lineHeight: 1.4,
-                    }}>{value}</div>
+                    <div style={{ fontFamily: C.font, fontSize: 10, fontWeight: 600, color: C.textLight, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 500, color: C.textSub, lineHeight: 1.4 }}>{value}</div>
                   </div>
                 </div>
               ))}
@@ -406,329 +298,316 @@ function ReservationDetailModal({ res, onClose }) {
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding:      "12px 20px",
-          borderTop:    `1px solid ${C.borderLight}`,
-          flexShrink:   0,
-          display:      "flex",
-          justifyContent:"flex-end",
-        }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding:      "8px 22px",
-              background:   C.navy,
-              color:        "#fff",
-              border:       "none",
-              borderRadius: 8,
-              fontFamily:   "'Montserrat',sans-serif",
-              fontSize:     14,
-              fontWeight:   600,
-              cursor:       "pointer",
-              transition:   "opacity .15s",
-            }}
-            onMouseOver={e => e.currentTarget.style.opacity = "0.85"}
-            onMouseOut={e  => e.currentTarget.style.opacity = "1"}
-          >Close</button>
+        <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 22px", background: C.navy, color: "#fff", border: "none", borderRadius: 8, fontFamily: C.font, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Close</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── 1-Hour Reminder Popup ────────────────────────────────────────────────────
-function ReminderPopup({ popup, onView, onClose, queueCount = 1 }) {
-  const d = popup.eventDate ? new Date(popup.eventDate) : null;
-  const dStr = d && !isNaN(d)
-    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : popup.eventDate || "";
-  const t = popup.eventTime || "";
-  const m24 = t.match(/^(\d{1,2}):(\d{2})$/);
-  const timeStr = m24
-    ? `${((+m24[1]+11)%12)+1}:${m24[2]} ${+m24[1]>=12?"PM":"AM"}`
-    : t;
+// ── NEW: Multi-event Picker Modal ─────────────────────────────────────────────
+// Shows when admin clicks "View" on a popup that contains 2+ events,
+// letting them choose WHICH reservation to inspect.
+function EventPickerModal({ items, approvedCards, onSelect, onClose }) {
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
-    <div style={{
-      position:  "fixed",
-      top:       66,
-      right:     18,
-      zIndex:    9999,
-      width:     popup.multiple ? 320 : 280,
-      animation: "popupIn .35s cubic-bezier(.34,1.5,.64,1)",
-      fontFamily:"-apple-system,'Montserrat',sans-serif",
-    }}>
-      <div style={{
-        position:       "absolute",
-        top:            -26,
-        left:           12,
-        width:          52,
-        height:         52,
-        borderRadius:   "50%",
-        background:     "#FFFFFF",
-        border:         "1.5px solid #E5E5E5",
-        display:        "flex",
-        alignItems:     "center",
-        justifyContent: "center",
-        zIndex:         3,
-        boxShadow:      "0 2px 8px rgba(0,0,0,0.08)",
-        animation:      "bellRing .55s ease .1s 4",
-      }}>
-        <BellDot size={24} color="#1A1F2E" strokeWidth={1.8} />
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 10001, background: "rgba(17,24,39,0.50)", backdropFilter: "blur(5px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeUp .2s ease" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: C.surface, borderRadius: 14, width: "100%", maxWidth: 460, maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(17,24,39,.22)", animation: "popupIn .3s cubic-bezier(.34,1.5,.64,1)" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div>
+            <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 15, color: C.navy }}>Choose Event to View</div>
+            <div style={{ fontFamily: C.font, fontSize: 12, color: C.textMuted, marginTop: 2 }}>{items.length} upcoming events — select one to see full details</div>
+          </div>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", background: C.borderLight, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <X size={13} color={C.textMuted} />
+          </button>
+        </div>
+
+        {/* List */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px" }}>
+          {items.map((item, idx) => {
+            const dt   = parseEventDate(item.eventDate, item.eventTime);
+            const diff = dt ? dt.getTime() - nowMs : null;
+            const rel  = diff !== null && diff > 0
+              ? relativeTimeLabel(diff) + " before event"
+              : diff !== null && diff <= 0 ? "Event started" : null;
+            const urgent = diff !== null && diff <= 30 * 60000;
+
+            // Try to find full reservation data for this item
+            const fullRes = approvedCards.find(r => (r.id ?? r.db_id) === item.id);
+
+            return (
+              <button
+                key={idx}
+                onClick={() => fullRes && onSelect(fullRes)}
+                disabled={!fullRes}
+                style={{
+                  display:      "block",
+                  width:        "100%",
+                  textAlign:    "left",
+                  background:   fullRes ? C.surface : C.borderLight,
+                  border:       `1.5px solid ${urgent ? C.redBorder : C.border}`,
+                  borderRadius: 10,
+                  padding:      "13px 15px",
+                  marginBottom: 8,
+                  cursor:       fullRes ? "pointer" : "not-allowed",
+                  transition:   "all .15s",
+                  boxShadow:    `0 1px 4px ${C.shadow}`,
+                  opacity:      fullRes ? 1 : 0.55,
+                }}
+                onMouseEnter={e => { if (fullRes) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.boxShadow = `0 4px 14px rgba(201,168,76,.15)`; } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = urgent ? C.redBorder : C.border; e.currentTarget.style.boxShadow = `0 1px 4px ${C.shadow}`; }}
+              >
+                {/* Row: index badge + name */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <span style={{ fontFamily: C.font, fontSize: 10, fontWeight: 700, color: C.gold }}>{idx + 1}</span>
+                  </div>
+                  <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 13, color: C.navy, flex: 1 }}>{item.name}</div>
+                  {rel && (
+                    <span style={{ background: urgent ? C.redPastel : C.amberPastel, border: `1px solid ${urgent ? C.redBorder : C.amberBorder}`, borderRadius: 20, padding: "2px 9px", fontSize: 10, fontWeight: 700, color: urgent ? C.red : C.amber, whiteSpace: "nowrap" }}>
+                      {rel}
+                    </span>
+                  )}
+                </div>
+
+                {/* Details row */}
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <CalendarDays size={11} color={C.textLight} />
+                    <span style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted }}>{fmtDate(item.eventDate)}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <Clock size={11} color={C.textLight} />
+                    <span style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted }}>{fmtTime(item.eventTime)}</span>
+                  </div>
+                  {item.room && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <MapPin size={11} color={C.textLight} />
+                      <span style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted }}>{item.room}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* CTA hint */}
+                <div style={{ marginTop: 8, fontFamily: C.font, fontSize: 10, color: fullRes ? C.gold : C.textLight, fontWeight: 600, letterSpacing: 0.5 }}>
+                  {fullRes ? "Click to view full details →" : "Details not available"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <button onClick={onClose} style={{ width: "100%", padding: "9px 0", background: C.borderLight, border: `1px solid ${C.border}`, borderRadius: 8, fontFamily: C.font, fontSize: 12, fontWeight: 600, color: C.textMuted, cursor: "pointer" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Reminder Popup ────────────────────────────────────────────────────────────
+function ReminderPopup({ popup, onView, onClose, queueCount }) {
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const items = popup.items || [];
+
+  return (
+    <div style={{ position: "fixed", top: 72, right: 18, zIndex: 9999, width: 310, fontFamily: C.font, animation: "popupIn .35s cubic-bezier(.34,1.5,.64,1)" }}>
+      {/* Bell icon */}
+      <div style={{ position: "absolute", top: -24, left: 14, width: 48, height: 48, borderRadius: "50%", background: C.surface, border: `1.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", animation: "bellRing .6s ease .1s 4" }}>
+        <BellDot size={22} color={C.navy} strokeWidth={1.8} />
       </div>
 
-      <div style={{
-        background:   "#FFFFFF",
-        borderRadius: "28px 12px 12px 12px",
-        overflow:     "hidden",
-        boxShadow:    "0 8px 36px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.06)",
-        position:     "relative",
-        zIndex:       2,
-      }}>
-        <div style={{ padding: "20px 20px 16px 20px" }}>
-          <div style={{ height: 16 }} />
-          <div style={{
-            fontWeight:   700,
-            fontSize:     18,
-            color:        "#111827",
-            textAlign:    "center",
-            marginBottom: 12,
-          }}>
-            {popup.multiple ? `${popup.count} Reminders!` : "Reminder!"}
+      <div style={{ background: C.surface, borderRadius: "24px 12px 12px 12px", overflow: "hidden", boxShadow: "0 8px 36px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.06)", position: "relative", zIndex: 2 }}>
+        <div style={{ padding: "28px 18px 16px" }}>
+          <div style={{ height: 8 }} />
+
+          <div style={{ fontWeight: 700, fontSize: 16, color: C.text, textAlign: "center", marginBottom: 4 }}>
+            {items.length > 1 ? `${items.length} Upcoming Events!` : "Upcoming Event!"}
           </div>
+
           {queueCount > 1 && (
-            <div style={{
-              display:        "inline-flex",
-              alignItems:     "center",
-              gap:            5,
-              background:     "#FEF3C7",
-              border:         "1px solid #F59E0B",
-              borderRadius:   20,
-              padding:        "3px 10px",
-              fontFamily:     "'Montserrat',sans-serif",
-              fontWeight:     600,
-              fontSize:       12,
-              color:          "#92400E",
-              marginBottom:   8,
-            }}>
-              <Bell size={11} color="#92400E" />
-              {queueCount} reminders queued
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 }}>
+              <span style={{ background: C.amberPastel, border: `1px solid ${C.amberBorder}`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 600, color: C.amber, display: "flex", alignItems: "center", gap: 4 }}>
+                <Bell size={10} color={C.amber} />
+                {queueCount} reminders queued
+              </span>
             </div>
           )}
-          <div style={{
-            fontWeight:   700,
-            fontSize:     14,
-            color:        "#111827",
-            marginBottom: 6,
-          }}>1 HOUR TO GO</div>
-          
-          {/* Show multiple reservations or single */}
-          {popup.multiple ? (
-            <div>
-              {popup.allReservations.map((res, index) => (
-                <div key={index} style={{ 
-                  marginBottom: index < popup.allReservations.length - 1 ? 8 : 0,
-                  paddingBottom: index < popup.allReservations.length - 1 ? 8 : 0,
-                  borderBottom: index < popup.allReservations.length - 1 ? "1px solid #F0F0F0" : "none"
-                }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: "#374151", marginBottom: 2 }}>
-                    {res.guest_name || res.name || "Guest"}
-                  </div>
-                  <div style={{ fontWeight: 400, fontSize: 12, color: "#6B7280" }}>
-                    {res.event_date ? new Date(res.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""} | {res.event_time || ""}
-                  </div>
-                  <div style={{ fontWeight: 400, fontSize: 12, color: "#6B7280" }}>
-                    {res.room || res.venue || "-"}
-                  </div>
+
+          {/* Items list */}
+          <div style={{ maxHeight: 200, overflowY: "auto" }}>
+            {items.map((item, idx) => {
+              const dt   = parseEventDate(item.eventDate, item.eventTime);
+              const diff = dt ? dt.getTime() - nowMs : null;
+              const rel  = diff !== null && diff > 0
+                ? relativeTimeLabel(diff) + " before event"
+                : diff !== null && diff <= 0 ? "Event started" : null;
+
+              return (
+                <div key={idx} style={{ marginBottom: idx < items.length - 1 ? 10 : 0, paddingBottom: idx < items.length - 1 ? 10 : 0, borderBottom: idx < items.length - 1 ? `1px solid ${C.borderLight}` : "none" }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 2 }}>{item.name}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 1 }}>{fmtDate(item.eventDate)} · {fmtTime(item.eventTime)}</div>
+                  {item.room && <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 1 }}>{item.room}</div>}
+                  {rel && (
+                    <span style={{ display: "inline-block", marginTop: 4, background: diff <= 30 * 60000 ? C.redPastel : C.amberPastel, border: `1px solid ${diff <= 30 * 60000 ? C.redBorder : C.amberBorder}`, borderRadius: 20, padding: "1px 8px", fontSize: 10, fontWeight: 600, color: diff <= 30 * 60000 ? C.red : C.amber }}>
+                      {rel}
+                    </span>
+                  )}
                 </div>
-              ))}
-              {popup.count > 3 && (
-                <div style={{ 
-                  textAlign: "center", 
-                  fontSize: 12, 
-                  color: "#9CA3AF", 
-                  fontWeight: 600,
-                  marginTop: 8 
-                }}>
-                  ...and {popup.count - 3} more
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <div style={{ fontWeight: 400, fontSize: 14, color: "#6B7280", marginBottom: 3 }}>
-                Guest: {popup.name}
-              </div>
-              <div style={{ fontWeight: 400, fontSize: 14, color: "#6B7280", marginBottom: 3 }}>
-                {dStr} | {timeStr}
-              </div>
-              <div style={{ fontWeight: 400, fontSize: 14, color: "#6B7280" }}>
-                {popup.room}
-              </div>
+              );
+            })}
+          </div>
+
+          {/* Hint when multiple items */}
+          {items.length > 1 && (
+            <div style={{ marginTop: 10, padding: "6px 10px", background: C.bluePastel, border: `1px solid ${C.blueBorder}`, borderRadius: 8, fontSize: 11, color: C.blue, fontWeight: 600, textAlign: "center" }}>
+              Click "View" to choose which event to inspect
             </div>
           )}
         </div>
 
-        <div style={{ height: 1, background: "#F0F0F0" }} />
+        <div style={{ height: 1, background: C.borderLight }} />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
           <button
             onClick={() => onView(popup)}
-            style={{
-              padding:    "14px 0",
-              background: "none",
-              border:     "none",
-              borderRight:"1px solid #F0F0F0",
-              fontFamily: "-apple-system,'Montserrat',sans-serif",
-              fontWeight: 600,
-              fontSize:   15,
-              color:      "#2E9B6A",
-              cursor:     "pointer",
-              transition: "background .15s",
-            }}
-            onMouseOver={e => e.currentTarget.style.background = "#EAF7F1"}
+            style={{ padding: "13px 0", background: "none", border: "none", borderRight: `1px solid ${C.borderLight}`, fontFamily: C.font, fontWeight: 600, fontSize: 14, color: C.green, cursor: "pointer" }}
+            onMouseOver={e => e.currentTarget.style.background = C.greenPastel}
             onMouseOut={e  => e.currentTarget.style.background = "none"}
           >View</button>
           <button
             onClick={onClose}
-            style={{
-              padding:    "14px 0",
-              background: "none",
-              border:     "none",
-              fontFamily: "-apple-system,'Montserrat',sans-serif",
-              fontWeight: 600,
-              fontSize:   15,
-              color:      "#D94A4A",
-              cursor:     "pointer",
-              transition: "background .15s",
-            }}
-            onMouseOver={e => e.currentTarget.style.background = "#FEF0F0"}
+            style={{ padding: "13px 0", background: "none", border: "none", fontFamily: C.font, fontWeight: 600, fontSize: 14, color: C.red, cursor: "pointer" }}
+            onMouseOver={e => e.currentTarget.style.background = C.redPastel}
             onMouseOut={e  => e.currentTarget.style.background = "none"}
-          >Close</button>
+          >Dismiss</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Card fields ───────────────────────────────────────────────────────────────
+// ── Card helpers ──────────────────────────────────────────────────────────────
 function cardFields(res) {
   return [
-    { label: "Venue", value: res.room || res.venue },
-    { label: "Table", value: res.table_number ?? res.table },
-    { label: "Seat",  value: res.seat_number  ?? res.seat  },
-    { label: "Date",  value: fmtDate(res.event_date  || res.eventDate  || res.reservationDate) },
-    { label: "Guest", value: (res.guests_count ?? res.guests)
-                               ? `${res.guests_count ?? res.guests} Pax`
-                               : "1 Pax" },
-    { label: "Time",  value: fmtTime(res.event_time  || res.eventTime  || res.reservationTime) },
+    { label: "Venue",  value: res.room || res.venue },
+    { label: "Table",  value: res.table_number ?? res.table },
+    { label: "Seat",   value: res.seat_number  ?? res.seat  },
+    { label: "Date",   value: fmtDate(res.event_date  || res.eventDate  || res.reservationDate) },
+    { label: "Guests", value: (res.guests_count ?? res.guests) ? `${res.guests_count ?? res.guests} Pax` : "1 Pax" },
+    { label: "Time",   value: fmtTime(res.event_time  || res.eventTime  || res.reservationTime) },
   ];
 }
 
-// ── Left card (white — upcoming) ──────────────────────────────────────────────
-function NewResCard({ res, isNew }) {
-  const [popupQueue, setPopupQueue] = useState([]);
-  const popup = popupQueue[0] ?? null;   // always show the head of the queue
+function NewResCard({ res, isNew, onClick }) {
   const [hi, setHi] = useState(isNew);
   useEffect(() => {
     if (isNew) { const t = setTimeout(() => setHi(false), 4000); return () => clearTimeout(t); }
   }, [isNew]);
 
   return (
-    <div style={{
-      background:   C.surface,
-      border:       `1px solid ${hi ? C.blue : C.border}`,
-      borderRadius: 10,
-      padding:      "16px 18px",
-      marginBottom: 9,
-      boxShadow:    hi ? "0 4px 16px rgba(74,144,217,.12)" : `0 1px 4px ${C.shadow}`,
-      transition:   "all .4s ease",
-      animation:    isNew ? "cardSlideIn .4s cubic-bezier(.34,1.5,.64,1)" : "none",
-    }}>
-      <div style={{
-        fontFamily:   "'Montserrat',sans-serif",
-        fontWeight:   600,
-        fontSize:     14,
-        color:        C.navy,
-        marginBottom: 10,
-      }}>
+    <div
+      onClick={() => onClick(res)}
+      style={{ background: C.surface, border: `1px solid ${hi ? C.blue : C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, boxShadow: hi ? "0 4px 14px rgba(59,130,246,.12)" : `0 1px 4px ${C.shadow}`, transition: "all .4s ease", animation: isNew ? "cardSlideIn .4s cubic-bezier(.34,1.5,.64,1)" : "none", cursor: "pointer" }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.boxShadow = `0 4px 14px rgba(201,168,76,.12)`; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = hi ? C.blue : C.border; e.currentTarget.style.boxShadow = hi ? "0 4px 14px rgba(59,130,246,.12)" : `0 1px 4px ${C.shadow}`; }}
+    >
+      <div style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy, marginBottom: 10 }}>
         {res.guest_name || res.name || "Unknown Guest"}
       </div>
-      <InfoGrid
-        fields={cardFields(res)}
-        labelColor={C.textTiny}
-        valueColor={C.textSub}
-      />
+      <InfoGrid fields={cardFields(res)} labelColor={C.textLight} valueColor={C.textSub} />
     </div>
   );
 }
 
-// ── Right card (green — done / past) ─────────────────────────────────────────
-function DoneCard({ res }) {
+function DoneCard({ res, onClick }) {
   return (
-    <div style={{
-      background:   C.greenPastel,
-      border:       `1px solid ${C.greenBorder}`,
-      borderRadius: 10,
-      padding:      "16px 18px",
-      marginBottom: 8,
-      boxShadow:    `0 1px 4px ${C.shadow}`,
-    }}>
-      <div style={{
-        fontFamily:   "'Montserrat',sans-serif",
-        fontWeight:   600,
-        fontSize:     11,
-        color:        C.navy,
-        marginBottom: 10,
-      }}>
+    <div
+      onClick={() => onClick(res)}
+      style={{ background: C.greenPastel, border: `1px solid ${C.greenBorder}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, boxShadow: `0 1px 4px ${C.shadow}`, cursor: "pointer", transition: "all .2s" }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 4px 14px rgba(22,163,74,.12)`; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = `0 1px 4px ${C.shadow}`; }}
+    >
+      <div style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy, marginBottom: 10 }}>
         {res.guest_name || res.name || "Unknown Guest"}
       </div>
-      <InfoGrid
-        fields={cardFields(res)}
-        labelColor="#7A9A8A"
-        valueColor="#2D4A3E"
-      />
+      <InfoGrid fields={cardFields(res)} labelColor={C.textLight} valueColor="#166534" />
     </div>
   );
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState({ msg }) {
   return (
-    <div style={{
-      textAlign:  "center",
-      padding:    "50px 20px",
-      fontFamily: "'Montserrat',sans-serif",
-      fontSize:   14,
-      color:      C.textLight,
-    }}>{msg}</div>
+    <div style={{ textAlign: "center", padding: "50px 20px", fontFamily: C.font, fontSize: 13, color: C.textLight }}>
+      {msg}
+    </div>
   );
 }
 
-// ── MAIN ──────────────────────────────────────────────────────────────────────
-const POLL_MS = 15000;
+function LoadMoreBtn({ onClick, remaining }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{ display: "block", width: "100%", padding: "10px 0", background: C.borderLight, border: `1px solid ${C.border}`, borderRadius: 8, fontFamily: C.font, fontSize: 12, fontWeight: 600, color: C.textMuted, cursor: "pointer", marginBottom: 8 }}
+      onMouseOver={e => e.currentTarget.style.background = C.border}
+      onMouseOut={e  => e.currentTarget.style.background = C.borderLight}
+    >
+      Load more ({remaining} remaining)
+    </button>
+  );
+}
 
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function NotificationDashboard() {
   const [approvedCards, setApprovedCards] = useState([]);
-  const [popupQueue, setPopupQueue] = useState([]);
-const popup = popupQueue[0] ?? null;   // always show the head of the queue
-  const [detailRes,     setDetailRes]     = useState(null);
-  const [newIds,        setNewIds]        = useState(new Set());
-  const [clock,         setClock]         = useState(clockStr());
-  const [date,          setDate]          = useState(dateStr());
-  const [loading,       setLoading]       = useState(true);
-  const [countdown,     setCountdown]     = useState(POLL_MS / 1000);
+  const [popupQueue,    setPopupQueue]    = useState([]);
+  const popup = popupQueue[0] ?? null;
+
+  // pickerItems: when admin clicks View on a multi-event popup,
+  // we show this list so they can choose which to view
+  const [pickerItems,  setPickerItems]  = useState(null);
+  const [detailRes,    setDetailRes]    = useState(null);
+  const [newIds,       setNewIds]       = useState(new Set());
+  const [clock,        setClock]        = useState(clockStr());
+  const [date,         setDate]         = useState(dateStr());
+  const [loading,      setLoading]      = useState(true);
+  const [wsStatus,     setWsStatus]     = useState("connecting"); // "connecting" | "connected" | "disconnected"
+
+  const [pendingPage, setPendingPage] = useState(1);
+  const [donePage,    setDonePage]    = useState(1);
 
   const knownApprovedIds = useRef(new Set());
   const firedAlerts      = useRef(new Set());
-  const timerRef         = useRef(null);
   const leftRef          = useRef(null);
+  const echoRef          = useRef(null);
 
-  // Helper: dismiss head of queue (used in both onView and onClose)
+  // ── Dismiss popup ──────────────────────────────────────────────────────────
   const dismissPopup = useCallback(() => {
-    setPopupQueue(q => q.slice(1));
-    if (popupQueue.length <= 1) stopAlertSound(); // stop sound only when queue empties
-  }, [popupQueue.length]);
+    setPopupQueue(q => {
+      const next = q.slice(1);
+      if (next.length === 0) stopAlertSound();
+      return next;
+    });
+  }, []);
 
   // ── Clock ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -736,153 +615,227 @@ const popup = popupQueue[0] ?? null;   // always show the head of the queue
     return () => clearInterval(t);
   }, []);
 
-  // ── Countdown to next poll ─────────────────────────────────────────────────
-  const resetCd = useCallback(() => {
-    setCountdown(POLL_MS / 1000);
-    clearInterval(timerRef.current);
-    timerRef.current = setInterval(
-      () => setCountdown(c => (c <= 1 ? POLL_MS / 1000 : c - 1)), 1000,
-    );
-  }, []);
-  useEffect(() => { resetCd(); return () => clearInterval(timerRef.current); }, [resetCd]);
-
-  // ── 1-hour alert check ─────────────────────────────────────────────────────
+  // ── Alert check ───────────────────────────────────────────────────────────
   const checkAlerts = useCallback((list) => {
     const candidates = list
       .map(res => {
         const id  = res.id ?? res.db_id;
-        const key = `${id}-1h`;
+        const key = `${id}-alert`;
         if (firedAlerts.current.has(key)) return null;
-        const dt = parseEventDate(
-          res.event_date || res.eventDate || res.reservationDate,
-          res.event_time || res.eventTime || res.reservationTime,
+        const dt   = parseEventDate(
+          res.event_date  || res.eventDate  || res.reservationDate,
+          res.event_time  || res.eventTime  || res.reservationTime,
         );
         if (!dt) return null;
         const diff = dt.getTime() - Date.now();
-        if (diff > 0 && diff <= 2 * 3600000) return { res, id, key, diff };
+        if (diff > 0 && diff <= 2 * 3_600_000) return { res, id, key, diff };
         return null;
       })
       .filter(Boolean)
       .sort((a, b) => a.diff - b.diff);
 
     if (candidates.length === 0) return;
-
-    // Mark all as fired immediately so re-polls don't re-queue them
     candidates.forEach(({ key }) => firedAlerts.current.add(key));
 
-    // Push all into the queue
-    setPopupQueue(q => [
-      ...q,
-      ...candidates.map(({ res, id }) => ({
-        id,
-        name:      res.guest_name || res.name || "Guest",
-        room:      res.room || res.venue || "-",
-        eventDate: res.event_date  || res.eventDate  || res.reservationDate,
-        eventTime: res.event_time  || res.eventTime  || res.reservationTime,
-      })),
-    ]);
+    const items = candidates.map(({ res }) => ({
+      id:        res.id ?? res.db_id,
+      name:      res.guest_name || res.name || "Guest",
+      room:      res.room || res.venue || "",
+      eventDate: res.event_date  || res.eventDate  || res.reservationDate,
+      eventTime: res.event_time  || res.eventTime  || res.reservationTime,
+    }));
 
-    playAlertSound();
-    // Announce the count if more than one
-    const first = candidates[0].res;
+    setPopupQueue(q => [...q, { items, primaryId: items[0].id }]);
+
+    const first    = candidates[0].res;
+    const diff0    = candidates[0].diff;
+    const relLabel = relativeTimeLabel(diff0);
+
     if (candidates.length === 1) {
-      speakText(
-        `Reminder. 1 hour to go. ` +
-        `${first.guest_name || first.name || "A guest"}'s reservation ` +
-        `at ${first.room || first.venue || "the venue"} starts in 1 hour.`,
+      playAlertThenSpeak(
+        `Reminder. ${first.guest_name || first.name || "A guest"}'s reservation ` +
+        `at ${first.room || first.venue || "the venue"} starts in ${relLabel}.`,
       );
     } else {
-      speakText(`Reminder. ${candidates.length} reservations are starting in 1 hour.`);
+      playAlertThenSpeak(
+        `Reminder. ${candidates.length} reservations are coming up soon. ` +
+        `The earliest starts in ${relLabel}.`,
+      );
     }
   }, []);
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async (isInit = false) => {
-    try {
-      const resp = await reservationAPI.getAll();
-      const raw  = Array.isArray(resp) ? resp : Array.isArray(resp?.data) ? resp.data : [];
+  // ── Add new reservation to state ──────────────────────────────────────────
+  const addNewReservation = useCallback((res, isInit = false) => {
+    const id = res.id ?? res.db_id;
+    if (!id) return;
+    if (knownApprovedIds.current.has(id)) return;
+    knownApprovedIds.current.add(id);
 
-      const approved = raw
-        .filter(isApproved)
-        .sort((a, b) =>
-          (b.submittedTimestamp || +new Date(b.created_at) || 0) -
-          (a.submittedTimestamp || +new Date(a.created_at) || 0)
-        );
+    setApprovedCards(prev => {
+      const updated = [res, ...prev].sort((a, b) =>
+        (b.submittedTimestamp || +new Date(b.created_at) || 0) -
+        (a.submittedTimestamp || +new Date(a.created_at) || 0)
+      );
+      return updated;
+    });
 
-      const freshIds = new Set();
-      approved.forEach(res => {
-        const id = res.id ?? res.db_id;
-        if (!knownApprovedIds.current.has(id)) {
-          knownApprovedIds.current.add(id);
-          if (!isInit) freshIds.add(id);
-        }
-      });
+    if (!isInit) {
+      setNewIds(prev => new Set([...prev, id]));
+      setPendingPage(1);
+      setTimeout(() => setNewIds(prev => {
+        const next = new Set(prev); next.delete(id); return next;
+      }), 4000);
+      if (leftRef.current) leftRef.current.scrollTo({ top: 0, behavior: "smooth" });
 
-      setApprovedCards(approved);
+      playNewSound(() =>
+        speakText(`New approved reservation from ${res.guest_name || res.name || "a guest"}.`)
+      );
 
-      if (!isInit && freshIds.size > 0) {
-        setNewIds(freshIds);
-        playNewSound();
-        const first = approved.find(r => freshIds.has(r.id ?? r.db_id));
-        if (first)
-          speakText(`New approved reservation from ${first.guest_name || first.name || "a guest"}.`);
-        setTimeout(() => setNewIds(new Set()), 4000);
-        if (leftRef.current) leftRef.current.scrollTo({ top: 0, behavior: "smooth" });
-      }
-
-      checkAlerts(approved);
-      resetCd();
-    } catch (e) {
-      console.error("[NotifDashboard]", e);
-    } finally {
-      setLoading(false);
+      checkAlerts([res]);
     }
-  }, [checkAlerts, resetCd]);
+  }, [checkAlerts]);
 
+  // ── Initial fetch ─────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchData(true);
-    const t = setInterval(() => fetchData(false), POLL_MS);
-    return () => clearInterval(t);
-  }, [fetchData]);
+    const fetchInitial = async () => {
+      try {
+        const resp = await reservationAPI.getAll();
+        const raw  = Array.isArray(resp) ? resp : Array.isArray(resp?.data) ? resp.data : [];
 
-  // ── Split into pending (upcoming) and done (past event date) ───────────────
-  const now = new Date();
+        const approved = raw
+          .filter(isApproved)
+          .sort((a, b) =>
+            (b.submittedTimestamp || +new Date(b.created_at) || 0) -
+            (a.submittedTimestamp || +new Date(a.created_at) || 0)
+          );
 
-  const pendingCards = approvedCards.filter(res => {
-    const dt = parseEventDate(
-      res.event_date || res.eventDate || res.reservationDate,
-      res.event_time || res.eventTime || res.reservationTime,
-    );
-    // No parseable date → treat as upcoming (keep in left column)
-    return !dt || dt.getTime() > now.getTime();
-  });
+        approved.forEach(res => {
+          const id = res.id ?? res.db_id;
+          knownApprovedIds.current.add(id);
+        });
 
-  const doneCards = approvedCards.filter(res => {
-    const dt = parseEventDate(
-      res.event_date || res.eventDate || res.reservationDate,
-      res.event_time || res.eventTime || res.reservationTime,
-    );
-    // Has a date AND it's in the past → move to Done
-    return dt && dt.getTime() <= now.getTime();
-  });
+        setApprovedCards(approved);
+        checkAlerts(approved);
+      } catch (e) {
+        console.error("[NotifDashboard] Initial fetch failed:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitial();
+  }, [checkAlerts]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── WebSocket via Laravel Echo ────────────────────────────────────────────
+  useEffect(() => {
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+
+    if (!pusherKey || pusherKey === "your_key") {
+      console.warn("[NotifDashboard] WebSocket key not configured — WebSocket disabled.");
+      setWsStatus("disconnected");
+      return;
+    }
+
+    try {
+      echoRef.current = new Echo({
+        broadcaster:       "pusher",
+        key:               pusherKey,
+        cluster:           pusherCluster,
+      });
+    } catch (err) {
+      console.error("[NotifDashboard] Echo init failed:", err);
+      setWsStatus("disconnected");
+      return;
+    }
+
+    const echo    = echoRef.current;
+    const channel = echo.channel("reservations");
+
+    // ── Real-time: new reservation approved on backend ──────────────────────
+    channel.listen(".reservation.approved", (data) => {
+      const res = data.reservation ?? data;
+      if (!isApproved(res)) return;
+      addNewReservation(res, false);
+    });
+
+    // ── Also handle the broader ReservationUpdated event ───────────────────
+    channel.listen("ReservationUpdated", (data) => {
+      const res = data.reservation ?? data;
+      if (!isApproved(res)) return;
+      addNewReservation(res, false);
+    });
+
+    // ── Also handle ReservationCreated (in case backend fires this for approvals) ──
+    channel.listen("ReservationCreated", (data) => {
+      const res = data.reservation ?? data;
+      if (!isApproved(res)) return;
+      addNewReservation(res, false);
+    });
+
+    // ── Connection status ───────────────────────────────────────────────────
+    try {
+      echo.connector.pusher.connection.bind("connected",    () => setWsStatus("connected"));
+      echo.connector.pusher.connection.bind("disconnected", () => setWsStatus("disconnected"));
+      echo.connector.pusher.connection.bind("error",        () => setWsStatus("disconnected"));
+    } catch (_) { /* Pusher may not expose .connector in all configs */ }
+
+    return () => {
+      try {
+        channel.stopListening(".reservation.approved");
+        channel.stopListening("ReservationUpdated");
+        channel.stopListening("ReservationCreated");
+        echo.leaveChannel("reservations");
+      } catch (_) {}
+    };
+  }, [addNewReservation]);
+
+  // ── Split into upcoming vs done ───────────────────────────────────────────
+  const { pendingCards, doneCards } = useMemo(() => {
+    const pending = [];
+    const done    = [];
+    approvedCards.forEach(res => {
+      const dt = parseEventDate(
+        res.event_date  || res.eventDate  || res.reservationDate,
+        res.event_time  || res.eventTime  || res.reservationTime,
+      );
+      if (!dt || dt.getTime() > Date.now()) pending.push(res);
+      else done.push(res);
+    });
+    return { pendingCards: pending, doneCards: done };
+  }, [approvedCards]);
+
+  const pendingVisible = pendingCards.slice(0, pendingPage * PAGE);
+  const doneVisible    = doneCards.slice(0, donePage * PAGE);
+
+  // ── Handle "View" click on popup ──────────────────────────────────────────
+  const handlePopupView = useCallback((p) => {
+    dismissPopup();
+    const items = p.items || [];
+
+    if (items.length === 1) {
+      // Only one event — open detail directly
+      const full = approvedCards.find(r => (r.id ?? r.db_id) === items[0].id);
+      if (full) setDetailRes(full);
+    } else {
+      // Multiple events — show picker so admin can choose
+      setPickerItems(items);
+    }
+  }, [approvedCards, dismissPopup]);
+
+  // ── Connection status label & color ───────────────────────────────────────
+  const wsColor = wsStatus === "connected" ? C.green : wsStatus === "connecting" ? C.amber : C.red;
+  const wsLabel = wsStatus === "connected" ? "Live" : wsStatus === "connecting" ? "Connecting…" : "Offline";
+  const WsIcon  = wsStatus === "connected" ? Wifi : WifiOff;
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{
-      fontFamily:    "'Montserrat',sans-serif",
-      background:    C.bg,
-      height:        "100vh",
-      display:       "flex",
-      flexDirection: "column",
-      overflow:      "hidden",
-      color:         C.text,
-    }}>
+    <div style={{ fontFamily: C.font, background: C.bg, height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", color: C.text }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Montserrat:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
-        ::-webkit-scrollbar { width:3px; }
+        ::-webkit-scrollbar { width:4px; }
         ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:${C.border}; border-radius:3px; }
+        ::-webkit-scrollbar-thumb { background:${C.border}; border-radius:4px; }
         @keyframes cardSlideIn {
           from { opacity:0; transform:translateY(-8px) scale(.98); }
           to   { opacity:1; transform:none; }
@@ -893,8 +846,8 @@ const popup = popupQueue[0] ?? null;   // always show the head of the queue
         }
         @keyframes bellRing {
           0%,100% { transform:rotate(0deg); }
-          25%     { transform:rotate(-20deg); }
-          75%     { transform:rotate(20deg); }
+          25%     { transform:rotate(-18deg); }
+          75%     { transform:rotate(18deg); }
         }
         @keyframes dotPulse {
           0%,100% { opacity:1; transform:scale(1); }
@@ -902,272 +855,144 @@ const popup = popupQueue[0] ?? null;   // always show the head of the queue
         }
         @keyframes spin { to { transform:rotate(360deg); } }
         @keyframes fadeUp {
-          from { opacity:0; transform:translateY(5px); }
+          from { opacity:0; transform:translateY(6px); }
           to   { opacity:1; transform:none; }
         }
       `}</style>
 
-      {/* ═══════════════════════════════ HEADER ══════════════════════════════ */}
-      <header style={{
-        height:       64,
-        background:   C.surface,
-        borderBottom: `1px solid ${C.border}`,
-        display:      "flex",
-        alignItems:   "center",
-        padding:      "0 26px",
-        flexShrink:   0,
-        boxShadow:    `0 1px 8px ${C.shadow}`,
-        gap:          16,
-      }}>
-        {/* Logo */}
-        <img
-          src={bellevueLogo}
-          alt="The Bellevue Manila"
-          style={{ height: 40, width: "auto", objectFit: "contain", flexShrink: 0 }}
-          onError={e => { e.currentTarget.style.display = "none"; }}
-        />
+      {/* ══════════════════════════ HEADER ══════════════════════════════════ */}
+      <header style={{ height: 64, background: C.surface, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 24px", flexShrink: 0, boxShadow: `0 1px 6px ${C.shadow}`, gap: 16 }}>
+        {/* Logo — graceful fallback if missing */}
+        {bellevueLogo && (
+          <img
+            src={bellevueLogo}
+            alt="The Bellevue Manila"
+            style={{ height: 38, width: "auto", objectFit: "contain", flexShrink: 0 }}
+            onError={e => { e.currentTarget.style.display = "none"; }}
+          />
+        )}
 
-        <div style={{ width: 1, height: 28, background: C.border }} />
+        <div style={{ width: 1, height: 26, background: C.border }} />
 
-        {/* Title */}
         <div style={{ flex: 1 }}>
-          <div style={{
-            fontFamily:    "'Cinzel',serif",
-            fontWeight:    600,
-            fontSize:      15,
-            color:         C.gold,
-            letterSpacing: 1.8,
-            textTransform: "uppercase",
-          }}>
+          <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 14, color: C.gold, letterSpacing: 1.5, textTransform: "uppercase" }}>
             Notification Monitor
           </div>
-          
         </div>
 
-        {/* Bell icon */}
-        <div style={{
-          width:         40,
-          height:        40,
-          borderRadius:  "50%",
-          background:    popup ? C.navy : "#F0EBE1",
-          border:        `1.5px solid ${popup ? C.gold : C.border}`,
-          display:       "flex",
-          alignItems:    "center",
-          justifyContent:"center",
-          flexShrink:    0,
-          transition:    "all .2s",
-          animation:     popup ? "bellRing .6s ease infinite" : "none",
-          cursor:        "default",
-          position:      "relative",
-        }}>
-          {popup
-            ? <BellDot size={18} color={C.gold} />
-            : <Bell    size={18} color={C.gold} />
-          }
+        {/* WebSocket status badge */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: `${wsColor}15`, border: `1px solid ${wsColor}40`, borderRadius: 20, padding: "4px 12px", flexShrink: 0 }}>
+          <WsIcon size={12} color={wsColor} />
+          <span style={{ fontFamily: C.font, fontSize: 11, fontWeight: 600, color: wsColor }}>{wsLabel}</span>
+        </div>
+
+        {/* Bell */}
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: popup ? C.navy : C.borderLight, border: `1.5px solid ${popup ? C.gold : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s", animation: popup ? "bellRing .6s ease infinite" : "none", position: "relative" }}>
+          {popup ? <BellDot size={16} color={C.gold} /> : <Bell size={16} color={C.gold} />}
           {popup && (
-            <div style={{
-              position:     "absolute",
-              top:          4,
-              right:        4,
-              width:        8,
-              height:       8,
-              borderRadius: "50%",
-              background:   C.red,
-              border:       "1.5px solid #fff",
-              animation:    "dotPulse 1.2s ease infinite",
-            }} />
+            <div style={{ position: "absolute", top: 3, right: 3, width: 7, height: 7, borderRadius: "50%", background: C.red, border: "1.5px solid #fff", animation: "dotPulse 1.2s ease infinite" }} />
           )}
         </div>
 
-        <div style={{ width: 1, height: 28, background: C.border }} />
+        <div style={{ width: 1, height: 26, background: C.border }} />
 
         {/* Clock */}
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{
-            fontFamily:    "'Montserrat',sans-serif",
-            fontWeight:    600,
-            fontSize:      17,
-            color:         C.navy,
-            letterSpacing: 0.3,
-            lineHeight:    1.15,
-          }}>{clock}</div>
-          <div style={{
-            fontFamily:    "'Montserrat',sans-serif",
-            fontSize:      14,
-            fontWeight:    400,
-            color:         C.textLight,
-            letterSpacing: 0.8,
-            marginTop:     2,
-          }}>{date}</div>
+          <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 16, color: C.navy, lineHeight: 1.15 }}>{clock}</div>
+          <div style={{ fontFamily: C.font, fontSize: 10, fontWeight: 500, color: C.textLight, letterSpacing: 0.8, marginTop: 2 }}>{date}</div>
         </div>
       </header>
 
-      {/* ═══════════════════════════════ LOADING ═════════════════════════════ */}
+      {/* ══════════════════════════ LOADING ═════════════════════════════════ */}
       {loading && (
-        <div style={{
-          flex:           1,
-          display:        "flex",
-          alignItems:     "center",
-          justifyContent: "center",
-          flexDirection:  "column",
-          gap:            12,
-        }}>
-          <div style={{
-            width:          32,
-            height:         32,
-            border:         `2px solid ${C.border}`,
-            borderTopColor: C.gold,
-            borderRadius:   "50%",
-            animation:      "spin .8s linear infinite",
-          }} />
-          <div style={{
-            fontFamily: "'Montserrat',sans-serif",
-            fontSize:   14,
-            fontWeight: 400,
-            color:      C.textMuted,
-          }}>Loading notifications…</div>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+          <div style={{ width: 30, height: 30, border: `2px solid ${C.border}`, borderTopColor: C.gold, borderRadius: "50%", animation: "spin .8s linear infinite" }} />
+          <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 400, color: C.textMuted }}>Loading notifications…</div>
         </div>
       )}
 
-      {/* ═══════════════════════════════ TWO COLUMNS ═════════════════════════ */}
+      {/* ══════════════════════════ TWO COLUMNS ═════════════════════════════ */}
       {!loading && (
-        <div style={{
-          flex:                1,
-          display:             "grid",
-          gridTemplateColumns: "3.5fr 1.5fr",
-          rowGap:             0,
-          columnGap:           24,
-          padding:             "16px 22px",
-          minHeight:           0,
-          animation:           "fadeUp .3s ease",
-        }}>
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "3fr 1.4fr", gap: 16, padding: "16px 20px", minHeight: 0, animation: "fadeUp .3s ease" }}>
 
-          {/* ── LEFT — New / Upcoming Reservations ────────────────────────── */}
-          <div style={{
-            background:    C.surface,
-            border:        `1px solid ${C.border}`,
-            borderRadius:  12,
-            overflow:      "hidden",
-            boxShadow:     `0 2px 12px ${C.shadow}`,
-            display:       "flex",
-            flexDirection: "column",
-            minHeight:     0,
-          }}>
-            <div style={{
-              background:    C.bluePastel,
-              borderBottom:  `1px solid ${C.blueBorder}`,
-              padding:       "12px 16px",
-              flexShrink:    0,
-              display:       "flex",
-              alignItems:    "center",
-              justifyContent:"space-between",
-            }}>
-              <span style={{
-                fontFamily: "'Montserrat',sans-serif",
-                fontWeight: 600,
-                fontSize:   14,
-                color:      C.navy,
-              }}>New Reservation</span>
-              <span style={{
-                background:   C.blue,
-                color:        "#fff",
-                borderRadius: 20,
-                padding:      "2px 12px",
-                fontFamily:   "'Montserrat',sans-serif",
-                fontSize:     14,
-                fontWeight:   600,
-              }}>{pendingCards.length}</span>
+          {/* LEFT — Upcoming */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", boxShadow: `0 2px 10px ${C.shadow}`, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ background: C.bluePastel, borderBottom: `1px solid ${C.blueBorder}`, padding: "11px 16px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy }}>Upcoming Reservations</span>
+              <span style={{ background: C.blue, color: "#fff", borderRadius: 20, padding: "2px 10px", fontFamily: C.font, fontSize: 12, fontWeight: 600 }}>{pendingCards.length}</span>
             </div>
-
-            <div
-              ref={leftRef}
-              style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}
-            >
-              {pendingCards.length === 0
-                ? <EmptyState msg="No upcoming reservations" />
-                : pendingCards.map(res => (
+            <div ref={leftRef} style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}>
+              {pendingCards.length === 0 ? (
+                <EmptyState msg="No upcoming reservations" />
+              ) : (
+                <>
+                  {pendingVisible.map(res => (
                     <NewResCard
                       key={res.id ?? res.db_id}
                       res={res}
                       isNew={newIds.has(res.id ?? res.db_id)}
+                      onClick={setDetailRes}
                     />
-                  ))
-              }
+                  ))}
+                  {pendingVisible.length < pendingCards.length && (
+                    <LoadMoreBtn onClick={() => setPendingPage(p => p + 1)} remaining={pendingCards.length - pendingVisible.length} />
+                  )}
+                </>
+              )}
             </div>
           </div>
 
-          {/* ── RIGHT — Done (past event date/time) ───────────────────────── */}
-          <div style={{
-            background:    C.surface,
-            border:        `1px solid ${C.border}`,
-            borderRadius:  12,
-            overflow:      "hidden",
-            boxShadow:     `0 2px 12px ${C.shadow}`,
-            display:       "flex",
-            flexDirection: "column",
-            minHeight:     0,
-          }}>
-            <div style={{
-              background:    C.greenPastel,
-              borderBottom:  `1px solid ${C.greenBorder}`,
-              padding:       "12px 16px",
-              flexShrink:    0,
-              display:       "flex",
-              alignItems:    "center",
-              justifyContent:"space-between",
-            }}>
-              <span style={{
-                fontFamily: "'Montserrat',sans-serif",
-                fontWeight: 600,
-                fontSize:   14,
-                color:      C.navy,
-              }}>Done</span>
-              <span style={{
-                background:   C.green,
-                color:        "#fff",
-                borderRadius: 20,
-                padding:      "2px 12px",
-                fontFamily:   "'Montserrat',sans-serif",
-                fontSize:     14,
-                fontWeight:   600,
-              }}>{doneCards.length}</span>
+          {/* RIGHT — Done */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", boxShadow: `0 2px 10px ${C.shadow}`, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ background: C.greenPastel, borderBottom: `1px solid ${C.greenBorder}`, padding: "11px 16px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy }}>Done</span>
+              <span style={{ background: C.green, color: "#fff", borderRadius: 20, padding: "2px 10px", fontFamily: C.font, fontSize: 12, fontWeight: 600 }}>{doneCards.length}</span>
             </div>
-
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}>
-              {doneCards.length === 0
-                ? <EmptyState msg="No completed reservations" />
-                : doneCards.map(res => (
-                    <DoneCard key={`done-${res.id ?? res.db_id}`} res={res} />
-                  ))
-              }
+              {doneCards.length === 0 ? (
+                <EmptyState msg="No completed reservations" />
+              ) : (
+                <>
+                  {doneVisible.map(res => (
+                    <DoneCard key={`done-${res.id ?? res.db_id}`} res={res} onClick={setDetailRes} />
+                  ))}
+                  {doneVisible.length < doneCards.length && (
+                    <LoadMoreBtn onClick={() => setDonePage(p => p + 1)} remaining={doneCards.length - doneVisible.length} />
+                  )}
+                </>
+              )}
             </div>
           </div>
-
         </div>
       )}
 
-      {/* ═══════════════════════════════ POPUP ═══════════════════════════════ */}
+      {/* ══════════════════════════ REMINDER POPUP ══════════════════════════ */}
       {popup && (
         <ReminderPopup
           popup={popup}
           queueCount={popupQueue.length}
-          onView={(p) => {
-            const full = approvedCards.find(r => (r.id ?? r.db_id) === p.id) || p;
-            setDetailRes(full);
-            dismissPopup();
-          }}
+          onView={handlePopupView}
           onClose={dismissPopup}
         />
       )}
 
-      {/* ═══════════════════════════════ DETAIL MODAL ════════════════════════ */}
+      {/* ══════════════════════════ EVENT PICKER ════════════════════════════ */}
+      {pickerItems && (
+        <EventPickerModal
+          items={pickerItems}
+          approvedCards={approvedCards}
+          onSelect={(res) => { setPickerItems(null); setDetailRes(res); }}
+          onClose={() => setPickerItems(null)}
+        />
+      )}
+
+      {/* ══════════════════════════ DETAIL MODAL ════════════════════════════ */}
       {detailRes && (
         <ReservationDetailModal
           res={detailRes}
           onClose={() => setDetailRes(null)}
         />
       )}
-
     </div>
   );
 }

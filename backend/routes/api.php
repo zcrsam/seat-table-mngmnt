@@ -57,8 +57,8 @@ Route::prefix('admin/reservations')->group(function () {
     Route::post('/', [AdminReservationController::class, 'store']);
     Route::get('/{id}', [AdminReservationController::class, 'show']);
     Route::put('/{id}', [AdminReservationController::class, 'update']);
-    Route::post('/{id}/approve', [AdminReservationController::class, 'approve']);
-    Route::post('/{id}/reject', [AdminReservationController::class, 'reject']);
+    Route::patch('/{id}/approve', [AdminReservationController::class, 'approve']);
+    Route::patch('/{id}/reject', [AdminReservationController::class, 'reject']);
     Route::delete('/{id}', [AdminReservationController::class, 'destroy']);
 });
 

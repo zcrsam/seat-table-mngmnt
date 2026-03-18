@@ -8,6 +8,7 @@ import {
   subscribeToSeatMapChanges,
   dispatchSeatMapUpdate,
 } from "../../../utils/seatMapPersistence.js";
+import Echo from '../../../utils/websocket.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -483,6 +484,9 @@ export default function AlabangReserve() {
   const [formData,      setFormData]      = useState(null);
   const [refCode,       setRefCode]       = useState(null);
   const [submitting,    setSubmitting]    = useState(false);
+  const [wsConnected,   setWsConnected]   = useState(false);
+
+  const echoRef = useRef(null);
 
   // ── Load initial table data from localStorage ─────────────────────────────
   const [tableData, setTableData] = useState(() => {
@@ -582,6 +586,174 @@ export default function AlabangReserve() {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
+  }, []);
+
+  // ── WebSocket Setup ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // Check if Pusher credentials are available and valid
+    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+    
+    // Only initialize WebSocket if credentials are properly set
+    if (!echoRef.current && pusherKey && pusherKey !== 'your_key') {
+      try {
+        echoRef.current = new Echo({
+          broadcaster: 'pusher',
+          key: pusherKey,
+          cluster: pusherCluster,
+        });
+      } catch (error) {
+        console.log('WebSocket initialization failed:', error);
+        return;
+      }
+    }
+
+    const echo = echoRef.current;
+    if (!echo) return;
+
+    // Listen for reservation events
+    try {
+      const channel = echo.channel('reservations');
+      
+      // New reservation created
+      channel.listen('ReservationCreated', (e) => {
+        console.log('New reservation via WebSocket (Alabang):', e.reservation);
+        // Refresh seat map data when new reservation is created
+        const syncSeats = async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, {
+              headers: { Accept: "application/json" }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.data) {
+                dispatchSeatMapUpdate(WING, ROOM, data.data);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to sync seats:", error);
+          }
+        };
+        syncSeats();
+      });
+
+      // Reservation updated (approved/rejected)
+      channel.listen('ReservationUpdated', (e) => {
+        console.log('Reservation updated via WebSocket (Alabang):', e.reservation);
+        // Refresh seat map data when reservation is updated
+        const syncSeats = async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, {
+              headers: { Accept: "application/json" }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.data) {
+                dispatchSeatMapUpdate(WING, ROOM, data.data);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to sync seats:", error);
+          }
+        };
+        syncSeats();
+      });
+
+      // Reservation deleted
+      channel.listen('ReservationDeleted', (e) => {
+        console.log('Reservation deleted via WebSocket (Alabang):', e.id);
+        // Refresh seat map data when reservation is deleted
+        const syncSeats = async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, {
+              headers: { Accept: "application/json" }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.data) {
+                dispatchSeatMapUpdate(WING, ROOM, data.data);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to sync seats:", error);
+          }
+        };
+        syncSeats();
+      });
+
+      // Seat/Table reservation events
+      channel.listen('SeatReserved', (e) => {
+        console.log('Seat reserved via WebSocket (Alabang):', e);
+        // Refresh seat map data when seat is reserved
+        const syncSeats = async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, {
+              headers: { Accept: "application/json" }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.data) {
+                dispatchSeatMapUpdate(WING, ROOM, data.data);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to sync seats:", error);
+          }
+        };
+        syncSeats();
+      });
+
+      channel.listen('TableReserved', (e) => {
+        console.log('Table reserved via WebSocket (Alabang):', e);
+        // Refresh seat map data when table is reserved
+        const syncSeats = async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, {
+              headers: { Accept: "application/json" }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.data) {
+                dispatchSeatMapUpdate(WING, ROOM, data.data);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to sync seats:", error);
+          }
+        };
+        syncSeats();
+      });
+
+      // Connection status
+      echo.connector.pusher.connection.bind('connected', () => {
+        console.log('Alabang WebSocket connected');
+        setWsConnected(true);
+      });
+
+      echo.connector.pusher.connection.bind('disconnected', () => {
+        console.log('Alabang WebSocket disconnected');
+        setWsConnected(false);
+      });
+
+      echo.connector.pusher.connection.bind('error', (err) => {
+        console.log('Alabang WebSocket error:', err);
+        setWsConnected(false);
+      });
+
+      return () => {
+        try {
+          channel.stopListening('ReservationCreated');
+          channel.stopListening('ReservationUpdated');
+          channel.stopListening('ReservationDeleted');
+          channel.stopListening('SeatReserved');
+          channel.stopListening('TableReserved');
+        } catch (error) {
+          console.log('Error cleaning up WebSocket listeners:', error);
+        }
+      };
+    } catch (error) {
+      console.log('WebSocket channel setup failed:', error);
+    }
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -716,7 +888,7 @@ export default function AlabangReserve() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={s.root}>
-      <MainWingNavbar active="ALABANG FUNCTION ROOM" />
+      <MainWingNavbar active="ALABANG FUNCTION ROOM" wsConnected={wsConnected} />
 
       <div style={{ ...s.page, ...(isMobile ? { padding: "16px 14px" } : isTablet ? { padding: "24px 20px" } : {}) }}>
 

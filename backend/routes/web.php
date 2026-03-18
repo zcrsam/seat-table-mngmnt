@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Services\WebsocketBroadcaster;
 
 Route::get('/', function () {
     return response()->json([
@@ -13,4 +14,19 @@ Route::get('/', function () {
             'api/seats' => 'Manage seats'
         ]
     ]);
+});
+
+// WebSocket broadcast endpoint
+Route::get('/broadcasts', function () {
+    $broadcasts = WebsocketBroadcaster::getRecentBroadcasts(50);
+    return response()->json([
+        'broadcasts' => $broadcasts,
+        'timestamp' => now()->toISOString()
+    ]);
+});
+
+// Clear broadcasts endpoint (for testing)
+Route::delete('/broadcasts', function () {
+    WebsocketBroadcaster::clearBroadcasts();
+    return response()->json(['message' => 'Broadcasts cleared']);
 });

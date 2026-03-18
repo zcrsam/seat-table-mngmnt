@@ -23,8 +23,8 @@ export const reservationAPI = {
   delete: (id) => api.delete(`/admin/reservations/${id}`),
 
   // Approve reservation
-  approve: (id) => api.post(`/admin/reservations/${id}/approve`),
+  approve: (id) => api.patch(`/admin/reservations/${id}/approve`),
 
   // Reject reservation
-  reject: (id) => api.post(`/admin/reservations/${id}/reject`),
+  reject: (id) => api.patch(`/admin/reservations/${id}/reject`),
 };

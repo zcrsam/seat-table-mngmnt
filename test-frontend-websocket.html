@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .events {
+            border: 1px solid #ddd;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+        .event {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-left: 4px solid #007bff;
+            background-color: white;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test Client</h1>
+    <div id="status" class="status disconnected">Disconnected</div>
+    
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <button onclick="clearEvents()">Clear Events</button>
+    
+    <h2>Received Events:</h2>
+    <div id="events" class="events"></div>
+
+    <script>
+        let ws = null;
+        
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = connected ? 'Connected' : 'Disconnected';
+            statusEl.className = `status ${connected ? 'connected' : 'disconnected'}`;
+        }
+        
+        function addEvent(event, data) {
+            const eventsEl = document.getElementById('events');
+            const eventEl = document.createElement('div');
+            eventEl.className = 'event';
+            eventEl.innerHTML = `
+                <strong>${new Date().toLocaleTimeString()}</strong> - ${event}<br>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            eventsEl.appendChild(eventEl);
+            eventsEl.scrollTop = eventsEl.scrollHeight;
+        }
+        
+        function connect() {
+            if (ws) {
+                ws.close();
+            }
+            
+            ws = new WebSocket('ws://localhost:6001');
+            
+            ws.onopen = () => {
+                updateStatus(true);
+                addEvent('connected', { message: 'Connected to WebSocket server' });
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent(data.event, data.payload || data.data || data);
+                } catch (error) {
+                    addEvent('message', { raw: event.data });
+                }
+            };
+            
+            ws.onclose = () => {
+                updateStatus(false);
+                addEvent('disconnected', { message: 'Connection closed' });
+            };
+            
+            ws.onerror = (error) => {
+                updateStatus(false);
+                addEvent('error', { error: error.toString() });
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        function clearEvents() {
+            document.getElementById('events').innerHTML = '';
+        }
+        
+        // Auto-connect on page load
+        connect();
+    </script>
+</body>
+</html>

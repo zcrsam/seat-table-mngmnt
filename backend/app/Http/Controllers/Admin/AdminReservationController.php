@@ -6,6 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\Venue;
 use App\Services\ReservationService;
+use App\Services\WebsocketBroadcaster;
+use App\Events\ReservationCreated;
+use App\Events\ReservationUpdated;
+use App\Events\ReservationDeleted;
+use App\Events\SeatReserved;
+use App\Events\TableReserved;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -73,6 +79,14 @@ class AdminReservationController extends Controller
 
         $reservation = Reservation::create($validated);
         
+        // Broadcast reservation created event
+        broadcast(new ReservationCreated($reservation))->toOthers();
+        
+        // Also broadcast to WebSocket
+        WebsocketBroadcaster::broadcast('reservations', 'ReservationCreated', [
+            'reservation' => $reservation
+        ]);
+        
         return response()->json($reservation, 201);
     }
 
@@ -96,6 +110,15 @@ class AdminReservationController extends Controller
         ]);
 
         $reservation->update($validated);
+        
+        // Broadcast reservation updated event
+        broadcast(new ReservationUpdated($reservation))->toOthers();
+        
+        // Also broadcast to WebSocket
+        WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
+            'reservation' => $reservation
+        ]);
+        
         return response()->json($reservation);
     }
 
@@ -109,6 +132,15 @@ class AdminReservationController extends Controller
             }
             
             $this->reservationService->deleteReservation($reservation);
+            
+            // Broadcast reservation deleted event
+            broadcast(new ReservationDeleted($id))->toOthers();
+            
+            // Also broadcast to WebSocket
+            WebsocketBroadcaster::broadcast('reservations', 'ReservationDeleted', [
+                'id' => $id
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Reservation deleted successfully',
@@ -134,6 +166,15 @@ class AdminReservationController extends Controller
         try {
             $reservation = Reservation::findOrFail($id);
             $this->reservationService->approveReservation($reservation);
+            
+            // Broadcast reservation updated event (approved)
+            broadcast(new ReservationUpdated($reservation))->toOthers();
+            
+            // Also broadcast to WebSocket
+            WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
+                'reservation' => $reservation
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Reservation approved successfully',
@@ -149,6 +190,15 @@ class AdminReservationController extends Controller
         try {
             $reservation = Reservation::findOrFail($id);
             $this->reservationService->rejectReservation($reservation);
+            
+            // Broadcast reservation updated event (rejected)
+            broadcast(new ReservationUpdated($reservation))->toOthers();
+            
+            // Also broadcast to WebSocket
+            WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
+                'reservation' => $reservation
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Reservation rejected successfully',

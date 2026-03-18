@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
 // Components
@@ -10,6 +10,7 @@ import SeatMapViewer from "../components/SeatMapViewer";
 // API Services
 import { authAPI } from "../../../services/authAPI";
 import { reservationAPI } from "../../../services/reservationAPI";
+import Echo from 'laravel-echo';
 
 // Styles
 const C = {
@@ -44,11 +45,14 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     perPage: 10,
     lastPage: 1,
   });
+
+  const echoRef = useRef(null);
 
   // Fetch reservations and stats - moved outside useEffect
   const fetchData = async () => {
@@ -151,6 +155,85 @@ export default function AdminDashboard() {
       fetchData();
     }
   }, [pagination.currentPage, pagination.perPage]);
+
+  // ── WebSocket Setup ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // Check if Pusher credentials are available
+    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+    
+    // Only initialize WebSocket if credentials are properly set
+    if (!echoRef.current && pusherKey && pusherKey !== 'your_key') {
+      echoRef.current = new Echo({
+        broadcaster: 'pusher',
+        key: pusherKey,
+        cluster: pusherCluster,
+        forceTLS: true,
+        enabledTransports: ['ws', 'wss'],
+      });
+    }
+
+    const echo = echoRef.current;
+
+    // Only proceed if WebSocket is initialized
+    if (!echo) return;
+
+    // Listen for reservation events
+    const channel = echo.channel('reservations');
+    
+    // New reservation created
+    channel.listen('ReservationCreated', (e) => {
+      console.log('New reservation via WebSocket (Backup):', e.reservation);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Reservation updated (approved/rejected)
+    channel.listen('ReservationUpdated', (e) => {
+      console.log('Reservation updated via WebSocket (Backup):', e.reservation);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Reservation deleted
+    channel.listen('ReservationDeleted', (e) => {
+      console.log('Reservation deleted via WebSocket (Backup):', e.id);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Seat/Table reservation events
+    channel.listen('SeatReserved', (e) => {
+      console.log('Seat reserved via WebSocket (Backup):', e);
+      fetchData(); // Refresh dashboard data
+    });
+
+    channel.listen('TableReserved', (e) => {
+      console.log('Table reserved via WebSocket (Backup):', e);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Connection status
+    echo.connector.pusher.connection.bind('connected', () => {
+      console.log('Backup Dashboard WebSocket connected');
+      setWsConnected(true);
+    });
+
+    echo.connector.pusher.connection.bind('disconnected', () => {
+      console.log('Backup Dashboard WebSocket disconnected');
+      setWsConnected(false);
+    });
+
+    echo.connector.pusher.connection.bind('error', (err) => {
+      console.log('Backup Dashboard WebSocket error:', err);
+      setWsConnected(false);
+    });
+
+    return () => {
+      channel.stopListening('ReservationCreated');
+      channel.stopListening('ReservationUpdated');
+      channel.stopListening('ReservationDeleted');
+      channel.stopListening('SeatReserved');
+      channel.stopListening('TableReserved');
+    };
+  }, []);
 
   // Handle loading state
   if (loading) {

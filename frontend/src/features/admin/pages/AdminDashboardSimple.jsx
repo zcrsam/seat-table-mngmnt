@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
 // API Services
@@ -122,6 +122,85 @@ export default function AdminDashboard() {
     }
   }, [pagination.currentPage, pagination.perPage]);
 
+  // ── WebSocket Setup ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // Check if Pusher credentials are available
+    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+    
+    // Only initialize WebSocket if credentials are properly set
+    if (!echoRef.current && pusherKey && pusherKey !== 'your_key') {
+      echoRef.current = new Echo({
+        broadcaster: 'pusher',
+        key: pusherKey,
+        cluster: pusherCluster,
+        forceTLS: true,
+        enabledTransports: ['ws', 'wss'],
+      });
+    }
+
+    const echo = echoRef.current;
+
+    // Only proceed if WebSocket is initialized
+    if (!echo) return;
+
+    // Listen for reservation events
+    const channel = echo.channel('reservations');
+    
+    // New reservation created
+    channel.listen('ReservationCreated', (e) => {
+      console.log('New reservation via WebSocket (Simple):', e.reservation);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Reservation updated (approved/rejected)
+    channel.listen('ReservationUpdated', (e) => {
+      console.log('Reservation updated via WebSocket (Simple):', e.reservation);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Reservation deleted
+    channel.listen('ReservationDeleted', (e) => {
+      console.log('Reservation deleted via WebSocket (Simple):', e.id);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Seat/Table reservation events
+    channel.listen('SeatReserved', (e) => {
+      console.log('Seat reserved via WebSocket (Simple):', e);
+      fetchData(); // Refresh dashboard data
+    });
+
+    channel.listen('TableReserved', (e) => {
+      console.log('Table reserved via WebSocket (Simple):', e);
+      fetchData(); // Refresh dashboard data
+    });
+
+    // Connection status
+    echo.connector.pusher.connection.bind('connected', () => {
+      console.log('Simple Dashboard WebSocket connected');
+      setWsConnected(true);
+    });
+
+    echo.connector.pusher.connection.bind('disconnected', () => {
+      console.log('Simple Dashboard WebSocket disconnected');
+      setWsConnected(false);
+    });
+
+    echo.connector.pusher.connection.bind('error', (err) => {
+      console.log('Simple Dashboard WebSocket error:', err);
+      setWsConnected(false);
+    });
+
+    return () => {
+      channel.stopListening('ReservationCreated');
+      channel.stopListening('ReservationUpdated');
+      channel.stopListening('ReservationDeleted');
+      channel.stopListening('SeatReserved');
+      channel.stopListening('TableReserved');
+    };
+  }, []);
+
   const handleLogout = () => {
     authAPI.logout();
     // Redirect to login page
@@ -203,9 +282,9 @@ export default function AdminDashboard() {
           The Bellevue Manila
         </h1>
         <p style={{ 
-          margin: "10px 0 0 0", 
           fontSize: "16px", 
           opacity: 0.9,
+          margin: "10px 0 0 0", 
         }}>
           ADMIN PANEL
         </p>

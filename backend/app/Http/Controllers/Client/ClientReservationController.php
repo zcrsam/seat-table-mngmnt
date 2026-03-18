@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\Venue;
+use App\Services\WebsocketBroadcaster;
+use App\Events\ReservationCreated;
+use App\Events\SeatReserved;
+use App\Events\TableReserved;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -40,6 +44,33 @@ class ClientReservationController extends Controller
         $validated['submitted_at'] = now();
 
         $reservation = Reservation::create($validated);
+        
+        // Broadcast reservation created event
+        broadcast(new ReservationCreated($reservation))->toOthers();
+        
+        // Also broadcast to WebSocket
+        WebsocketBroadcaster::broadcast('reservations', 'ReservationCreated', [
+            'reservation' => $reservation
+        ]);
+        
+        // Broadcast seat/table specific events
+        if ($reservation->type === 'individual' && $reservation->seat_number) {
+            broadcast(new SeatReserved($reservation->seat_number, $reservation->table_number))->toOthers();
+            
+            // Also broadcast to WebSocket
+            WebsocketBroadcaster::broadcast('reservations', 'SeatReserved', [
+                'seatNumber' => $reservation->seat_number,
+                'tableNumber' => $reservation->table_number
+            ]);
+        } elseif ($reservation->type === 'whole' && $reservation->table_number) {
+            broadcast(new TableReserved($reservation->table_number, $reservation->guests_count))->toOthers();
+            
+            // Also broadcast to WebSocket
+            WebsocketBroadcaster::broadcast('reservations', 'TableReserved', [
+                'tableNumber' => $reservation->table_number,
+                'guests' => $reservation->guests_count
+            ]);
+        }
         
         return response()->json($reservation, 201);
     }

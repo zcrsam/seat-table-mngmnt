@@ -8,7 +8,7 @@ const C = {
   muted: "#888888"
 };
 
-export default function MainWingNavbar({ active }) {
+export default function MainWingNavbar({ active, wsConnected }) {
   const navigate = useNavigate();
 
   const venues = [
@@ -99,6 +99,36 @@ export default function MainWingNavbar({ active }) {
           </button>
         ))}
       </div>
+      
+      {/* WebSocket Status Indicator */}
+      {wsConnected !== undefined && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "4px 8px",
+          borderRadius: 20,
+          background: wsConnected ? "#10B981" : "#EF4444",
+          border: `1px solid ${wsConnected ? "#059669" : "#DC2626"}`,
+          marginLeft: "20px",
+        }}>
+          <div style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: "#FFFFFF",
+            animation: wsConnected ? "pulse 2s infinite" : "none",
+          }} />
+          <div style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#FFFFFF",
+          }}>
+            {wsConnected ? "LIVE" : "OFFLINE"}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

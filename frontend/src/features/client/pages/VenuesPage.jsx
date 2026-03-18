@@ -14,33 +14,29 @@ import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
 
 // ─────────────────────────────────────────────
 // DESIGN TOKENS
-// Fonts  : Georgia/serif — single font throughout
-// Colors : gold (#C9A74D) + slate (#3D3629) — no pure black
+// Font   : Inter / system sans-serif — consistent throughout
+// Colors : gold (#C9A74D) + slate (#3D3629)
 // Min font size: 14px
 // ─────────────────────────────────────────────
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
 const C = {
   gold:        "#C9A74D",
   goldDark:    "#9B7A35",
   goldFaint:   "rgba(201,167,77,0.10)",
   goldBorder:  "rgba(201,167,77,0.30)",
   cream:       "#F7F3EA",
-  slate:       "#3D3629",   // dark text — NOT pure black
-  slateLight:  "#7A6E5F",   // secondary text
+  slate:       "#3D3629",
+  slateLight:  "#7A6E5F",
   cardBg:      "#FFFFFF",
   borderLight: "rgba(201,167,77,0.14)",
 };
 
-const FONT = "Georgia, 'Times New Roman', serif";
-const F = {
-  display: FONT,
-  body:    FONT,
-};
-
-// Section anchor IDs — these are used for scrolling
+// Section anchor IDs
 const SECTION_IDS = {
-  "Main Wing":   "section-main-wing",
-  "Tower Wing":  "section-tower-wing",
-  "Dining":      "section-dining",
+  "Main Wing":  "section-main-wing",
+  "Tower Wing": "section-tower-wing",
+  "Dining":     "section-dining",
 };
 
 // ─────────────────────────────────────────────
@@ -62,36 +58,31 @@ function useResponsive() {
 // ─────────────────────────────────────────────
 const SUBCATEGORIES = {
   "Main Wing": [
-    { id: "alabang",         name: "Alabang Function Room", img: alabangImg,       seats: 150, tables: 14, rooms: [] },
-    { id: "laguna",          name: "Laguna Ballroom",       img: lagunaImg,        seats: 250, tables: 11, rooms: ["Laguna 1", "Laguna 2"] },
-    { id: "20-20",           name: "20/20 Function Room",   img: twentyTwentyImg,  seats: 120, tables: 12, rooms: ["20/20 A", "20/20 B", "20/20 C"] },
-    { id: "business-center", name: "Business Center",       img: businessCenterImg,seats: 80,  tables: 10, rooms: [] },
+    { id: "alabang",         name: "Alabang Function Room", img: alabangImg,        seats: 150, tables: 14, rooms: [] },
+    { id: "laguna",          name: "Laguna Ballroom",       img: lagunaImg,         seats: 250, tables: 11, rooms: ["Laguna 1", "Laguna 2"] },
+    { id: "20-20",           name: "20/20 Function Room",   img: twentyTwentyImg,   seats: 120, tables: 12, rooms: ["20/20 A", "20/20 B", "20/20 C"] },
+    { id: "business-center", name: "Business Center",       img: businessCenterImg, seats: 80,  tables: 10, rooms: [] },
   ],
   "Tower Wing": [
     { id: "tower-ballroom", name: "Tower Ballroom", img: towerBallroomImg, seats: 300, tables: 15, rooms: ["Tower 1", "Tower 2", "Tower 3"] },
     { id: "grand-ballroom", name: "Grand Ballroom", img: grandBallroomImg, seats: 400, tables: 20, rooms: ["Grand A", "Grand B", "Grand C"] },
   ],
   "Dining": [
-    { id: "qsina",         name: "Qsina",         img: qsinaImg,       seats: 120, tables: 12, rooms: [] },
-    { id: "hanakazu",      name: "Hanakazu",      img: hanakazuImg,    seats: 80,  tables: 10, rooms: [] },
-    { id: "phoenix-court", name: "Phoenix Court", img: phoenixCourtImg,seats: 140, tables: 16, rooms: [] },
+    { id: "qsina",         name: "Qsina",         img: qsinaImg,        seats: 120, tables: 12, rooms: [] },
+    { id: "hanakazu",      name: "Hanakazu",      img: hanakazuImg,     seats: 80,  tables: 10, rooms: [] },
+    { id: "phoenix-court", name: "Phoenix Court", img: phoenixCourtImg, seats: 140, tables: 16, rooms: [] },
   ],
 };
 
 // ─────────────────────────────────────────────
-// CHEVRON LEFT ICON (inline SVG — no deps)
+// CHEVRON LEFT ICON
 // ─────────────────────────────────────────────
 function ChevronLeftIcon({ size = 20 }) {
   return (
     <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2.5"
+      strokeLinecap="round" strokeLinejoin="round"
       style={{ display: "block", flexShrink: 0 }}
     >
       <polyline points="15 18 9 12 15 6" />
@@ -117,7 +108,6 @@ function RoomDropdown({ rooms, venueId, onRoomClick }) {
 
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
-      {/* Trigger button */}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
@@ -133,7 +123,7 @@ function RoomDropdown({ rooms, venueId, onRoomClick }) {
           color: open ? C.gold : C.slateLight,
           cursor: "pointer",
           transition: "all 0.16s",
-          fontFamily: F.body,
+          fontFamily: FONT,
           fontWeight: 500,
           whiteSpace: "nowrap",
         }}
@@ -151,7 +141,6 @@ function RoomDropdown({ rooms, venueId, onRoomClick }) {
         }}
       >
         <span>Sub-rooms ({rooms.length})</span>
-        {/* Inline chevron down */}
         <svg
           width="13" height="13" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -161,7 +150,6 @@ function RoomDropdown({ rooms, venueId, onRoomClick }) {
         </svg>
       </button>
 
-      {/* Dropdown panel */}
       {open && (
         <div style={{
           position: "absolute",
@@ -193,7 +181,7 @@ function RoomDropdown({ rooms, venueId, onRoomClick }) {
                   fontSize: 14,
                   color: C.slate,
                   cursor: "pointer",
-                  fontFamily: F.body,
+                  fontFamily: FONT,
                   fontWeight: 400,
                   transition: "background 0.12s",
                 }}
@@ -224,9 +212,7 @@ function VenueCard({ venue, onClick }) {
         borderRadius: 14,
         overflow: "visible",
         background: C.cardBg,
-        boxShadow: hov
-          ? "0 18px 48px rgba(0,0,0,0.12)"
-          : "0 2px 16px rgba(0,0,0,0.07)",
+        boxShadow: hov ? "0 18px 48px rgba(0,0,0,0.12)" : "0 2px 16px rgba(0,0,0,0.07)",
         border: `1px solid ${hov ? C.gold : C.borderLight}`,
         transition: "box-shadow 0.25s, border-color 0.25s, transform 0.25s",
         transform: hov ? "translateY(-4px)" : "translateY(0)",
@@ -236,7 +222,7 @@ function VenueCard({ venue, onClick }) {
         position: "relative",
       }}
     >
-      {/* Image area */}
+      {/* Image */}
       <div
         onClick={() => onClick(venue.id)}
         style={{
@@ -257,7 +243,6 @@ function VenueCard({ venue, onClick }) {
             transform: hov ? "scale(1.05)" : "scale(1)",
           }}
         />
-        {/* Gradient */}
         <div style={{
           position: "absolute", inset: 0,
           background: "linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.65) 100%)",
@@ -265,7 +250,7 @@ function VenueCard({ venue, onClick }) {
         {/* Name overlay */}
         <div style={{ position: "absolute", bottom: 12, left: 14, right: 14 }}>
           <div style={{
-            fontFamily: F.display,
+            fontFamily: FONT,
             fontSize: 18,
             fontWeight: 700,
             color: "#FFFFFF",
@@ -286,16 +271,13 @@ function VenueCard({ venue, onClick }) {
         flex: 1,
         borderRadius: "0 0 14px 14px",
       }}>
-
-        {/* Sub-rooms dropdown */}
         {venue.rooms && venue.rooms.length > 0 && (
           <RoomDropdown rooms={venue.rooms} venueId={venue.id} onRoomClick={onClick} />
         )}
 
-        {/* Fallback description when no sub-rooms */}
         {(!venue.rooms || venue.rooms.length === 0) && (
           <p style={{
-            fontFamily: F.body,
+            fontFamily: FONT,
             fontSize: 14,
             color: C.slateLight,
             lineHeight: 1.6,
@@ -320,7 +302,7 @@ function VenueCard({ venue, onClick }) {
               cursor: "pointer",
               fontWeight: 600,
               fontSize: 14,
-              fontFamily: F.body,
+              fontFamily: FONT,
               letterSpacing: 0.2,
               transition: "background 0.15s",
             }}
@@ -331,7 +313,7 @@ function VenueCard({ venue, onClick }) {
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); alert("More info — implement modal"); }}
+            onClick={(e) => { e.stopPropagation(); onClick(venue.id); }}
             style={{
               padding: "11px 14px",
               background: "transparent",
@@ -339,7 +321,7 @@ function VenueCard({ venue, onClick }) {
               borderRadius: 8,
               cursor: "pointer",
               color: C.gold,
-              fontFamily: F.body,
+              fontFamily: FONT,
               fontWeight: 500,
               fontSize: 14,
               transition: "all 0.14s",
@@ -368,12 +350,13 @@ function SectionHeader({ title, subtitle }) {
   return (
     <div style={{ marginBottom: 28 }}>
       <h2 style={{
-        fontFamily: F.display,
-        fontSize: "clamp(24px, 2.8vw, 34px)",
+        fontFamily: FONT,
+        fontSize: "clamp(22px, 2.6vw, 30px)",
         fontWeight: 700,
         color: C.gold,
         margin: 0,
-        lineHeight: 1.1,
+        lineHeight: 1.15,
+        letterSpacing: "-0.3px",
       }}>
         {title}
       </h2>
@@ -385,11 +368,12 @@ function SectionHeader({ title, subtitle }) {
         margin: "10px 0 12px",
       }} />
       <p style={{
-        fontFamily: F.body,
+        fontFamily: FONT,
         color: C.slateLight,
         fontSize: 14,
         margin: 0,
         lineHeight: 1.65,
+        fontWeight: 400,
       }}>
         {subtitle}
       </p>
@@ -405,13 +389,11 @@ export default function VenuesPage() {
   const location = useLocation();
   const { isMobile } = useResponsive();
 
-  // On mount: scroll to section if ?section= param is present
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const section = params.get("section"); // "main-wing" | "tower-wing" | "dining"
+    const params  = new URLSearchParams(location.search);
+    const section = params.get("section");
 
     if (section) {
-      // Map param value to section ID
       const idMap = {
         "main-wing":  SECTION_IDS["Main Wing"],
         "tower-wing": SECTION_IDS["Tower Wing"],
@@ -419,33 +401,36 @@ export default function VenuesPage() {
       };
       const targetId = idMap[section];
       if (targetId) {
-        // Small delay so DOM is painted before scrolling
         setTimeout(() => {
           const el = document.getElementById(targetId);
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 80);
-        return; // don't scroll to top
+        return;
       }
     }
 
-    // No section param → scroll to top
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.search]);
 
   const handleVenueClick = (id) => {
-    if (id === "alabang") navigate("/alabang-reserve");
-    else if (id === "laguna") navigate("/laguna-ballroom");
-    else if (id === "twenty-twenty") navigate("/function-room-2020");
-    else if (id === "business-center") navigate("/business-center");
-    else navigate(`/reserve/${id}`);
+    const routes = {
+      "alabang":         "/alabang-reserve",
+      "laguna":          "/laguna-ballroom",
+      "20-20":           "/function-room-2020",
+      "business-center": "/business-center",
+      "tower-ballroom":  "/tower-ballroom",
+      "grand-ballroom":  "/grand-ballroom",
+      "qsina":           "/qsina",
+      "hanakazu":        "/hanakazu",
+      "phoenix-court":   "/phoenix-court",
+    };
+    navigate(routes[id] ?? `/reserve/${id}`);
   };
 
   const handleBack = () => navigate("/", { state: { scrollTo: "event" } });
 
-  const pad = isMobile ? "20px 16px 0" : "40px 48px 0";
-  const secPad = isMobile ? "24px 16px 80px" : "36px 48px 100px";
+  const pad    = isMobile ? "20px 16px 0"     : "40px 48px 0";
+  const secPad = isMobile ? "24px 16px 80px"  : "36px 48px 100px";
 
   return (
     <div style={{ background: C.cream, minHeight: "100vh", fontFamily: FONT }}>
@@ -467,7 +452,6 @@ export default function VenuesPage() {
               background: C.cardBg,
               borderRadius: "50%",
               border: `2px solid ${C.gold}`,
-              /* Color must be set explicitly so currentColor in the SVG works */
               color: C.gold,
               cursor: "pointer",
               boxShadow: "0 3px 12px rgba(0,0,0,0.08)",
@@ -489,9 +473,9 @@ export default function VenuesPage() {
           <div style={{ width: 30, height: 2, background: C.gold, borderRadius: 2, flexShrink: 0 }} />
 
           <span style={{
-            fontFamily: F.body,
+            fontFamily: FONT,
             color: C.gold,
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 700,
             letterSpacing: "0.18em",
             textTransform: "uppercase",
@@ -503,11 +487,12 @@ export default function VenuesPage() {
         {/* Title */}
         <h1 style={{
           margin: "0 0 10px 0",
-          fontFamily: F.display,
-          fontSize: "clamp(26px, 3.5vw, 46px)",
+          fontFamily: FONT,
+          fontSize: "clamp(24px, 3vw, 40px)",
           color: C.slate,
-          lineHeight: 1.08,
+          lineHeight: 1.1,
           fontWeight: 700,
+          letterSpacing: "-0.5px",
         }}>
           Browse venues and reserve your space.
         </h1>
@@ -516,7 +501,8 @@ export default function VenuesPage() {
           margin: "0 0 30px 0",
           color: C.slateLight,
           fontSize: 14,
-          fontFamily: F.body,
+          fontFamily: FONT,
+          fontWeight: 400,
           lineHeight: 1.7,
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -532,7 +518,7 @@ export default function VenuesPage() {
       {/* ── Venue sections ── */}
       <section style={{ padding: secPad, maxWidth: 1240, margin: "0 auto" }}>
 
-        {/* ── MAIN WING ── */}
+        {/* MAIN WING */}
         <div id={SECTION_IDS["Main Wing"]} style={{ marginBottom: 72, scrollMarginTop: 80 }}>
           <SectionHeader
             title="Main Wing"
@@ -550,15 +536,10 @@ export default function VenuesPage() {
           </div>
         </div>
 
-        {/* ── TOWER WING ── */}
+        {/* TOWER WING */}
         <div
           id={SECTION_IDS["Tower Wing"]}
-          style={{
-            marginBottom: 72,
-            borderTop: `1px solid ${C.borderLight}`,
-            paddingTop: 48,
-            scrollMarginTop: 80,
-          }}
+          style={{ marginBottom: 72, borderTop: `1px solid ${C.borderLight}`, paddingTop: 48, scrollMarginTop: 80 }}
         >
           <SectionHeader
             title="Tower Wing"
@@ -576,15 +557,10 @@ export default function VenuesPage() {
           </div>
         </div>
 
-        {/* ── DINING ── */}
+        {/* DINING */}
         <div
           id={SECTION_IDS["Dining"]}
-          style={{
-            marginBottom: 32,
-            borderTop: `1px solid ${C.borderLight}`,
-            paddingTop: 48,
-            scrollMarginTop: 80,
-          }}
+          style={{ marginBottom: 32, borderTop: `1px solid ${C.borderLight}`, paddingTop: 48, scrollMarginTop: 80 }}
         >
           <SectionHeader
             title="Dining"
