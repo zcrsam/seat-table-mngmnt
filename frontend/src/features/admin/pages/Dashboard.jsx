@@ -566,22 +566,60 @@ function Dashboard({ onLogout }) {
       <AdminNavbar onLogout={onLogout}/>
 
       <div style={{ display: "flex", flex: 1, minHeight: "calc(100vh - 60px)", position: "relative" }}>
+        {/* Mobile overlay when sidebar is open */}
+        {window.innerWidth <= 768 && sidebarOpen && (
+          <div 
+            style={{ 
+              position: "fixed", 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              background: "rgba(0,0,0,0.5)", 
+              zIndex: 999 
+            }}
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        
         <Sidebar activeNav={activeNav} onNavChange={setActiveNav} pending={pending} approved={approved} rejected={rejected} isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)}/>
 
-        <main style={{ flex: 1, padding: "32px 36px", overflowY: "auto", background: "#FFFFFF", position: "absolute", top: 0, left: sidebarOpen ? "220px" : "52px", right: 0, bottom: 0, transition: "left 0.25s ease" }}>
+        <main style={{ 
+          flex: 1, 
+          padding: window.innerWidth <= 768 ? "16px" : "32px 36px", 
+          overflowY: "auto", 
+          background: "#FFFFFF", 
+          position: window.innerWidth <= 768 ? "relative" : "absolute", 
+          top: 0, 
+          left: window.innerWidth <= 768 ? 0 : (sidebarOpen ? "220px" : "52px"), 
+          right: 0, 
+          bottom: 0, 
+          transition: window.innerWidth <= 768 ? "none" : "left 0.25s ease",
+          zIndex: window.innerWidth <= 768 ? (sidebarOpen ? -1 : 1) : 1
+        }}>
 
           {/* ═══════ RESERVATIONS TAB ═══════ */}
           {activeNav === "reservations" && (
             <>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: window.innerWidth <= 768 ? 16 : 24, flexDirection: window.innerWidth <= 768 ? "column" : "row", gap: window.innerWidth <= 768 ? 16 : 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div>
                     <div style={{ fontSize: 10, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 4 }}>ADMIN · RESERVATION MANAGEMENT</div>
-                    <div style={{ fontSize: 24, color: "#333333", fontWeight: "bold" }}>Reservation Dashboard</div>
+                    <div style={{ fontSize: window.innerWidth <= 768 ? 20 : 24, color: "#333333", fontWeight: "bold" }}>Reservation Dashboard</div>
                   </div>
                 </div>
                 <input
-                  style={{ padding: "9px 14px", background: "#F8F9FA", border: "1px solid #E1E4E8", borderRadius: 6, color: "#333333", fontFamily: "Montserrat, sans-serif", fontSize: 12, width: 220, outline: "none" }}
+                  style={{ 
+                    padding: "9px 14px", 
+                    background: "#F8F9FA", 
+                    border: "1px solid #E1E4E8", 
+                    borderRadius: 6, 
+                    color: "#333333", 
+                    fontFamily: "Montserrat, sans-serif", 
+                    fontSize: 12, 
+                    width: window.innerWidth <= 768 ? "100%" : 220, 
+                    outline: "none" 
+                  }}
                   placeholder="Search name or ref code..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -589,7 +627,7 @@ function Dashboard({ onLogout }) {
               </div>
 
               {/* Stat cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
+              <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 768 ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: window.innerWidth <= 768 ? 12 : 16, marginBottom: 28 }}>
                 {[
                   ["TOTAL RESERVATIONS",    stats.total,    "#D3AD53"],
                   ["PENDING RESERVATIONS",  stats.pending,  "#F49E0C"],
@@ -603,11 +641,20 @@ function Dashboard({ onLogout }) {
                       else if (lbl.includes("APPROVED")) setFilterStatus("APPROVED");
                       else if (lbl.includes("REJECTED")) setFilterStatus("REJECTED");
                     }}
-                    style={{ background: lbl.includes("TOTAL") ? "rgba(211,173,83,0.4)" : lbl.includes("PENDING") ? "rgba(255,173,34,0.5)" : lbl.includes("APPROVED") ? "rgba(15,186,129,0.4)" : "rgba(244,63,95,0.4)", border: `1px solid ${acc}`, borderRadius: 8, padding: "20px 22px", textAlign: "center", cursor: "pointer", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", transition: "all 0.2s ease" }}
+                    style={{ 
+                      background: lbl.includes("TOTAL") ? "rgba(211,173,83,0.4)" : lbl.includes("PENDING") ? "rgba(255,173,34,0.5)" : lbl.includes("APPROVED") ? "rgba(15,186,129,0.4)" : "rgba(244,63,95,0.4)", 
+                      border: `1px solid ${acc}`, 
+                      borderRadius: 8, 
+                      padding: window.innerWidth <= 768 ? "16px 12px" : "20px 22px", 
+                      textAlign: "center", 
+                      cursor: "pointer", 
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)", 
+                      transition: "all 0.2s ease" 
+                    }}
                     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.filter = "brightness(0.9)"; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)";    e.currentTarget.style.filter = "brightness(1)"; }}>
-                    <div style={{ fontSize: 45, fontWeight: 600, color: acc, lineHeight: 1, marginBottom: 12 }}>{num}</div>
-                    <div style={{ fontSize: 9, color: "#6B7280", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{lbl}</div>
+                    <div style={{ fontSize: window.innerWidth <= 768 ? 36 : 45, fontWeight: 600, color: acc, lineHeight: 1, marginBottom: window.innerWidth <= 768 ? 8 : 12 }}>{num}</div>
+                    <div style={{ fontSize: window.innerWidth <= 768 ? 8 : 9, color: "#6B7280", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{lbl}</div>
                   </div>
                 ))}
               </div>
@@ -656,96 +703,156 @@ function Dashboard({ onLogout }) {
               </div>
 
               {/* Table */}
-              <div style={{ background: "#F8F9FA", borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <div style={{ 
+                background: "#F8F9FA", 
+                borderRadius: 10, 
+                overflow: "auto", 
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                maxWidth: "100%",
+                WebkitOverflowScrolling: "touch" // Smooth scrolling on iOS
+              }}>
+                <table style={{ 
+                  width: window.innerWidth <= 768 ? "100%" : "100%", 
+                  borderCollapse: "collapse",
+                  minWidth: window.innerWidth <= 768 ? "600px" : "1200px" // Increased minimum width for desktop
+                }}>
                   <thead>
                     <tr>
-                      {["REFERENCE", "GUEST", "VENUES/EVENTS", "EVENT DATE", "DATE SUBMITTED", "GUESTS", "TYPE", "STATUS", "ACTIONS"].map(h => (
-                        <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 9, letterSpacing: 2, fontWeight: 700, color: "#6C757D", borderBottom: "1px solid #E1E4E8", background: "#FFFFFF" }}>{h}</th>
+                      {(window.innerWidth <= 768 ? 
+                        ["REF", "GUEST", "STATUS", "ACTIONS"] : 
+                        ["REFERENCE", "GUEST", "VENUES/EVENTS", "EVENT DATE", "DATE SUBMITTED", "GUESTS", "TYPE", "STATUS", "ACTIONS"]
+                      ).map(h => (
+                        <th key={h} style={{ 
+                          padding: window.innerWidth <= 768 ? "8px 12px" : "12px 16px", 
+                          textAlign: "left", 
+                          fontSize: window.innerWidth <= 768 ? 8 : 9, 
+                          letterSpacing: 2, 
+                          fontWeight: 700, 
+                          color: "#6C757D", 
+                          borderBottom: "1px solid #E1E4E8", 
+                          background: "#FFFFFF",
+                          whiteSpace: "nowrap",
+                          minWidth: window.innerWidth <= 768 ? "60px" : h === "ACTIONS" ? "200px" : "120px" // Minimum column widths
+                        }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 && (
-                      <tr><td colSpan={9} style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#6C757D" }}>No reservations match the current filters.</td></tr>
+                      <tr><td colSpan={window.innerWidth <= 768 ? 4 : 9} style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "#6C757D" }}>No reservations match the current filters.</td></tr>
                     )}
                     {filtered.map((r, i) => (
                       <tr key={r.id} style={{ background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.02)" }}>
-                        <td style={{ padding: "14px 16px", color: "#C9A84C", fontSize: 11, letterSpacing: 1, verticalAlign: "middle" }}>{r.id}</td>
-                        <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          <div style={{ color: "#333", fontWeight: 600, fontSize: 12 }}>{r.name}</div>
-                          <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>{r.email}</div>
-                        </td>
-                        <td style={{ padding: "14px 16px", verticalAlign: "middle" }}><div style={{ color: "#333", fontSize: 12 }}>{r.room}</div></td>
-                        <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", verticalAlign: "middle" }}>
-                          <div style={{ color: "#333", fontWeight: 500 }}>{r.eventDate}</div>
-                          <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>
-                            {r.eventTime ? (() => {
-                              const [hours, minutes] = r.eventTime.split(':');
-                              const hour24 = parseInt(hours) || 0;
-                              const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-                              const period = hour24 < 12 ? 'am' : 'pm';
-                              return `${hour12}:${minutes || '00'}${period}`;
-                            })() : 'All day'}
-                          </div>
-                        </td>
-                        <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          {r.submittedTimestamp ? (() => {
-                            const date = new Date(r.submittedTimestamp * 1000);
-                            return (
-                              <>
-                                <div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>
-                                  {date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}
-                                </div>
-                                <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>
-                                  {(() => {
-                                    const hours = date.getHours();
-                                    const minutes = date.getMinutes();
-                                    const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-                                    const period = hours < 12 ? 'am' : 'pm';
-                                    return `${hour12}:${minutes.toString().padStart(2, '0')}${period}`;
-                                  })()}
-                                </div>
-                              </>
-                            );
-                          })() : r.submittedAt ? (() => {
-                            const parts = r.submittedAt.split(" · ");
-                            return (<><div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>{parts[0]}</div>{parts[1] && <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>{parts[1]}</div>}</>);
-                          })() : <span style={{ fontSize: 11, color: "#CCC" }}>—</span>}
-                        </td>
-                        <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", textAlign: "center", verticalAlign: "middle" }}>{r.guests}</td>
-                        <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          <span style={{ background: r.type === "whole" ? "rgba(201,168,76,0.12)" : "rgba(100,160,255,0.12)", color: r.type === "whole" ? "#C9A84C" : "#6AA0FF", padding: "2px 8px", borderRadius: 10, fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>
-                            {r.type === "whole" ? "TABLE" : "SEAT"}
-                          </span>
-                          <div style={{ fontSize: 10, color: "#6C757D", marginTop: 4, fontWeight: 500 }}>
-                            Table: {r.table || "—"}{r.seat && ` · Seat: ${r.seat}`}
-                          </div>
-                        </td>
-                        <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          {(() => {
-                            const cfg = {
-                              pending:   { bg: "rgba(244,158,12,0.12)",  color: "#F49E0C", label: "Pending"   },
-                              reserved:  { bg: "rgba(15,186,129,0.12)",  color: "#0FBA81", label: "Approved"  },
-                              rejected:  { bg: "rgba(244,63,95,0.12)",   color: "#F43F5F", label: "Rejected"  },
-                              available: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Available" },
-                            }[r.status] || { bg: "#f0f0f0", color: "#888", label: r.status };
-                            return <span style={{ background: cfg.bg, color: cfg.color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, whiteSpace: "nowrap" }}>{cfg.label}</span>;
-                          })()}
-                        </td>
-                        <td style={{ padding: "14px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                          <button onClick={() => setViewRes(r)} style={{ padding: "5px 12px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>VIEW</button>
-                          {r.status !== "reserved" && (
-                            <button onClick={() => handleApprove(r.id)} style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓ Approve</button>
-                          )}
-                          {r.status !== "rejected" && (
-                            <button onClick={() => handleReject(r.id)} style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕ Reject</button>
-                          )}
-                          <button onClick={() => handleDelete(r.id)}
-                            style={{ padding: "5px 10px", border: "1px solid #E1E4E8", background: "transparent", color: "#B0B7C3", borderRadius: 4, fontSize: 11, cursor: "pointer", lineHeight: 1, transition: "all 0.15s" }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = "#E05252"; e.currentTarget.style.color = "#E05252"; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = "#B0B7C3"; }}>🗑</button>
-                        </td>
+                        {window.innerWidth <= 768 ? (
+                          // Mobile view - simplified columns
+                          <>
+                            <td style={{ padding: "12px", color: "#C9A84C", fontSize: 10, letterSpacing: 1, verticalAlign: "middle" }}>{r.id}</td>
+                            <td style={{ padding: "12px", verticalAlign: "middle" }}>
+                              <div style={{ color: "#333", fontWeight: 600, fontSize: 11 }}>{r.name}</div>
+                              <div style={{ color: "#6C757D", fontSize: 9, marginTop: 2 }}>{r.room}</div>
+                              <div style={{ color: "#6C757D", fontSize: 9, marginTop: 1 }}>{r.eventDate} {r.eventTime}</div>
+                            </td>
+                            <td style={{ padding: "12px", verticalAlign: "middle" }}>
+                              {(() => {
+                                const cfg = {
+                                  pending:   { bg: "rgba(244,158,12,0.12)",  color: "#F49E0C", label: "Pending"   },
+                                  reserved:  { bg: "rgba(15,186,129,0.12)",  color: "#0FBA81", label: "Approved"  },
+                                  rejected:  { bg: "rgba(244,63,95,0.12)",   color: "#F43F5F", label: "Rejected"  },
+                                  available: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Available" },
+                                }[r.status] || { bg: "#f0f0f0", color: "#888", label: r.status };
+                                return <span style={{ background: cfg.bg, color: cfg.color, padding: "2px 6px", borderRadius: 4, fontSize: 8, fontWeight: 700, letterSpacing: 0.5, whiteSpace: "nowrap" }}>{cfg.label}</span>;
+                              })()}
+                            </td>
+                            <td style={{ padding: "12px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                              <button onClick={() => setViewRes(r)} style={{ padding: "4px 8px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>VIEW</button>
+                              {r.status !== "reserved" && (
+                                <button onClick={() => handleApprove(r.id)} style={{ padding: "4px 8px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>✓</button>
+                              )}
+                              {r.status !== "rejected" && (
+                                <button onClick={() => handleReject(r.id)} style={{ padding: "4px 8px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>✕</button>
+                              )}
+                            </td>
+                          </>
+                        ) : (
+                          // Desktop view - full columns
+                          <>
+                            <td style={{ padding: "14px 16px", color: "#C9A84C", fontSize: 11, letterSpacing: 1, verticalAlign: "middle" }}>{r.id}</td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
+                              <div style={{ color: "#333", fontWeight: 600, fontSize: 12 }}>{r.name}</div>
+                              <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>{r.email}</div>
+                            </td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}><div style={{ color: "#333", fontSize: 12 }}>{r.room}</div></td>
+                            <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", verticalAlign: "middle" }}>
+                              <div style={{ color: "#333", fontWeight: 500 }}>{r.eventDate}</div>
+                              <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>
+                                {r.eventTime ? (() => {
+                                  const [hours, minutes] = r.eventTime.split(':');
+                                  const hour24 = parseInt(hours) || 0;
+                                  const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+                                  const period = hour24 < 12 ? 'am' : 'pm';
+                                  return `${hour12}:${minutes || '00'}${period}`;
+                                })() : 'All day'}
+                              </div>
+                            </td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
+                              {r.submittedTimestamp ? (() => {
+                                const date = new Date(r.submittedTimestamp * 1000);
+                                return (
+                                  <>
+                                    <div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>
+                                      {date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>
+                                      {(() => {
+                                        const hours = date.getHours();
+                                        const minutes = date.getMinutes();
+                                        const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                                        const period = hours < 12 ? 'am' : 'pm';
+                                        return `${hour12}:${minutes.toString().padStart(2, '0')}${period}`;
+                                      })()}
+                                    </div>
+                                  </>
+                                );
+                              })() : r.submittedAt ? (() => {
+                                const parts = r.submittedAt.split(" · ");
+                                return (<><div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>{parts[0]}</div>{parts[1] && <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>{parts[1]}</div>}</>);
+                              })() : <span style={{ fontSize: 11, color: "#CCC" }}>—</span>}
+                            </td>
+                            <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", textAlign: "center", verticalAlign: "middle" }}>{r.guests}</td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
+                              <span style={{ background: r.type === "whole" ? "rgba(201,168,76,0.12)" : "rgba(100,160,255,0.12)", color: r.type === "whole" ? "#C9A84C" : "#6AA0FF", padding: "2px 8px", borderRadius: 10, fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>
+                                {r.type === "whole" ? "TABLE" : "SEAT"}
+                              </span>
+                              <div style={{ fontSize: 10, color: "#6C757D", marginTop: 4, fontWeight: 500 }}>
+                                Table: {r.table || "—"}{r.seat && ` · Seat: ${r.seat}`}
+                              </div>
+                            </td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
+                              {(() => {
+                                const cfg = {
+                                  pending:   { bg: "rgba(244,158,12,0.12)",  color: "#F49E0C", label: "Pending"   },
+                                  reserved:  { bg: "rgba(15,186,129,0.12)",  color: "#0FBA81", label: "Approved"  },
+                                  rejected:  { bg: "rgba(244,63,95,0.12)",   color: "#F43F5F", label: "Rejected"  },
+                                  available: { bg: "rgba(100,116,139,0.12)", color: "#64748B", label: "Available" },
+                                }[r.status] || { bg: "#f0f0f0", color: "#888", label: r.status };
+                                return <span style={{ background: cfg.bg, color: cfg.color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, whiteSpace: "nowrap" }}>{cfg.label}</span>;
+                              })()}
+                            </td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                              <button onClick={() => setViewRes(r)} style={{ padding: "5px 12px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>VIEW</button>
+                              {r.status !== "reserved" && (
+                                <button onClick={() => handleApprove(r.id)} style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓ Approve</button>
+                              )}
+                              {r.status !== "rejected" && (
+                                <button onClick={() => handleReject(r.id)} style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕ Reject</button>
+                              )}
+                              <button onClick={() => handleDelete(r.id)}
+                                style={{ padding: "5px 10px", border: "1px solid #E1E4E8", background: "transparent", color: "#B0B7C3", borderRadius: 4, fontSize: 11, cursor: "pointer", lineHeight: 1, transition: "all 0.15s" }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = "#E05252"; e.currentTarget.style.color = "#E05252"; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = "#B0B7C3"; }}>🗑</button>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -756,24 +863,26 @@ function Dashboard({ onLogout }) {
               <div style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
+                alignItems: window.innerWidth <= 768 ? "flex-start" : "center",
                 marginTop: 16,
-                padding: "14px 20px",
+                padding: window.innerWidth <= 768 ? "12px 16px" : "14px 20px",
                 background: "#fff",
                 borderRadius: 10,
                 border: "1px solid #E1E4E8",
                 boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                flexDirection: window.innerWidth <= 768 ? "column" : "row",
+                gap: window.innerWidth <= 768 ? 12 : 0,
               }}>
                 {/* Left: page info + per-page */}
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <span style={{ fontSize: 11, color: "#6C757D", fontWeight: 500, letterSpacing: 0.3 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: window.innerWidth <= 768 ? 10 : 11, color: "#6C757D", fontWeight: 500, letterSpacing: 0.3 }}>
                     Page <strong style={{ color: "#333" }}>{pagination.currentPage}</strong> of <strong style={{ color: "#333" }}>{pagination.lastPage}</strong>
                   </span>
 
                   <div style={{ width: 1, height: 16, background: "#E1E4E8" }} />
 
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "#6C757D" }}>Rows:</span>
+                    <span style={{ fontSize: window.innerWidth <= 768 ? 10 : 11, color: "#6C757D" }}>Rows:</span>
                     <select
                       value={pagination.perPage}
                       onChange={e => handlePerPageChange(Number(e.target.value))}
@@ -781,7 +890,7 @@ function Dashboard({ onLogout }) {
                         padding: "4px 8px",
                         border: "1px solid #E1E4E8",
                         borderRadius: 6,
-                        fontSize: 11,
+                        fontSize: window.innerWidth <= 768 ? 10 : 11,
                         color: "#333",
                         fontFamily: "Montserrat, sans-serif",
                         background: "#F8F9FA",
@@ -795,7 +904,7 @@ function Dashboard({ onLogout }) {
                 </div>
 
                 {/* Right: page number buttons */}
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                   {/* Prev arrow */}
                   <button
                     onClick={() => handlePageChange(pagination.currentPage - 1)}
@@ -905,8 +1014,8 @@ function Dashboard({ onLogout }) {
                   </div>
                 );
               })()}
-              <div style={{ display: "flex", gap: 24 }}>
-                <div style={{ minWidth: 200, flexShrink: 0 }}>
+              <div style={{ display: "flex", gap: window.innerWidth <= 768 ? 16 : 24, flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
+                <div style={{ minWidth: window.innerWidth <= 768 ? "100%" : 200, flexShrink: 0 }}>
                   <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 12, letterSpacing: 1.5, color: "#6B7280", fontWeight: 600, marginBottom: 12, textTransform: "uppercase" }}>Rooms in {selectedWing}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {Object.keys(currentWingData).map(room => {
@@ -925,12 +1034,15 @@ function Dashboard({ onLogout }) {
                     })}
                   </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 400 }}>
-                  <div style={{ background: "#EFEAD9", borderRadius: 12, padding: 24, border: "1px solid #D4C5A0", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-                    <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 14, color: "#333", fontWeight: 600, marginBottom: 16, textAlign: "center" }}>{selectedRoom}</div>
+                <div style={{ flex: 1, minWidth: window.innerWidth <= 768 ? "100%" : "500px" }}>
+                  <div style={{ background: "#EFEAD9", borderRadius: 12, padding: window.innerWidth <= 768 ? 16 : 24, border: "1px solid #D4C5A0", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+                    <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: window.innerWidth <= 768 ? 12 : 14, color: "#333", fontWeight: 600, marginBottom: 16, textAlign: "center" }}>{selectedRoom}</div>
                     <SeatMap tableData={currentRoomData} mode="individual" selectedSeat={null}
                       onSeatClick={handleSeatClick} onTableClick={handleTableClick}
-                      windowWidth={800} editMode={editMode} onUpdate={handleSeatMapUpdate}
+                      windowWidth={Math.max(window.innerWidth <= 768 ? window.innerWidth - 80 : 800, 400)} 
+                      virtualWidth={editMode ? Math.max(window.innerWidth <= 768 ? window.innerWidth - 100 : 1200, 800) : Math.max(window.innerWidth <= 768 ? window.innerWidth - 100 : 1000, 600)}
+                      virtualHeight={editMode ? Math.max(window.innerWidth <= 768 ? 600 : 800, 600) : Math.max(window.innerWidth <= 768 ? 600 : 700, 500)}
+                      editMode={editMode} onUpdate={handleSeatMapUpdate}
                       wing={selectedWing} room={selectedRoom}/>
                   </div>
                 </div>

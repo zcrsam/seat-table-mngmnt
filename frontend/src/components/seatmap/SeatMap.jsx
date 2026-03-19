@@ -512,6 +512,8 @@ export default function SeatMap({
   onSeatClick,
   onTableClick,
   windowWidth,
+  virtualWidth,
+  virtualHeight,
   wing,
   room,
 }) {
@@ -740,8 +742,8 @@ export default function SeatMap({
   // CLIENT VIEW
   // ══════════════════════════════════════════════════════════════════════════
   if (!editMode) {
-    const VIRTUAL_W = 1200;
-    const VIRTUAL_H = 700;
+    const VIRTUAL_W = virtualWidth || 1200;
+    const VIRTUAL_H = virtualHeight || 700;
 
     return (
       <div style={{ fontFamily: F.body, width: "100%" }}>
@@ -805,7 +807,7 @@ export default function SeatMap({
                 CLICK ANYWHERE BELOW TO PLACE A TABLE
               </div>
             )}
-            <ScaledCanvas virtualW={1200} virtualH={700} onScale={s => { adminScaleRef.current = s; }}>
+            <ScaledCanvas virtualW={virtualWidth || 1200} virtualH={virtualHeight || 700} onScale={s => { adminScaleRef.current = s; }}>
               <div
                 ref={canvasRef}
                 style={{ position: "absolute", inset: 0, cursor: tool === "addTable" ? "crosshair" : "default" }}
