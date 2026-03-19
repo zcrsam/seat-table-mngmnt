@@ -127,9 +127,9 @@ export default function Sidebar({
   pending,
   approved,
   rejected,
+  isOpen = true,
+  onToggle = () => {},
 }) {
-  const [isOpen, setIsOpen] = useState(true);
-
   return (
     <aside style={{
       width: isOpen ? 220 : 52,
@@ -167,7 +167,7 @@ export default function Sidebar({
             <span style={{ color: "#C9A84C", fontSize: 10, fontFamily: F.body, letterSpacing: 2, fontWeight: 700 }}>ADMIN PANEL</span>
           </div>
         )}
-        <HamburgerBtn isOpen={isOpen} onClick={() => setIsOpen(o => !o)} />
+        <HamburgerBtn isOpen={isOpen} onClick={onToggle} />
       </div>
 
       {/* ── Navigation ── */}

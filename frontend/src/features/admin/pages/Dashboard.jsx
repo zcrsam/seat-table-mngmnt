@@ -113,6 +113,10 @@ function normaliseRow(r) {
 
 function Dashboard({ onLogout }) {
   const [activeNav,      setActiveNav]      = useState(() => localStorage.getItem("admin_active_nav") || "seat-map");
+  const [sidebarOpen,    setSidebarOpen]    = useState(() => {
+    const saved = localStorage.getItem("admin_sidebar_open");
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [reservations,   setReservations]   = useState([]);
   const [stats,          setStats]          = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
   const [filterStatus,   setFilterStatus]   = useState("ALL");
@@ -314,6 +318,7 @@ function Dashboard({ onLogout }) {
   }, []);
 
   useEffect(() => { localStorage.setItem("admin_active_nav", activeNav); }, [activeNav]);
+  useEffect(() => { localStorage.setItem("admin_sidebar_open", JSON.stringify(sidebarOpen)); }, [sidebarOpen]);
 
   const findWingForRoom = (room) => {
     for (const [w, venues] of Object.entries(ROOM_CATEGORIES["All Venues"])) {
@@ -557,13 +562,13 @@ function Dashboard({ onLogout }) {
   };
 
   return (
-    <div style={{ fontFamily: "Montserrat, sans-serif", background: "#FFFFFF", minHeight: "100vh", color: "#333333" }}>
+    <div style={{ fontFamily: "Montserrat, sans-serif", background: "#FFFFFF", minHeight: "100vh", color: "#333333", display: "flex", flexDirection: "column" }}>
       <AdminNavbar onLogout={onLogout}/>
 
-      <div style={{ display: "flex", minHeight: "calc(100vh - 60px)" }}>
-        <Sidebar activeNav={activeNav} onNavChange={setActiveNav} pending={pending} approved={approved} rejected={rejected}/>
+      <div style={{ display: "flex", flex: 1, minHeight: "calc(100vh - 60px)", position: "relative" }}>
+        <Sidebar activeNav={activeNav} onNavChange={setActiveNav} pending={pending} approved={approved} rejected={rejected} isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)}/>
 
-        <main style={{ flex: 1, padding: "32px 36px", overflowY: "auto", background: "#FFFFFF" }}>
+        <main style={{ flex: 1, padding: "32px 36px", overflowY: "auto", background: "#FFFFFF", position: "absolute", top: 0, left: sidebarOpen ? "220px" : "52px", right: 0, bottom: 0, transition: "left 0.25s ease" }}>
 
           {/* ═══════ RESERVATIONS TAB ═══════ */}
           {activeNav === "reservations" && (
