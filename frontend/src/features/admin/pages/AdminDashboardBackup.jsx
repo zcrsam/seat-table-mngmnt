@@ -93,34 +93,82 @@ export default function AdminDashboard() {
       
       // Transform API data to match component structure
       const transformedReservations = reservationsData.map(reservation => {
-        let dateSubmitted = '';
-        let timeSubmitted = '';
-        
-        if (reservation.submittedAt) {
-          // Handle newline characters in submittedAt - extract date and time more robustly
-          const cleanSubmittedAt = reservation.submittedAt.replace(/\s+/g, ' ').trim();
-          if (cleanSubmittedAt.includes(' · ')) {
-            const parts = cleanSubmittedAt.split(' · ');
-            dateSubmitted = parts[0]?.trim() || '';
-            timeSubmitted = parts[1]?.trim() || '';
-          } else {
-            dateSubmitted = cleanSubmittedAt;
+        // Format event date with time
+        const formatEventDate = (dateStr, timeStr) => {
+          if (!dateStr) return 'N/A';
+          const date = new Date(dateStr);
+          if (isNaN(date)) return dateStr;
+          
+          const options = { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric'
+          };
+          const formattedDate = date.toLocaleDateString('en-US', options);
+          
+          if (timeStr) {
+            return `${formattedDate} at ${timeStr}`;
           }
-        }
+          
+          // If no time string, try to extract time from date or use default
+          if (dateStr.includes('T')) {
+            const timePart = dateStr.split('T')[1]?.substring(0, 5);
+            return `${formattedDate} at ${timePart || '12:00'}`;
+          }
+          
+          return `${formattedDate} at 12:00`;
+        };
+        
+        // Format submitted date and time
+        const formatSubmittedDate = (dateField) => {
+          if (!dateField) return { date: 'N/A', time: '' };
+          
+          const date = new Date(dateField);
+          if (isNaN(date)) {
+            // If it's a string, try to parse it
+            const cleanDate = dateField.replace(/\s+/g, ' ').trim();
+            if (cleanDate.includes(' · ')) {
+              const parts = cleanDate.split(' · ');
+              return { date: parts[0]?.trim() || 'N/A', time: parts[1]?.trim() || '' };
+            }
+            return { date: cleanDate, time: '' };
+          }
+          
+          // Use built-in timezone conversion
+          const dateOptions = { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric',
+            timeZone: 'Asia/Manila'
+          };
+          const timeOptions = { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Manila'
+          };
+          
+          return {
+            date: date.toLocaleDateString('en-US', dateOptions),
+            time: date.toLocaleTimeString('en-US', timeOptions)
+          };
+        };
+        
+        const submittedDate = formatSubmittedDate(reservation.submitted_at || reservation.created_at);
         
         return {
-          id: reservation.id || 'unknown',
-          guest: reservation.name || 'Unknown',
-          email: reservation.email || '',
-          venue: reservation.room || 'Unknown Venue',
-          eventDate: reservation.eventDate || '',
-          dateSubmitted,
-          timeSubmitted,
-          guests: reservation.guests || 0,
+          id: reservation.id || reservation.reference_code || 'unknown',
+          guest: reservation.name || reservation.guest_name || 'Unknown',
+          email: reservation.email || reservation.guest_email || '',
+          venue: reservation.room || reservation.venue || 'Unknown Venue',
+          eventDate: formatEventDate(reservation.event_date || reservation.eventDate, reservation.event_time || reservation.eventTime),
+          dateSubmitted: submittedDate.date,
+          timeSubmitted: submittedDate.time,
+          guests: reservation.guests_count || reservation.guests || reservation.guests_number || 0,
           type: reservation.type === 'whole' ? 'TABLE' : 'SEAT',
           seats: reservation.type === 'whole' 
-            ? `${reservation.table || 'T?'} · ${reservation.guests || 0} seats`
-            : `${reservation.table || 'T?'} · ${reservation.seat || 'Seat?'}`,
+            ? `${reservation.table_number || reservation.table || 'T?'} · ${reservation.guests_count || reservation.guests || 0} seats`
+            : `${reservation.table_number || reservation.table || 'T?'} · ${reservation.seat_number || reservation.seat || 'Seat?'}`,
           status: reservation.status || 'pending',
         };
       });
@@ -328,34 +376,82 @@ export default function AdminDashboard() {
       
       // Transform API data to match component structure
       const transformedReservations = reservationsData.map(reservation => {
-        let dateSubmitted = '';
-        let timeSubmitted = '';
-        
-        if (reservation.submittedAt) {
-          // Handle newline characters in submittedAt - extract date and time more robustly
-          const cleanSubmittedAt = reservation.submittedAt.replace(/\s+/g, ' ').trim();
-          if (cleanSubmittedAt.includes(' · ')) {
-            const parts = cleanSubmittedAt.split(' · ');
-            dateSubmitted = parts[0]?.trim() || '';
-            timeSubmitted = parts[1]?.trim() || '';
-          } else {
-            dateSubmitted = cleanSubmittedAt;
+        // Format event date with time
+        const formatEventDate = (dateStr, timeStr) => {
+          if (!dateStr) return 'N/A';
+          const date = new Date(dateStr);
+          if (isNaN(date)) return dateStr;
+          
+          const options = { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric'
+          };
+          const formattedDate = date.toLocaleDateString('en-US', options);
+          
+          if (timeStr) {
+            return `${formattedDate} at ${timeStr}`;
           }
-        }
+          
+          // If no time string, try to extract time from date or use default
+          if (dateStr.includes('T')) {
+            const timePart = dateStr.split('T')[1]?.substring(0, 5);
+            return `${formattedDate} at ${timePart || '12:00'}`;
+          }
+          
+          return `${formattedDate} at 12:00`;
+        };
+        
+        // Format submitted date and time
+        const formatSubmittedDate = (dateField) => {
+          if (!dateField) return { date: 'N/A', time: '' };
+          
+          const date = new Date(dateField);
+          if (isNaN(date)) {
+            // If it's a string, try to parse it
+            const cleanDate = dateField.replace(/\s+/g, ' ').trim();
+            if (cleanDate.includes(' · ')) {
+              const parts = cleanDate.split(' · ');
+              return { date: parts[0]?.trim() || 'N/A', time: parts[1]?.trim() || '' };
+            }
+            return { date: cleanDate, time: '' };
+          }
+          
+          // Use built-in timezone conversion
+          const dateOptions = { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric',
+            timeZone: 'Asia/Manila'
+          };
+          const timeOptions = { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Manila'
+          };
+          
+          return {
+            date: date.toLocaleDateString('en-US', dateOptions),
+            time: date.toLocaleTimeString('en-US', timeOptions)
+          };
+        };
+        
+        const submittedDate = formatSubmittedDate(reservation.submitted_at || reservation.created_at);
 
         return {
-          id: reservation.id || 'unknown',
-          guest: reservation.name || 'Unknown',
-          email: reservation.email || '',
-          venue: reservation.room || 'Unknown Venue',
-          eventDate: reservation.eventDate || '',
-          dateSubmitted,
-          timeSubmitted,
-          guests: reservation.guests || 0,
+          id: reservation.id || reservation.reference_code || 'unknown',
+          guest: reservation.name || reservation.guest_name || 'Unknown',
+          email: reservation.email || reservation.guest_email || '',
+          venue: reservation.room || reservation.venue || 'Unknown Venue',
+          eventDate: formatEventDate(reservation.event_date || reservation.eventDate, reservation.event_time || reservation.eventTime),
+          dateSubmitted: submittedDate.date,
+          timeSubmitted: submittedDate.time,
+          guests: reservation.guests_count || reservation.guests || reservation.guests_number || 0,
           type: reservation.type === 'whole' ? 'TABLE' : 'SEAT',
           seats: reservation.type === 'whole' 
-            ? `${reservation.table || 'T?'} · ${reservation.guests || 0} seats`
-            : `${reservation.table || 'T?'} · ${reservation.seat || 'Seat?'}`,
+            ? `${reservation.table_number || reservation.table || 'T?'} · ${reservation.guests_count || reservation.guests || 0} seats`
+            : `${reservation.table_number || reservation.table || 'T?'} · ${reservation.seat_number || reservation.seat || 'Seat?'}`,
           status: reservation.status || 'pending',
         };
       });

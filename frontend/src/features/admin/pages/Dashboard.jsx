@@ -127,16 +127,38 @@ function Dashboard({ onLogout }) {
 
   const echoRef    = useRef(null);
   const pollRef    = useRef(null);
-  const isFetching = useRef(false); // prevents overlapping poll requests
+  const isFetching = useRef(false);
 
-  // ── Core data fetch — called by initial load, polling, and WS events ──────
-  const fetchData = useCallback(async (isInit = false) => {
-    if (isFetching.current) return; // skip if already in-flight
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    perPage: 10,
+    lastPage: 1,
+  });
+
+  // ── Ref always holds the latest page/perPage — no stale closure possible ──
+  const paginationRef = useRef({ currentPage: 1, perPage: 10 });
+
+  // Keep ref in sync whenever state changes
+  useEffect(() => {
+    paginationRef.current = {
+      currentPage: pagination.currentPage,
+      perPage:     pagination.perPage,
+    };
+  }, [pagination.currentPage, pagination.perPage]);
+
+  // fetchData reads from the ref so it ALWAYS gets the latest values
+  const fetchData = useCallback(async (page, perPage, isInit = false) => {
+    // Fall back to ref values if caller doesn't pass explicit args
+    const p  = page    ?? paginationRef.current.currentPage;
+    const pp = perPage ?? paginationRef.current.perPage;
+
+    if (isFetching.current) return;
     isFetching.current = true;
     try {
       if (isInit) setLoading(true);
+      console.log(`[Dashboard] fetchData page=${p} perPage=${pp}`);
       const [reservationsResponse, statsData] = await Promise.all([
-        reservationAPI.getAll(),
+        reservationAPI.getAll(`?page=${p}&per_page=${pp}`),
         reservationAPI.getStats(),
       ]);
       const raw = reservationsResponse.data || [];
@@ -144,6 +166,16 @@ function Dashboard({ onLogout }) {
       const reservationsData = raw.map(normaliseRow);
       setReservations(reservationsData);
       setStats(statsData);
+
+      if (reservationsResponse.pagination) {
+        const newPag = {
+          currentPage: reservationsResponse.pagination.current_page,
+          perPage:     reservationsResponse.pagination.per_page ?? pp,
+          lastPage:    reservationsResponse.pagination.last_page,
+        };
+        setPagination(newPag);
+        paginationRef.current = { currentPage: newPag.currentPage, perPage: newPag.perPage };
+      }
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
       if (isInit) showToast("Failed to load data", "#E05252");
@@ -151,17 +183,31 @@ function Dashboard({ onLogout }) {
       if (isInit) setLoading(false);
       isFetching.current = false;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handlePageChange = (newPage) => {
+    // Update ref immediately so fetchData reads the right page
+    paginationRef.current = { ...paginationRef.current, currentPage: newPage };
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+    fetchData(newPage, paginationRef.current.perPage);
+  };
+
+  const handlePerPageChange = (newPerPage) => {
+    paginationRef.current = { currentPage: 1, perPage: newPerPage };
+    setPagination(prev => ({ ...prev, perPage: newPerPage, currentPage: 1 }));
+    fetchData(1, newPerPage);
+  };
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchData(true);
+    fetchData(1, 10, true);
   }, [fetchData]);
 
   // ── Polling every POLL_MS ─────────────────────────────────────────────────
   useEffect(() => {
-    pollRef.current = setInterval(() => fetchData(false), POLL_MS);
+    pollRef.current = setInterval(() => {
+      fetchData(paginationRef.current.currentPage, paginationRef.current.perPage);
+    }, POLL_MS);
     return () => clearInterval(pollRef.current);
   }, [fetchData]);
 
@@ -191,11 +237,9 @@ function Dashboard({ onLogout }) {
     try {
       const channel = echo.channel('reservations');
 
-      // On any WS event, immediately trigger a poll so UI updates right away
       const handleAny = (label) => (e) => {
         console.log(`[Dashboard WS] ${label}`, e);
-        fetchData(false);
-        // Show toast based on event type
+        setPagination(prev => { fetchData(paginationRef.current.currentPage, paginationRef.current.perPage); return prev; });
         if (label === 'ReservationCreated')  showToast('New reservation received!',   '#10B981');
         if (label === 'ReservationUpdated') {
           const st = e?.reservation?.status?.toLowerCase();
@@ -229,7 +273,6 @@ function Dashboard({ onLogout }) {
     } catch (error) {
       console.log('WebSocket channel setup failed:', error);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData]);
 
   // ── Seat Map state ────────────────────────────────────────────────────────
@@ -503,6 +546,16 @@ function Dashboard({ onLogout }) {
   const currentWingData = seatMapData[selectedWing] || {};
   const currentRoomData = currentWingData[selectedRoom] || { seats: [], tableStatus: "available" };
 
+  // ── Pagination page number helpers ────────────────────────────────────────
+  const getPageNumbers = () => {
+    const total = pagination.lastPage;
+    const current = pagination.currentPage;
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 4) return [1, 2, 3, 4, 5, "...", total];
+    if (current >= total - 3) return [1, "...", total - 4, total - 3, total - 2, total - 1, total];
+    return [1, "...", current - 1, current, current + 1, "...", total];
+  };
+
   return (
     <div style={{ fontFamily: "Montserrat, sans-serif", background: "#FFFFFF", minHeight: "100vh", color: "#333333" }}>
       <AdminNavbar onLogout={onLogout}/>
@@ -521,9 +574,7 @@ function Dashboard({ onLogout }) {
                     <div style={{ fontSize: 10, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 4 }}>ADMIN · RESERVATION MANAGEMENT</div>
                     <div style={{ fontSize: 24, color: "#333333", fontWeight: "bold" }}>Reservation Dashboard</div>
                   </div>
-
                 </div>
-
                 <input
                   style={{ padding: "9px 14px", background: "#F8F9FA", border: "1px solid #E1E4E8", borderRadius: 6, color: "#333333", fontFamily: "Montserrat, sans-serif", fontSize: 12, width: 220, outline: "none" }}
                   placeholder="Search name or ref code..."
@@ -621,9 +672,38 @@ function Dashboard({ onLogout }) {
                           <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>{r.email}</div>
                         </td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}><div style={{ color: "#333", fontSize: 12 }}>{r.room}</div></td>
-                        <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", verticalAlign: "middle" }}>{r.eventDate}</td>
+                        <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", verticalAlign: "middle" }}>
+                          <div style={{ color: "#333", fontWeight: 500 }}>{r.eventDate}</div>
+                          <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>
+                            {r.eventTime ? (() => {
+                              const [hours, minutes] = r.eventTime.split(':');
+                              const hour24 = parseInt(hours) || 0;
+                              const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+                              const period = hour24 < 12 ? 'am' : 'pm';
+                              return `${hour12}:${minutes || '00'}${period}`;
+                            })() : 'All day'}
+                          </div>
+                        </td>
                         <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
-                          {r.submittedAt ? (() => {
+                          {r.submittedTimestamp ? (() => {
+                            const date = new Date(r.submittedTimestamp * 1000);
+                            return (
+                              <>
+                                <div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>
+                                  {date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}
+                                </div>
+                                <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>
+                                  {(() => {
+                                    const hours = date.getHours();
+                                    const minutes = date.getMinutes();
+                                    const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                                    const period = hours < 12 ? 'am' : 'pm';
+                                    return `${hour12}:${minutes.toString().padStart(2, '0')}${period}`;
+                                  })()}
+                                </div>
+                              </>
+                            );
+                          })() : r.submittedAt ? (() => {
                             const parts = r.submittedAt.split(" · ");
                             return (<><div style={{ fontSize: 12, color: "#333", fontWeight: 500 }}>{parts[0]}</div>{parts[1] && <div style={{ fontSize: 10, color: "#6C757D", marginTop: 2 }}>{parts[1]}</div>}</>);
                           })() : <span style={{ fontSize: 11, color: "#CCC" }}>—</span>}
@@ -665,6 +745,125 @@ function Dashboard({ onLogout }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* ── Pagination Controls (redesigned) ── */}
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 16,
+                padding: "14px 20px",
+                background: "#fff",
+                borderRadius: 10,
+                border: "1px solid #E1E4E8",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+              }}>
+                {/* Left: page info + per-page */}
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <span style={{ fontSize: 11, color: "#6C757D", fontWeight: 500, letterSpacing: 0.3 }}>
+                    Page <strong style={{ color: "#333" }}>{pagination.currentPage}</strong> of <strong style={{ color: "#333" }}>{pagination.lastPage}</strong>
+                  </span>
+
+                  <div style={{ width: 1, height: 16, background: "#E1E4E8" }} />
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: "#6C757D" }}>Rows:</span>
+                    <select
+                      value={pagination.perPage}
+                      onChange={e => handlePerPageChange(Number(e.target.value))}
+                      style={{
+                        padding: "4px 8px",
+                        border: "1px solid #E1E4E8",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        color: "#333",
+                        fontFamily: "Montserrat, sans-serif",
+                        background: "#F8F9FA",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      {[5, 10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Right: page number buttons */}
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {/* Prev arrow */}
+                  <button
+                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                    disabled={pagination.currentPage <= 1}
+                    style={{
+                      width: 32, height: 32,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "1px solid #E1E4E8",
+                      borderRadius: 6,
+                      background: pagination.currentPage <= 1 ? "#F8F9FA" : "#fff",
+                      color: pagination.currentPage <= 1 ? "#C0C7D0" : "#333",
+                      cursor: pagination.currentPage <= 1 ? "not-allowed" : "pointer",
+                      fontSize: 14,
+                      transition: "all 0.15s",
+                      fontFamily: "Montserrat, sans-serif",
+                    }}
+                    onMouseEnter={e => { if (pagination.currentPage > 1) { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.color = "#C9A84C"; }}}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = pagination.currentPage <= 1 ? "#C0C7D0" : "#333"; }}
+                  >
+                    ‹
+                  </button>
+
+                  {/* Page number pills */}
+                  {getPageNumbers().map((p, idx) =>
+                    p === "..." ? (
+                      <span key={`ellipsis-${idx}`} style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#9CA3AF" }}>…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        style={{
+                          width: 32, height: 32,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          border: pagination.currentPage === p ? "1px solid #C9A84C" : "1px solid #E1E4E8",
+                          borderRadius: 6,
+                          background: pagination.currentPage === p ? "#C9A84C" : "#fff",
+                          color: pagination.currentPage === p ? "#fff" : "#374151",
+                          cursor: "pointer",
+                          fontSize: 11,
+                          fontWeight: pagination.currentPage === p ? 700 : 400,
+                          fontFamily: "Montserrat, sans-serif",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={e => { if (pagination.currentPage !== p) { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.color = "#C9A84C"; }}}
+                        onMouseLeave={e => { if (pagination.currentPage !== p) { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = "#374151"; }}}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+
+                  {/* Next arrow */}
+                  <button
+                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    disabled={pagination.currentPage >= pagination.lastPage}
+                    style={{
+                      width: 32, height: 32,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "1px solid #E1E4E8",
+                      borderRadius: 6,
+                      background: pagination.currentPage >= pagination.lastPage ? "#F8F9FA" : "#fff",
+                      color: pagination.currentPage >= pagination.lastPage ? "#C0C7D0" : "#333",
+                      cursor: pagination.currentPage >= pagination.lastPage ? "not-allowed" : "pointer",
+                      fontSize: 14,
+                      transition: "all 0.15s",
+                      fontFamily: "Montserrat, sans-serif",
+                    }}
+                    onMouseEnter={e => { if (pagination.currentPage < pagination.lastPage) { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.color = "#C9A84C"; }}}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = pagination.currentPage >= pagination.lastPage ? "#C0C7D0" : "#333"; }}
+                  >
+                    ›
+                  </button>
+                </div>
               </div>
             </>
           )}

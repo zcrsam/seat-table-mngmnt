@@ -69,7 +69,13 @@ function DetailModal({ res, onClose, onApprove, onReject }) {
             ["Seat(s)",     seatDisplay],
             ["Guests",      `${res.guests} guest${res.guests > 1 ? "s" : ""}`],
             ["Event Date",  res.eventDate],
-            ["Event Time",  res.eventTime || "Pending"],
+            ["Event Time",  res.eventTime ? (() => {
+              const [hours, minutes] = res.eventTime.split(':');
+              const hour24 = parseInt(hours) || 0;
+              const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+              const period = hour24 < 12 ? 'am' : 'pm';
+              return `${hour12}:${minutes || '00'}${period}`;
+            })() : "Pending"],
             ["Type",        typeDisplay],
           ]],
           ["GUEST INFORMATION", [

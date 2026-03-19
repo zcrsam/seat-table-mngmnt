@@ -2,7 +2,7 @@ import api from './api.js';
 
 export const reservationAPI = {
   // Get all admin reservations
-  getAll: () => api.get('/admin/reservations'),
+  getAll: (queryParams = '') => api.get(`/admin/reservations${queryParams}`),
 
   // Get reservation statistics
   getStats: () => api.get('/admin/reservations/stats'),
