@@ -8,10 +8,7 @@
 //   • WebSocket — real-time via Laravel Echo (Pusher) instead of polling
 //   • Polling removed — Echo handles all live updates
 // ─────────────────────────────────────────────────────────────────────────────
-import React, {
-  useState, useEffect, useRef, useCallback, useMemo,
-} from "react";
-import Echo from "../../../utils/websocket.js";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Bell, BellDot, Clock, X, CalendarDays,
   MapPin, Users, Phone, Mail, FileText, Hash, CheckCircle,
@@ -19,11 +16,8 @@ import {
 } from "lucide-react";
 import { reservationAPI } from "../../../services/reservationAPI";
 
-// ── Safe logo import (prevents white screen if asset missing) ─────────────────
+// ── Skip logo import to prevent white screen ─────────────────
 let bellevueLogo = null;
-try {
-  bellevueLogo = (await import("../../../assets/bellevue-logo.png")).default;
-} catch (_) { /* logo missing — header will still render without it */ }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -594,6 +588,8 @@ export default function NotificationDashboard() {
 
   const [pendingPage, setPendingPage] = useState(1);
   const [donePage,    setDonePage]    = useState(1);
+  const [pendingPerPage, setPendingPerPage] = useState(20);
+  const [donePerPage, setDonePerPage] = useState(20);
 
   const knownApprovedIds = useRef(new Set());
   const firedAlerts      = useRef(new Set());
@@ -699,7 +695,7 @@ export default function NotificationDashboard() {
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const resp = await reservationAPI.getAll();
+        const resp = await reservationAPI.getAll("?per_page=50");
         const raw  = Array.isArray(resp) ? resp : Array.isArray(resp?.data) ? resp.data : [];
 
         const approved = raw
@@ -725,67 +721,62 @@ export default function NotificationDashboard() {
     fetchInitial();
   }, [checkAlerts]);
 
-  // ── WebSocket via Laravel Echo ────────────────────────────────────────────
+  // ── WebSocket via Simple Connection ─────────────────────────────────────
   useEffect(() => {
-    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
-    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-
-    if (!pusherKey || pusherKey === "your_key") {
-      console.warn("[NotifDashboard] WebSocket key not configured — WebSocket disabled.");
-      setWsStatus("disconnected");
-      return;
-    }
-
-    try {
-      echoRef.current = new Echo({
-        broadcaster:       "pusher",
-        key:               pusherKey,
-        cluster:           pusherCluster,
-      });
-    } catch (err) {
-      console.error("[NotifDashboard] Echo init failed:", err);
-      setWsStatus("disconnected");
-      return;
-    }
-
-    const echo    = echoRef.current;
-    const channel = echo.channel("reservations");
-
-    // ── Real-time: new reservation approved on backend ──────────────────────
-    channel.listen(".reservation.approved", (data) => {
-      const res = data.reservation ?? data;
-      if (!isApproved(res)) return;
-      addNewReservation(res, false);
-    });
-
-    // ── Also handle the broader ReservationUpdated event ───────────────────
-    channel.listen("ReservationUpdated", (data) => {
-      const res = data.reservation ?? data;
-      if (!isApproved(res)) return;
-      addNewReservation(res, false);
-    });
-
-    // ── Also handle ReservationCreated (in case backend fires this for approvals) ──
-    channel.listen("ReservationCreated", (data) => {
-      const res = data.reservation ?? data;
-      if (!isApproved(res)) return;
-      addNewReservation(res, false);
-    });
-
-    // ── Connection status ───────────────────────────────────────────────────
-    try {
-      echo.connector.pusher.connection.bind("connected",    () => setWsStatus("connected"));
-      echo.connector.pusher.connection.bind("disconnected", () => setWsStatus("disconnected"));
-      echo.connector.pusher.connection.bind("error",        () => setWsStatus("disconnected"));
-    } catch (_) { /* Pusher may not expose .connector in all configs */ }
-
-    return () => {
+    const wsHost = import.meta.env.VITE_WS_HOST || 'localhost';
+    const wsPort = import.meta.env.VITE_WS_PORT || '6001';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${wsHost}:${wsPort}`;
+    
+    console.log('[Notifications WS] Connecting to:', wsUrl);
+    
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log('[Notifications WS] Connected to WebSocket server');
+      setWsStatus("connected");
+    };
+    
+    ws.onmessage = (event) => {
       try {
-        channel.stopListening(".reservation.approved");
-        channel.stopListening("ReservationUpdated");
-        channel.stopListening("ReservationCreated");
-        echo.leaveChannel("reservations");
-      } catch (_) {}
+        const data = JSON.parse(event.data);
+        console.log('[Notifications WS] Received:', data);
+        
+        // Handle different event types
+        if (data.event === 'ReservationUpdated' && data.payload && data.payload.reservation) {
+          const res = data.payload.reservation;
+          if (isApproved(res)) {
+            addNewReservation(res, false);
+          }
+        }
+        
+        // Handle test data from WebSocket server
+        if (data.event === 'connected') {
+          console.log('[Notifications WS] Connection confirmed');
+        }
+      } catch (error) {
+        console.error('[Notifications WS] Error parsing message:', error);
+      }
+    };
+    
+    ws.onclose = () => {
+      console.log('[Notifications WS] Disconnected');
+      setWsStatus("disconnected");
+    };
+    
+    ws.onerror = (error) => {
+      console.error('[Notifications WS] Error:', error);
+      setWsStatus("disconnected");
+    };
+    
+    // Store WebSocket for cleanup
+    echoRef.current = ws;
+    
+    return () => {
+      if (ws) {
+        ws.close();
+        echoRef.current = null;
+      }
     };
   }, [addNewReservation]);
 
@@ -804,8 +795,8 @@ export default function NotificationDashboard() {
     return { pendingCards: pending, doneCards: done };
   }, [approvedCards]);
 
-  const pendingVisible = pendingCards.slice(0, pendingPage * PAGE);
-  const doneVisible    = doneCards.slice(0, donePage * PAGE);
+  const pendingVisible = pendingCards.slice((pendingPage - 1) * pendingPerPage, pendingPage * pendingPerPage);
+  const doneVisible    = doneCards.slice((donePage - 1) * donePerPage, donePage * donePerPage);
 
   // ── Handle "View" click on popup ──────────────────────────────────────────
   const handlePopupView = useCallback((p) => {
@@ -934,8 +925,71 @@ export default function NotificationDashboard() {
                       onClick={setDetailRes}
                     />
                   ))}
-                  {pendingVisible.length < pendingCards.length && (
-                    <LoadMoreBtn onClick={() => setPendingPage(p => p + 1)} remaining={pendingCards.length - pendingVisible.length} />
+                  {pendingCards.length > 0 && (
+                    <div style={{ 
+                      padding: "12px 16px", 
+                      borderTop: `1px solid ${C.border}`,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexShrink: 0
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 11, color: C.textMuted }}>
+                          {Math.min((pendingPage - 1) * pendingPerPage + 1, pendingCards.length)}-{Math.min(pendingPage * pendingPerPage, pendingCards.length)} of {pendingCards.length}
+                        </span>
+                        <select
+                          value={pendingPerPage}
+                          onChange={e => { setPendingPerPage(Number(e.target.value)); setPendingPage(1); }}
+                          style={{
+                            padding: "4px 8px",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 4,
+                            fontSize: 11,
+                            color: C.text,
+                            background: C.surface,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button
+                          onClick={() => setPendingPage(Math.max(1, pendingPage - 1))}
+                          disabled={pendingPage <= 1}
+                          style={{
+                            padding: "4px 8px",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 4,
+                            background: pendingPage <= 1 ? C.bg : C.surface,
+                            color: pendingPage <= 1 ? C.textMuted : C.text,
+                            cursor: pendingPage <= 1 ? "not-allowed" : "pointer",
+                            fontSize: 11
+                          }}
+                        >
+                          Previous
+                        </button>
+                        <span style={{ fontSize: 11, color: C.text, padding: "0 8px" }}>
+                          {pendingPage} / {Math.ceil(pendingCards.length / pendingPerPage)}
+                        </span>
+                        <button
+                          onClick={() => setPendingPage(Math.min(Math.ceil(pendingCards.length / pendingPerPage), pendingPage + 1))}
+                          disabled={pendingPage >= Math.ceil(pendingCards.length / pendingPerPage)}
+                          style={{
+                            padding: "4px 8px",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 4,
+                            background: pendingPage >= Math.ceil(pendingCards.length / pendingPerPage) ? C.bg : C.surface,
+                            color: pendingPage >= Math.ceil(pendingCards.length / pendingPerPage) ? C.textMuted : C.text,
+                            cursor: pendingPage >= Math.ceil(pendingCards.length / pendingPerPage) ? "not-allowed" : "pointer",
+                            fontSize: 11
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
@@ -956,8 +1010,71 @@ export default function NotificationDashboard() {
                   {doneVisible.map(res => (
                     <DoneCard key={`done-${res.id ?? res.db_id}`} res={res} onClick={setDetailRes} />
                   ))}
-                  {doneVisible.length < doneCards.length && (
-                    <LoadMoreBtn onClick={() => setDonePage(p => p + 1)} remaining={doneCards.length - doneVisible.length} />
+                  {doneCards.length > 0 && (
+                    <div style={{ 
+                      padding: "12px 16px", 
+                      borderTop: `1px solid ${C.border}`,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexShrink: 0
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 11, color: C.textMuted }}>
+                          {Math.min((donePage - 1) * donePerPage + 1, doneCards.length)}-{Math.min(donePage * donePerPage, doneCards.length)} of {doneCards.length}
+                        </span>
+                        <select
+                          value={donePerPage}
+                          onChange={e => { setDonePerPage(Number(e.target.value)); setDonePage(1); }}
+                          style={{
+                            padding: "4px 8px",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 4,
+                            fontSize: 11,
+                            color: C.text,
+                            background: C.surface,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button
+                          onClick={() => setDonePage(Math.max(1, donePage - 1))}
+                          disabled={donePage <= 1}
+                          style={{
+                            padding: "4px 8px",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 4,
+                            background: donePage <= 1 ? C.bg : C.surface,
+                            color: donePage <= 1 ? C.textMuted : C.text,
+                            cursor: donePage <= 1 ? "not-allowed" : "pointer",
+                            fontSize: 11
+                          }}
+                        >
+                          Previous
+                        </button>
+                        <span style={{ fontSize: 11, color: C.text, padding: "0 8px" }}>
+                          {donePage} / {Math.ceil(doneCards.length / donePerPage)}
+                        </span>
+                        <button
+                          onClick={() => setDonePage(Math.min(Math.ceil(doneCards.length / donePerPage), donePage + 1))}
+                          disabled={donePage >= Math.ceil(doneCards.length / donePerPage)}
+                          style={{
+                            padding: "4px 8px",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 4,
+                            background: donePage >= Math.ceil(doneCards.length / donePerPage) ? C.bg : C.surface,
+                            color: donePage >= Math.ceil(doneCards.length / donePerPage) ? C.textMuted : C.text,
+                            cursor: donePage >= Math.ceil(doneCards.length / donePerPage) ? "not-allowed" : "pointer",
+                            fontSize: 11
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}

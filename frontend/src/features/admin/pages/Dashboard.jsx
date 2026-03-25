@@ -135,12 +135,12 @@ function Dashboard({ onLogout }) {
 
   const [pagination, setPagination] = useState({
     currentPage: 1,
-    perPage: 10,
+    perPage: 50,
     lastPage: 1,
   });
 
   // ── Ref always holds the latest page/perPage — no stale closure possible ──
-  const paginationRef = useRef({ currentPage: 1, perPage: 10 });
+  const paginationRef = useRef({ currentPage: 1, perPage: 50 });
 
   // Keep ref in sync whenever state changes
   useEffect(() => {
