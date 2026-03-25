@@ -267,9 +267,6 @@ function ReservationDetailModal({ res, onClose }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ background: `${statusColor}18`, border: `1px solid ${statusColor}40`, borderRadius: 20, padding: "3px 12px", fontFamily: C.font, fontSize: 12, fontWeight: 600, color: statusColor }}>{statusLabel}</span>
-            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", background: C.borderLight, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <X size={13} color={C.textMuted} />
-            </button>
           </div>
         </div>
 
@@ -322,9 +319,6 @@ function EventPickerModal({ items, approvedCards, onSelect, onClose }) {
             <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 15, color: C.navy }}>Choose Event to View</div>
             <div style={{ fontFamily: C.font, fontSize: 12, color: C.textMuted, marginTop: 2 }}>{items.length} upcoming events — select one to see full details</div>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: "50%", background: C.borderLight, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <X size={13} color={C.textMuted} />
-          </button>
         </div>
 
         {/* List */}
@@ -1107,7 +1101,21 @@ export default function NotificationDashboard() {
       {detailRes && (
         <ReservationDetailModal
           res={detailRes}
-          onClose={() => setDetailRes(null)}
+          onClose={() => {
+          // Check if we came from EventPickerModal (multiple events)
+          const hasMultipleEvents = approvedCards.some(r => 
+            popup?.items?.some(item => (item.id ?? item.db_id) === (res.id ?? res.db_id))
+          );
+          
+          if (hasMultipleEvents) {
+            // Go back to event picker
+            setDetailRes(null);
+            setPickerItems(popup?.items || []);
+          } else {
+            // Just close the modal
+            setDetailRes(null);
+          }
+        }}
         />
       )}
     </div>
