@@ -1,8 +1,7 @@
 const WebSocket = require('ws');
 const http = require('http');
-const wss = new WebSocket.Server({ port: 6003 });
 
-console.log('WebSocket server starting on port 6003...');
+console.log('Starting WebSocket server on port 6004...');
 
 // Store all connected clients
 const clients = new Set();
@@ -19,7 +18,7 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        console.log('Received broadcast request:', data);
+        console.log('Received broadcast request:', data.event);
         
         // Broadcast to all WebSocket clients
         const message = JSON.stringify(data);
@@ -48,20 +47,15 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// Mount WebSocket server on HTTP server
+const wss = new WebSocket.Server({ server });
+
 wss.on('connection', (ws) => {
-  console.log('Client connected to WebSocket server');
+  console.log('Client connected');
   clients.add(ws);
-  
-  // Send connection confirmation
-  ws.send(JSON.stringify({
-    event: 'connected',
-    message: 'WebSocket server is live',
-    clients: clients.size
-  }));
   
   ws.on('message', (message) => {
     console.log('Received:', message.toString());
+    ws.send('Echo: ' + message);
   });
   
   ws.on('close', () => {
@@ -73,43 +67,36 @@ wss.on('connection', (ws) => {
     console.error('WebSocket error:', error);
     clients.delete(ws);
   });
-});
-
-// Start the server
-server.listen(6003, () => {
-  console.log('HTTP + WebSocket server running on port 6003');
-  console.log('WebSocket endpoint: ws://localhost:6003');
-  console.log('Broadcast endpoint: http://localhost:6003/broadcast');
-});
-
-// Function to broadcast events to all connected clients
-function broadcast(event, data) {
-  const message = JSON.stringify({
-    event: event,
-    payload: data,
-    timestamp: new Date().toISOString()
-  });
   
-  console.log(`Broadcasting ${event} to ${clients.size} clients:`, data);
+  // Send welcome message
+  ws.send(JSON.stringify({
+    event: 'connected',
+    message: 'WebSocket server is working!',
+    clients: clients.size
+  }));
+});
+
+server.listen(6004, () => {
+  console.log('HTTP + WebSocket server running on port 6004');
+  console.log('WebSocket endpoint: ws://localhost:6004');
+  console.log('Broadcast endpoint: http://localhost:6004/broadcast');
+});
+
+console.log('WebSocket server ready!');
+
+// Test broadcast every 10 seconds
+setInterval(() => {
+  const message = {
+    event: 'test',
+    payload: {
+      message: 'Server is alive!',
+      time: new Date().toISOString()
+    }
+  };
   
   clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(message);
-      } catch (error) {
-        console.error('Error sending to client:', error);
-        clients.delete(client);
-      }
+      client.send(JSON.stringify(message));
     }
   });
-}
-
-// Make broadcast function globally available
-global.broadcastWebSocket = broadcast;
-
-console.log('Ready to broadcast events to connected clients');
-
-// Test broadcast every 30 seconds for testing
-setInterval(() => {
-  broadcast('test', { message: 'WebSocket server is alive', time: new Date().toISOString() });
-}, 30000);
+}, 10000);

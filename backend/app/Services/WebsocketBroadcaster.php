@@ -35,13 +35,9 @@ class WebsocketBroadcaster
      */
     public static function broadcast($channel, $event, $data)
     {
-        if (!self::connect()) {
-            Log::error('[WebSocket] Failed to connect to WebSocket server');
-            return false;
-        }
-
-        // For development, we'll use a simple HTTP POST to trigger the event
-        // In production, you'd use a proper WebSocket client
+        $host = config('broadcasting.connections.pusher.options.wsHost', 'localhost');
+        $port = config('broadcasting.connections.pusher.options.wsPort', 6001);
+        
         $payload = [
             'event' => $event,
             'channel' => $channel,
@@ -49,30 +45,38 @@ class WebsocketBroadcaster
             'timestamp' => now()->toISOString()
         ];
 
-        // Use file-based broadcasting for now (simple and reliable)
-        $broadcastFile = storage_path('app/broadcasts.json');
-        $broadcasts = [];
-        
-        if (file_exists($broadcastFile)) {
-            $broadcasts = json_decode(file_get_contents($broadcastFile), true) ?: [];
+        // Send to our WebSocket server via HTTP POST
+        try {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, "http://{$host}:{$port}/broadcast");
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200) {
+                Log::info('[WebSocket] Event broadcasted successfully', [
+                    'channel' => $channel,
+                    'event' => $event,
+                    'data_id' => $data['id'] ?? 'unknown'
+                ]);
+                return true;
+            } else {
+                Log::error('[WebSocket] Failed to broadcast', [
+                    'http_code' => $httpCode,
+                    'response' => $response
+                ]);
+                return false;
+            }
+        } catch (\Exception $e) {
+            Log::error('[WebSocket] Broadcast exception: ' . $e->getMessage());
+            return false;
         }
-        
-        $broadcasts[] = $payload;
-        
-        // Keep only last 100 broadcasts
-        if (count($broadcasts) > 100) {
-            $broadcasts = array_slice($broadcasts, -100);
-        }
-        
-        file_put_contents($broadcastFile, json_encode($broadcasts));
-        
-        Log::info('[WebSocket] Event broadcasted', [
-            'channel' => $channel,
-            'event' => $event,
-            'data_id' => $data['id'] ?? 'unknown'
-        ]);
-
-        return true;
     }
 
     /**

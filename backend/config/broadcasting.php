@@ -42,7 +42,15 @@ return [
                 'host' => env('PUSHER_HOST', 'api-'.env('PUSHER_APP_CLUSTER', 'mt1').'.pusher.com'),
                 'port' => env('PUSHER_PORT', 443),
                 'scheme' => env('PUSHER_SCHEME', 'https'),
+                'wsHost' => env('WS_HOST', 'localhost'),
+                'wsPort' => env('WS_PORT', 6001),
             ],
+        ],
+
+        'websocket' => [
+            'driver' => 'custom',
+            'wsHost' => env('WS_HOST', 'localhost'),
+            'wsPort' => env('WS_PORT', 6001),
         ],
 
     ],

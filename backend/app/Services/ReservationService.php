@@ -100,34 +100,43 @@ class ReservationService
 
     /**
      * Get all reservations with venue information (paginated)
+     * Sorts by submitted_at desc by default so the most recently submitted
+     * reservation always appears first on page 1, regardless of per-page size.
      */
-    public function getAllReservationsPaginated(int $page = 1, int $perPage = 10): \Illuminate\Pagination\LengthAwarePaginator
-    {
-        return Reservation::orderBy('event_date', 'asc')
-            ->orderBy('submitted_at', 'asc')
+    public function getAllReservationsPaginated(
+        int    $page      = 1,
+        int    $perPage   = 10,
+        string $sort      = 'submitted_at',  // ← was hardcoded to event_date asc
+        string $direction = 'desc'           // ← was hardcoded to asc
+    ): \Illuminate\Pagination\LengthAwarePaginator {
+        return Reservation::orderBy($sort, $direction)
             ->paginate($perPage, ['*'], 'page', $page)
             ->through(
                 function ($reservation) {
-                    $submittedAt = $reservation->submitted_at ? $reservation->submitted_at->format('M j, Y · g:i A') : '';
-                    $submittedAt = preg_replace('/\s+/', ' ', $submittedAt); // Replace all whitespace with single space
-                    
+                    $submittedAt = $reservation->submitted_at
+                        ? $reservation->submitted_at->format('M j, Y · g:i A')
+                        : '';
+                    $submittedAt = preg_replace('/\s+/', ' ', $submittedAt);
+
                     return [
-                        'id' => $reservation->reference_code,
-                        'db_id' => $reservation->id,
-                        'name' => $reservation->name,
-                        'email' => $reservation->email,
-                        'phone' => $reservation->phone,
-                        'room' => $reservation->room ?? 'Alabang Function Room',
-                        'table' => $reservation->table_number,
-                        'seat' => $reservation->seat_number,
-                        'guests' => $reservation->guests_count,
-                        'eventDate' => $reservation->event_date->format('F j, Y'),
-                        'eventTime' => $reservation->event_time,
-                        'specialRequests' => $reservation->special_requests,
-                        'status' => $reservation->status,
-                        'type' => $reservation->type,
-                        'submittedAt' => $submittedAt,
-                        'submittedTimestamp' => $reservation->submitted_at ? $reservation->submitted_at->timestamp : 0,
+                        'id'               => $reservation->reference_code,
+                        'db_id'            => $reservation->id,
+                        'name'             => $reservation->name,
+                        'email'            => $reservation->email,
+                        'phone'            => $reservation->phone,
+                        'room'             => $reservation->room ?? 'Alabang Function Room',
+                        'table'            => $reservation->table_number,
+                        'seat'             => $reservation->seat_number,
+                        'guests'           => $reservation->guests_count,
+                        'eventDate'        => $reservation->event_date->format('F j, Y'),
+                        'eventTime'        => $reservation->event_time,
+                        'specialRequests'  => $reservation->special_requests,
+                        'status'           => $reservation->status,
+                        'type'             => $reservation->type,
+                        'submittedAt'      => $submittedAt,
+                        'submittedTimestamp' => $reservation->submitted_at
+                            ? $reservation->submitted_at->timestamp
+                            : 0,
                     ];
                 }
             );
@@ -138,25 +147,24 @@ class ReservationService
      */
     public function getAllReservations(): array
     {
-        return Reservation::orderBy('event_date', 'asc')
-            ->orderBy('submitted_at', 'asc')
+        return Reservation::orderBy('submitted_at', 'desc')
             ->get()
             ->map(function ($reservation) {
                 return [
-                    'id' => $reservation->reference_code,
-                    'name' => $reservation->name,
-                    'email' => $reservation->email,
-                    'phone' => $reservation->phone,
-                    'room' => $reservation->room ?? 'Alabang Function Room',
-                    'table' => $reservation->table_number,
-                    'seat' => $reservation->seat_number,
-                    'guests' => $reservation->guests_count,
-                    'eventDate' => $reservation->event_date->format('F j, Y'),
-                    'eventTime' => $reservation->event_time,
-                    'specialRequests' => $reservation->special_requests,
-                    'status' => $reservation->status,
-                    'type' => $reservation->type,
-                    'submittedAt' => $reservation->submitted_at->format('M j, Y · g:i A'),
+                    'id'               => $reservation->reference_code,
+                    'name'             => $reservation->name,
+                    'email'            => $reservation->email,
+                    'phone'            => $reservation->phone,
+                    'room'             => $reservation->room ?? 'Alabang Function Room',
+                    'table'            => $reservation->table_number,
+                    'seat'             => $reservation->seat_number,
+                    'guests'           => $reservation->guests_count,
+                    'eventDate'        => $reservation->event_date->format('F j, Y'),
+                    'eventTime'        => $reservation->event_time,
+                    'specialRequests'  => $reservation->special_requests,
+                    'status'           => $reservation->status,
+                    'type'             => $reservation->type,
+                    'submittedAt'      => $reservation->submitted_at->format('M j, Y · g:i A'),
                     'submittedTimestamp' => $reservation->submitted_at->timestamp,
                 ];
             })
@@ -171,8 +179,8 @@ class ReservationService
         $reservations = Reservation::all();
 
         return [
-            'total' => $reservations->count(),
-            'pending' => $reservations->where('status', 'pending')->count(),
+            'total'    => $reservations->count(),
+            'pending'  => $reservations->where('status', 'pending')->count(),
             'approved' => $reservations->where('status', 'reserved')->count(),
             'rejected' => $reservations->where('status', 'rejected')->count(),
         ];
@@ -183,9 +191,6 @@ class ReservationService
      */
     public function deleteReservation(Reservation $reservation): bool
     {
-        // Note: In current schema, seat information is stored directly in reservations table
-        // No separate seats table to update - seat status is managed by frontend seat map
-        
         return $reservation->delete();
     }
 
@@ -197,8 +202,8 @@ class ReservationService
         $reservations = Reservation::where('venue_id', $venueId);
 
         return [
-            'total' => $reservations->count(),
-            'pending' => $reservations->where('status', 'pending')->count(),
+            'total'    => $reservations->count(),
+            'pending'  => $reservations->where('status', 'pending')->count(),
             'approved' => $reservations->where('status', 'approved')->count(),
             'rejected' => $reservations->where('status', 'rejected')->count(),
         ];

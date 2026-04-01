@@ -163,7 +163,7 @@ function RoomDropdown({ rooms, venueId, onRoomClick }) {
           minWidth: 180,
           overflow: "hidden",
         }}>
-          {rooms.map((r, i) => {
+          {rooms.filter(r => r && typeof r === 'string' && r.trim() !== '').map((r, i) => {
             const roomId = `${venueId}__${String(r).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
             return (
               <button
@@ -271,7 +271,7 @@ function VenueCard({ venue, onClick }) {
         flex: 1,
         borderRadius: "0 0 14px 14px",
       }}>
-        {venue.rooms && venue.rooms.length > 0 && (
+        {venue.rooms && Array.isArray(venue.rooms) && venue.rooms.length > 0 && (
           <RoomDropdown rooms={venue.rooms} venueId={venue.id} onRoomClick={onClick} />
         )}
 

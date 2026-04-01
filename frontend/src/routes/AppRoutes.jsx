@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import HomePage from "../features/client/pages/HomePage";
 import VenuesPage from "../features/client/pages/VenuesPage";
+import ManageBooking from "../features/client/pages/ManageBooking";
 import AlabangReserve from "../features/client/pages/AlabangReserve";
 import LagunaBallroom from "../features/client/pages/LagunaBallroom";
 import FunctionRoom2020 from "../features/client/pages/FunctionRoom2020";
@@ -16,6 +17,7 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/" element={<><Navbar /><HomePage /></>} />
         <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
+        <Route path="/manage-booking" element={<ManageBooking />} />
         <Route path="/reserve/:routeId" element={<><Navbar /><div>Reserve Page - Coming Soon</div></>} />
         <Route path="/alabang-reserve" element={<AlabangReserve />} />
         <Route path="/laguna-ballroom" element={<LagunaBallroom />} />

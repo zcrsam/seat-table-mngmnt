@@ -20,7 +20,7 @@ class Venue extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
-        'price_per_hour' => 'decimal'
+        'price_per_hour' => 'decimal:2'
     ];
 
     public function reservations(): HasMany

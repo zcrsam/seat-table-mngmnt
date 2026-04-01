@@ -23,8 +23,47 @@ const F = {
   body:    "'DM Sans', sans-serif",
 };
 
-const CANVAS_H = 760;
+// ─── Venue zone presets ───────────────────────────────────────────────────────
+const VENUE_ZONE_PRESETS = [
+  { type: "stage",      label: "Stage",       color: "#1B2A4A", textColor: "#C9A84C", defaultW: 300, defaultH: 80  },
+  { type: "dancefloor", label: "Dance Floor",  color: "#2C3E6B", textColor: "#A0C4FF", defaultW: 220, defaultH: 180 },
+  { type: "vip",        label: "VIP Area",     color: "#4A2C1A", textColor: "#C9A84C", defaultW: 160, defaultH: 120 },
+  { type: "bar",        label: "Bar",          color: "#2C4A2C", textColor: "#90EE90", defaultW: 200, defaultH: 60  },
+  { type: "custom",     label: "Custom Zone",  color: "#3A3A4A", textColor: "#fff",    defaultW: 180, defaultH: 100 },
+];
 
+let _zoneCounter  = 1;
+let _standaloneCounter = 1;
+
+function makeVenueZone(type, x = 100, y = 100) {
+  const preset = VENUE_ZONE_PRESETS.find(p => p.type === type) || VENUE_ZONE_PRESETS[4];
+  return {
+    id:       `Z${_zoneCounter++}`,
+    type,
+    label:    preset.label,
+    x, y,
+    width:    preset.defaultW,
+    height:   preset.defaultH,
+    color:    preset.color,
+    textColor: preset.textColor,
+    shape:    "rect", // rect | ellipse
+    opacity:  0.85,
+  };
+}
+
+function makeStandaloneSeat(x = 100, y = 100) {
+  const id = `SS${_standaloneCounter++}`;
+  return {
+    id,
+    num:    _standaloneCounter - 1,
+    label:  `S${_standaloneCounter - 1}`,
+    status: "available",
+    x,
+    y,
+  };
+}
+
+// ─── Existing table counter ───────────────────────────────────────────────────
 let _tableCounter = 1;
 function makeTable(x = 120, y = 80) {
   const id = `T${_tableCounter++}`;
@@ -32,8 +71,8 @@ function makeTable(x = 120, y = 80) {
     id,
     label: `Table ${id}`,
     x, y,
-    shape: "rect",
-    width: 110,
+    shape:  "rect",
+    width:  110,
     height: 70,
     seats: Array.from({ length: 6 }, (_, i) => ({
       id:     `${id}-S${i + 1}`,
@@ -132,6 +171,156 @@ function DraggableLabel({ item, onDragStart, isDragging }) {
   );
 }
 
+// ─── VenueZone ────────────────────────────────────────────────────────────────
+function VenueZone({ zone, editMode, isSelected, isDragging, onDragStart, onResizeStart, onSelect, onLabelEdit, onDelete }) {
+  const [hovered, setHovered]           = useState(false);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelVal, setLabelVal]         = useState(zone.label);
+  const isEllipse = zone.shape === "ellipse";
+
+  useEffect(() => setLabelVal(zone.label), [zone.label]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: zone.x,
+        top: zone.y,
+        width: zone.width,
+        height: zone.height,
+        zIndex: isSelected ? 3 : 1,
+        pointerEvents: "auto",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Zone body */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: zone.color || "#1B2A4A",
+          borderRadius: isEllipse ? "50%" : 12,
+          opacity: zone.opacity ?? 0.85,
+          border: isSelected
+            ? "2.5px solid #C9A84C"
+            : hovered
+            ? "2.5px dashed rgba(201,168,76,0.6)"
+            : "2px dashed rgba(255,255,255,0.18)",
+          boxShadow: isSelected
+            ? "0 0 0 3px #C9A84C44, 0 4px 16px rgba(0,0,0,0.22)"
+            : "0 3px 10px rgba(0,0,0,0.22)",
+          cursor: editMode ? (isDragging ? "grabbing" : "grab") : "default",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          transition: "border 0.15s, box-shadow 0.15s",
+          userSelect: "none",
+        }}
+        onMouseDown={editMode ? e => { e.stopPropagation(); onDragStart(e, zone.id); } : undefined}
+        onClick={e => { e.stopPropagation(); if (editMode) onSelect(zone); }}
+        onDoubleClick={editMode ? e => { e.stopPropagation(); setEditingLabel(true); } : undefined}
+      >
+        {editingLabel ? (
+          <input
+            autoFocus
+            value={labelVal}
+            onChange={e => setLabelVal(e.target.value)}
+            onBlur={() => { setEditingLabel(false); onLabelEdit && onLabelEdit(zone.id, labelVal); }}
+            onKeyDown={e => {
+              if (e.key === "Enter") { setEditingLabel(false); onLabelEdit && onLabelEdit(zone.id, labelVal); }
+              e.stopPropagation();
+            }}
+            onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              background: "transparent", border: "none", outline: "none",
+              color: zone.textColor || "#fff", fontFamily: F.body, fontWeight: 700,
+              fontSize: 15, letterSpacing: 2, textAlign: "center",
+              width: "80%", textTransform: "uppercase",
+            }}
+          />
+        ) : (
+          <div style={{
+            color: zone.textColor || "#fff",
+            fontFamily: F.body, fontWeight: 700, fontSize: 15,
+            letterSpacing: 2, textTransform: "uppercase",
+            textAlign: "center", padding: "0 12px",
+            textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+            pointerEvents: "none",
+          }}>
+            {zone.label}
+          </div>
+        )}
+
+        {/* Resize handles */}
+        {editMode && isSelected && (
+          <>
+            <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "ew-resize", zIndex: 20, border: "1.5px solid #fff", right: -5, top: "50%", transform: "translateY(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, zone.id, "e", "zone"); }} />
+            <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "ns-resize", zIndex: 20, border: "1.5px solid #fff", bottom: -5, left: "50%", transform: "translateX(-50%)" }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, zone.id, "s", "zone"); }} />
+            <div style={{ position: "absolute", width: 10, height: 10, background: "#C9A84C", borderRadius: 2, cursor: "nwse-resize", zIndex: 20, border: "1.5px solid #fff", right: -5, bottom: -5 }} onMouseDown={e => { e.stopPropagation(); onResizeStart(e, zone.id, "se", "zone"); }} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── StandaloneSeat ───────────────────────────────────────────────────────────
+function StandaloneSeat({ seat, editMode, isSelected, isDragging, onDragStart, onSelect, onSeatClick }) {
+  const [hovered, setHovered] = useState(false);
+  const color = STATUS_COLORS[seat.status] || STATUS_COLORS.available;
+  const blocked = !editMode && (seat.status === "reserved" || seat.status === "pending");
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: seat.x,
+        top: seat.y,
+        width: 44,
+        height: 44,
+        zIndex: isSelected ? 15 : 6,
+      }}
+      onMouseEnter={() => !blocked && setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onMouseDown={editMode ? e => { e.stopPropagation(); onDragStart(e, seat.id); } : undefined}
+      onClick={e => {
+        e.stopPropagation();
+        if (editMode) { onSelect(seat); return; }
+        if (!blocked) onSeatClick && onSeatClick(seat, null);
+      }}
+      title={blocked ? (seat.status === "reserved" ? "Already reserved" : "Pending approval") : `Seat ${seat.num}`}
+    >
+      <div style={{
+        width: 44, height: 44, borderRadius: "50%",
+        background: isSelected ? "#1B2A4A" : color,
+        border: isSelected
+          ? "2.5px solid #C9A84C"
+          : hovered
+          ? "2.5px solid #1B2A4A"
+          : "2.5px solid rgba(255,255,255,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: editMode ? (isDragging ? "grabbing" : "grab") : blocked ? "not-allowed" : "pointer",
+        boxShadow: isSelected
+          ? "0 0 0 3px #C9A84C, 0 2px 8px rgba(0,0,0,0.3)"
+          : hovered
+          ? "0 0 0 2px rgba(201,168,76,0.5), 0 2px 8px rgba(0,0,0,0.2)"
+          : "0 2px 6px rgba(0,0,0,0.18)",
+        transform: isSelected ? "scale(1.12)" : hovered ? "scale(1.08)" : "scale(1)",
+        opacity: blocked ? 0.75 : 1,
+        userSelect: "none",
+        transition: "all 0.15s ease",
+      }}>
+        <span style={{ color: isSelected ? "#C9A84C" : "#fff", fontSize: 13, fontWeight: 800, fontFamily: F.body, lineHeight: 1, pointerEvents: "none" }}>
+          {seat.num}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Seat Node ────────────────────────────────────────────────────────────────
 function SeatNode({ seat, isSelected, editMode, isDragging, onSeatClick, onSeatDragStart }) {
   const color   = STATUS_COLORS[seat.status] || STATUS_COLORS.available;
@@ -200,7 +389,7 @@ function TableNode({
   const maxV = Math.max(1, Math.floor((tableH + SEAT_GAP) / (SEAT_D + SEAT_GAP)));
   const byPos = { top: [], bottom: [], left: [], right: [] };
   const free  = [];
-  table.seats.forEach((s, i) => s.position ? byPos[s.position].push(s) : free.push(s));
+  table.seats.forEach((s) => s.position ? byPos[s.position].push(s) : free.push(s));
   free.forEach(s => {
     if      (byPos.top.length    < maxH) byPos.top.push(s);
     else if (byPos.bottom.length < maxH) byPos.bottom.push(s);
@@ -291,7 +480,7 @@ function TableNode({
       })()}
 
       <div
-        style={{ position: "absolute", left: table.x, top: table.y, width: contW, height: contH, overflow: "visible", zIndex: isTableSelected ? 10 : 1 }}
+        style={{ position: "absolute", left: table.x, top: table.y, width: contW, height: contH, overflow: "visible", zIndex: isTableSelected ? 10 : 4 }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
@@ -369,10 +558,12 @@ function HowToUse() {
   const [open, setOpen] = useState(false);
   const tips = [
     ["🖱️", "Click the + Table button, then click anywhere on the canvas to place a new table."],
-    ["✋",  "Drag any table to reposition it on the canvas."],
-    ["↔️",  "Drag the gold handles on a selected table to resize it (right, bottom, corner)."],
-    ["🖊️",  "Double-click a table to rename it inline."],
-    ["🪑",  "Click a seat to select it, then edit its label, number, and status in the Inspector."],
+    ["🪑",  "Click + Seat (standalone) to place individual seats anywhere — great for concerts or theaters."],
+    ["🏟️",  "Click + Zone to add a venue area (Stage, Dance Floor, VIP, etc.) to the canvas."],
+    ["✋",  "Drag any table, seat, or zone to reposition it on the canvas."],
+    ["↔️",  "Drag the gold handles on a selected table or zone to resize it."],
+    ["🖊️",  "Double-click a table or zone to rename it inline."],
+    ["🪑",  "Click a table seat to select it, then edit its label, number, and status in the Inspector."],
     ["🏷️",  "Drag SCREEN, ENTRANCE, EXIT labels anywhere on the canvas."],
     ["🗑️",  "Removing all seats from a table auto-deletes it."],
     ["💾",  "Click Save Layout to push changes live to the client view."],
@@ -406,16 +597,42 @@ function HowToUse() {
 }
 
 // ─── Inspector ────────────────────────────────────────────────────────────────
-function Inspector({ selected, selectedTable, selectedSeatObj, tables, setTables, addSeat, deleteSeat, deleteTable, updateTable, handleSeatLabelEdit, handleSeatStatus, handleSeatPosition }) {
+function Inspector({
+  selected, selectedTable, selectedSeatObj, selectedZone, selectedStandaloneSeat,
+  tables, setTables, venueZones, setVenueZones, standaloneSeats, setStandaloneSeats,
+  addSeat, deleteSeat, deleteTable, updateTable,
+  handleSeatLabelEdit, handleSeatStatus, handleSeatPosition,
+}) {
   const iLabel = t => <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "#999", textTransform: "uppercase", marginBottom: 4, marginTop: 12 }}>{t}</div>;
   const iInput = props => <input style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #E8E3DC", borderRadius: 6, fontFamily: F.body, fontSize: 13, color: "#1B2A4A", background: "#FAFAF7", boxSizing: "border-box", outline: "none" }} {...props} />;
+
+  const updateZone = (key, val) => {
+    if (!selected?.zoneId) return;
+    setVenueZones(prev => prev.map(z => z.id === selected.zoneId ? { ...z, [key]: val } : z));
+  };
+
+  const updateStandaloneSeat = (key, val) => {
+    if (!selected?.standaloneSeatId) return;
+    setStandaloneSeats(prev => prev.map(s => s.id === selected.standaloneSeatId ? { ...s, [key]: val } : s));
+  };
+
   return (
     <div style={{ background: "#fff", borderRadius: 10, padding: "16px 18px", boxShadow: "0 2px 14px rgba(0,0,0,0.07)", fontFamily: F.body }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <span style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", textTransform: "uppercase" }}>Inspector</span>
-        {selected && <span style={{ fontSize: 11, color: "#999" }}>{selected.type === "table" ? selectedTable?.label : `Seat ${selectedSeatObj?.num}`}</span>}
+        {selected && (
+          <span style={{ fontSize: 11, color: "#999" }}>
+            {selected.type === "table" && selectedTable?.label}
+            {selected.type === "seat" && `Seat ${selectedSeatObj?.num}`}
+            {selected.type === "zone" && selectedZone?.label}
+            {selected.type === "standaloneSeat" && `Seat ${selectedStandaloneSeat?.num}`}
+          </span>
+        )}
       </div>
-      {!selected && <div style={{ color: "#C8C2BA", fontSize: 12, lineHeight: 1.65 }}>Click a table or seat on the canvas to edit its properties.</div>}
+
+      {!selected && <div style={{ color: "#C8C2BA", fontSize: 12, lineHeight: 1.65 }}>Click a table, seat, or zone on the canvas to edit its properties.</div>}
+
+      {/* Table Inspector */}
       {selected?.type === "table" && selectedTable && (
         <>
           {iLabel("Table Label")}
@@ -439,6 +656,8 @@ function Inspector({ selected, selectedTable, selectedSeatObj, tables, setTables
           <button onClick={() => deleteTable()} style={{ width: "100%", marginTop: 12, padding: "10px 0", background: "#E05252", color: "#fff", border: "none", borderRadius: 7, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1.2, cursor: "pointer", textTransform: "uppercase" }}>🗑 Delete Table</button>
         </>
       )}
+
+      {/* Seat Inspector */}
       {selected?.type === "seat" && selectedSeatObj && (
         <>
           {iLabel("Seat Label")}
@@ -454,6 +673,76 @@ function Inspector({ selected, selectedTable, selectedSeatObj, tables, setTables
             ))}
           </div>
           <div style={{ marginTop: 8, padding: "7px 10px", background: "#F0F4FF", borderRadius: 6, fontSize: 11, color: "#5A6A8A", fontFamily: F.body, lineHeight: 1.5, textAlign: "center" }}>🪑 Drag this seat on the canvas to move it to any side of the table</div>
+        </>
+      )}
+
+      {/* Standalone Seat Inspector */}
+      {selected?.type === "standaloneSeat" && selectedStandaloneSeat && (
+        <>
+          <div style={{ padding: "6px 10px", background: "#F0F4FF", borderRadius: 6, fontSize: 11, color: "#5A6A8A", fontFamily: F.body, marginBottom: 8 }}>
+            🪑 Standalone seat (no table)
+          </div>
+          {iLabel("Seat Label")}
+          {iInput({ value: selectedStandaloneSeat.label, onChange: e => updateStandaloneSeat("label", e.target.value) })}
+          {iLabel("Seat Number")}
+          {iInput({ type: "number", value: selectedStandaloneSeat.num, onChange: e => updateStandaloneSeat("num", Number(e.target.value)) })}
+          {iLabel("Status")}
+          <div style={{ display: "flex", gap: 5, marginTop: 4 }}>
+            {SEAT_STATUS_CYCLE.map(status => (
+              <button key={status} onClick={() => updateStandaloneSeat("status", status)} style={{ flex: 1, padding: "8px 0", background: selectedStandaloneSeat.status === status ? STATUS_COLORS[status] : "transparent", border: `2px solid ${STATUS_COLORS[status]}`, borderRadius: 6, fontFamily: F.body, fontWeight: 700, fontSize: 10, color: selectedStandaloneSeat.status === status ? "#fff" : STATUS_COLORS[status], cursor: "pointer", textTransform: "uppercase" }}>
+                {status === "available" ? "Avail" : status === "pending" ? "Pend" : "Res"}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              setStandaloneSeats(prev => prev.filter(s => s.id !== selected.standaloneSeatId));
+            }}
+            style={{ width: "100%", marginTop: 12, padding: "10px 0", background: "#E05252", color: "#fff", border: "none", borderRadius: 7, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1.2, cursor: "pointer", textTransform: "uppercase" }}
+          >
+            🗑 Delete Seat
+          </button>
+        </>
+      )}
+
+      {/* Zone Inspector */}
+      {selected?.type === "zone" && selectedZone && (
+        <>
+          {iLabel("Zone Label")}
+          {iInput({ value: selectedZone.label, onChange: e => updateZone("label", e.target.value) })}
+          {iLabel("Shape")}
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            {["rect", "ellipse"].map(shape => (
+              <button key={shape} onClick={() => updateZone("shape", shape)} style={{ flex: 1, padding: "8px 0", background: (selectedZone.shape || "rect") === shape ? "#1B2A4A" : "transparent", color: (selectedZone.shape || "rect") === shape ? "#fff" : "#1B2A4A", border: "2px solid #1B2A4A", borderRadius: shape === "ellipse" ? 20 : 6, fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1, cursor: "pointer", textTransform: "uppercase" }}>
+                {shape === "rect" ? "▭ Rect" : "◯ Oval"}
+              </button>
+            ))}
+          </div>
+          {iLabel("Background Color")}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+            <input type="color" value={selectedZone.color || "#1B2A4A"} onChange={e => updateZone("color", e.target.value)} style={{ width: 36, height: 36, border: "1.5px solid #E8E3DC", borderRadius: 6, cursor: "pointer", padding: 2 }} />
+            <span style={{ fontSize: 12, color: "#888", fontFamily: F.body }}>{selectedZone.color || "#1B2A4A"}</span>
+          </div>
+          {iLabel("Text Color")}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+            <input type="color" value={selectedZone.textColor || "#fff"} onChange={e => updateZone("textColor", e.target.value)} style={{ width: 36, height: 36, border: "1.5px solid #E8E3DC", borderRadius: 6, cursor: "pointer", padding: 2 }} />
+            <span style={{ fontSize: 12, color: "#888", fontFamily: F.body }}>{selectedZone.textColor || "#fff"}</span>
+          </div>
+          {iLabel("Opacity")}
+          <input type="range" min={0.1} max={1} step={0.05} value={selectedZone.opacity ?? 0.85}
+            onChange={e => updateZone("opacity", parseFloat(e.target.value))}
+            style={{ width: "100%", marginTop: 4 }}
+          />
+          <div style={{ textAlign: "right", fontSize: 11, color: "#888", marginTop: 2 }}>{Math.round((selectedZone.opacity ?? 0.85) * 100)}%</div>
+          <div style={{ marginTop: 8, padding: "8px 10px", background: "#F7F3EA", borderRadius: 6, fontSize: 11, color: "#888", fontFamily: F.body, lineHeight: 1.5 }}>
+            💡 Drag the <strong style={{ color: "#C9A84C" }}>gold handles</strong> to resize.
+          </div>
+          <button
+            onClick={() => setVenueZones(prev => prev.filter(z => z.id !== selected.zoneId))}
+            style={{ width: "100%", marginTop: 12, padding: "10px 0", background: "#E05252", color: "#fff", border: "none", borderRadius: 7, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1.2, cursor: "pointer", textTransform: "uppercase" }}
+          >
+            🗑 Delete Zone
+          </button>
         </>
       )}
     </div>
@@ -523,12 +812,16 @@ export default function SeatMap({
     return [{ shape: "rect", width: 110, height: 70, ...td }];
   }, []);
 
-  const [tables, setTables]             = useState(() => editMode ? [] : normalize(tableData));
-  const [labels, setLabels]             = useState(DEFAULT_LABELS);
-  const [selected, setSelected]         = useState(null);
-  const [saved, setSaved]               = useState(false);
-  const [tool, setTool]                 = useState("select");
-  const [activeDragId, setActiveDragId] = useState(null);
+  const [tables, setTables]                   = useState(() => editMode ? [] : normalize(tableData));
+  const [labels, setLabels]                   = useState(DEFAULT_LABELS);
+  const [venueZones, setVenueZones]           = useState([]);
+  const [standaloneSeats, setStandaloneSeats] = useState([]);
+  const [selected, setSelected]               = useState(null);
+  const [saved, setSaved]                     = useState(false);
+  const [tool, setTool]                       = useState("select");
+  const [addZoneType, setAddZoneType]         = useState(null);   // zone type being placed
+  const [activeDragId, setActiveDragId]       = useState(null);
+  const [showZoneMenu, setShowZoneMenu]       = useState(false);
 
   const dragging      = useRef(null);
   const canvasRef     = useRef(null);
@@ -541,7 +834,6 @@ export default function SeatMap({
       const raw = localStorage.getItem(`seatmap:${wing}:${room}`);
       if (raw) {
         const parsed = JSON.parse(raw);
-        // normalize always returns array; filter keeps only tables with seats
         let norm = normalize(parsed).filter(t => t.seats && t.seats.length > 0);
 
         if (norm.length > 0) {
@@ -572,6 +864,14 @@ export default function SeatMap({
       const lRaw = localStorage.getItem(`seatmap_labels:${wing}:${room}`);
       if (lRaw) setLabels(JSON.parse(lRaw));
     } catch {}
+    try {
+      const zRaw = localStorage.getItem(`seatmap_zones:${wing}:${room}`);
+      if (zRaw) setVenueZones(JSON.parse(zRaw));
+    } catch {}
+    try {
+      const ssRaw = localStorage.getItem(`seatmap_standalone:${wing}:${room}`);
+      if (ssRaw) setStandaloneSeats(JSON.parse(ssRaw));
+    } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode, wing, room]);
 
@@ -586,22 +886,28 @@ export default function SeatMap({
   useEffect(() => {
     if (editMode || !wing || !room) return;
     const LABEL_KEY = `seatmap_labels:${wing}:${room}`;
-    const loadLabels = () => {
-      try {
-        const lRaw = localStorage.getItem(LABEL_KEY);
-        if (lRaw) setLabels(JSON.parse(lRaw));
-      } catch {}
+    const ZONE_KEY  = `seatmap_zones:${wing}:${room}`;
+    const SS_KEY    = `seatmap_standalone:${wing}:${room}`;
+
+    const loadLabels = () => { try { const r = localStorage.getItem(LABEL_KEY); if (r) setLabels(JSON.parse(r)); } catch {} };
+    const loadZones  = () => { try { const r = localStorage.getItem(ZONE_KEY);  if (r) setVenueZones(JSON.parse(r)); } catch {} };
+    const loadSS     = () => { try { const r = localStorage.getItem(SS_KEY);    if (r) setStandaloneSeats(JSON.parse(r)); } catch {} };
+
+    loadLabels(); loadZones(); loadSS();
+
+    const onStorage = (e) => {
+      if (e.key === LABEL_KEY) loadLabels();
+      if (e.key === ZONE_KEY)  loadZones();
+      if (e.key === SS_KEY)    loadSS();
     };
-    loadLabels();
-    const onStorage = (e) => { if (e.key === LABEL_KEY) loadLabels(); };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [editMode, wing, room]);
 
-  const selectedTable   = selected?.type === "table" ? tables.find(t => t.id === selected.tableId) : null;
-  const selectedSeatObj = selected?.type === "seat"
-    ? tables.find(t => t.id === selected.tableId)?.seats.find(s => s.id === selected.seatId)
-    : null;
+  const selectedTable          = selected?.type === "table"          ? tables.find(t => t.id === selected.tableId)                                              : null;
+  const selectedSeatObj        = selected?.type === "seat"           ? tables.find(t => t.id === selected.tableId)?.seats.find(s => s.id === selected.seatId)  : null;
+  const selectedZone           = selected?.type === "zone"           ? venueZones.find(z => z.id === selected.zoneId)                                           : null;
+  const selectedStandaloneSeat = selected?.type === "standaloneSeat" ? standaloneSeats.find(s => s.id === selected.standaloneSeatId)                            : null;
 
   // ── Global mouse move/up ──────────────────────────────────────────────────
   useEffect(() => {
@@ -614,16 +920,31 @@ export default function SeatMap({
         setLabels(prev => prev.map(l => l.id === d.id ? { ...l, x: Math.max(0, d.originX + (e.clientX - d.startX) / s), y: Math.max(0, d.originY + (e.clientY - d.startY) / s) } : l));
       } else if (d.type === "table") {
         setTables(prev => prev.map(t => t.id === d.id ? { ...t, x: Math.max(0, d.originX + (e.clientX - d.startX) / s), y: Math.max(0, d.originY + (e.clientY - d.startY) / s) } : t));
+      } else if (d.type === "zone") {
+        setVenueZones(prev => prev.map(z => z.id === d.id ? { ...z, x: Math.max(0, d.originX + (e.clientX - d.startX) / s), y: Math.max(0, d.originY + (e.clientY - d.startY) / s) } : z));
+      } else if (d.type === "standaloneSeat") {
+        setStandaloneSeats(prev => prev.map(ss => ss.id === d.id ? { ...ss, x: Math.max(0, d.originX + (e.clientX - d.startX) / s), y: Math.max(0, d.originY + (e.clientY - d.startY) / s) } : ss));
       } else if (d.type === "resize") {
         const dx = (e.clientX - d.startX) / s, dy = (e.clientY - d.startY) / s;
-        setTables(prev => prev.map(t => {
-          if (t.id !== d.id) return t;
-          return {
-            ...t,
-            width:  (d.dir === "e" || d.dir === "se") ? Math.max(60, d.originW + dx) : t.width,
-            height: (d.dir === "s" || d.dir === "se") ? Math.max(40, d.originH + dy) : t.height,
-          };
-        }));
+        if (d.resizeTarget === "zone") {
+          setVenueZones(prev => prev.map(z => {
+            if (z.id !== d.id) return z;
+            return {
+              ...z,
+              width:  (d.dir === "e" || d.dir === "se") ? Math.max(60, d.originW + dx) : z.width,
+              height: (d.dir === "s" || d.dir === "se") ? Math.max(40, d.originH + dy) : z.height,
+            };
+          }));
+        } else {
+          setTables(prev => prev.map(t => {
+            if (t.id !== d.id) return t;
+            return {
+              ...t,
+              width:  (d.dir === "e" || d.dir === "se") ? Math.max(60, d.originW + dx) : t.width,
+              height: (d.dir === "s" || d.dir === "se") ? Math.max(40, d.originH + dy) : t.height,
+            };
+          }));
+        }
       }
     };
     const onUp = () => { dragging.current = null; setActiveDragId(null); };
@@ -646,23 +967,55 @@ export default function SeatMap({
     setActiveDragId(id);
   }, [labels]);
 
-  const startResize = useCallback((e, id, dir) => {
+  const startZoneDrag = useCallback((e, id) => {
     e.preventDefault();
-    const t = tables.find(t => t.id === id);
-    dragging.current = { type: "resize", id, dir, startX: e.clientX, startY: e.clientY, originW: t?.width || 110, originH: t?.height || 54 };
-  }, [tables]);
+    const z = venueZones.find(z => z.id === id);
+    dragging.current = { type: "zone", id, startX: e.clientX, startY: e.clientY, originX: z?.x || 0, originY: z?.y || 0 };
+    setActiveDragId(id);
+  }, [venueZones]);
+
+  const startStandaloneSeatDrag = useCallback((e, id) => {
+    e.preventDefault();
+    const ss = standaloneSeats.find(s => s.id === id);
+    dragging.current = { type: "standaloneSeat", id, startX: e.clientX, startY: e.clientY, originX: ss?.x || 0, originY: ss?.y || 0 };
+    setActiveDragId(id);
+  }, [standaloneSeats]);
+
+  const startResize = useCallback((e, id, dir, resizeTarget = "table") => {
+    e.preventDefault();
+    if (resizeTarget === "zone") {
+      const z = venueZones.find(z => z.id === id);
+      dragging.current = { type: "resize", resizeTarget: "zone", id, dir, startX: e.clientX, startY: e.clientY, originW: z?.width || 180, originH: z?.height || 100 };
+    } else {
+      const t = tables.find(t => t.id === id);
+      dragging.current = { type: "resize", resizeTarget: "table", id, dir, startX: e.clientX, startY: e.clientY, originW: t?.width || 110, originH: t?.height || 54 };
+    }
+  }, [tables, venueZones]);
 
   const handleCanvasClick = (e) => {
-    if (!editMode || tool !== "addTable") return;
+    if (!editMode) return;
     const rect = canvasRef.current?.getBoundingClientRect();
     const s = adminScaleRef.current || 1;
-    const t = makeTable(
-      Math.max(0, (e.clientX - rect.left) / s - 55),
-      Math.max(0, (e.clientY - rect.top)  / s - 27)
-    );
-    setTables(prev => [...prev, t]);
-    setSelected({ type: "table", tableId: t.id });
-    setTool("select");
+    const cx = Math.max(0, (e.clientX - rect.left) / s);
+    const cy = Math.max(0, (e.clientY - rect.top)  / s);
+
+    if (tool === "addTable") {
+      const t = makeTable(cx - 55, cy - 27);
+      setTables(prev => [...prev, t]);
+      setSelected({ type: "table", tableId: t.id });
+      setTool("select");
+    } else if (tool === "addSeat") {
+      const ss = makeStandaloneSeat(cx - 22, cy - 22);
+      setStandaloneSeats(prev => [...prev, ss]);
+      setSelected({ type: "standaloneSeat", standaloneSeatId: ss.id });
+      setTool("select");
+    } else if (tool === "addZone" && addZoneType) {
+      const z = makeVenueZone(addZoneType, cx - 90, cy - 50);
+      setVenueZones(prev => [...prev, z]);
+      setSelected({ type: "zone", zoneId: z.id });
+      setTool("select");
+      setAddZoneType(null);
+    }
   };
 
   const deleteTable = (id) => {
@@ -691,11 +1044,12 @@ export default function SeatMap({
     });
   };
 
-  const updateTable         = (key, val)       => { if (!selected?.tableId) return; setTables(prev => prev.map(t => t.id === selected.tableId ? { ...t, [key]: val } : t)); };
-  const handleLabelEdit     = (tableId, val)   => setTables(prev => prev.map(t => t.id === tableId ? { ...t, label: val } : t));
-  const handleSeatLabelEdit = (val)            => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
-  const handleSeatStatus    = (status)         => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
-  const handleSeatPosition  = (position)       => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, position } : s) })); };
+  const updateTable         = (key, val)     => { if (!selected?.tableId) return; setTables(prev => prev.map(t => t.id === selected.tableId ? { ...t, [key]: val } : t)); };
+  const handleLabelEdit     = (tableId, val) => setTables(prev => prev.map(t => t.id === tableId ? { ...t, label: val } : t));
+  const handleZoneLabelEdit = (zoneId, val)  => setVenueZones(prev => prev.map(z => z.id === zoneId ? { ...z, label: val } : z));
+  const handleSeatLabelEdit = (val)          => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
+  const handleSeatStatus    = (status)       => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
+  const handleSeatPosition  = (position)     => { if (!selected?.seatId) return; setTables(prev => prev.map(t => t.id !== selected.tableId ? t : { ...t, seats: t.seats.map(s => s.id === selected.seatId ? { ...s, position } : s) })); };
   const handleSeatMove = (tableId, seatId, newPosition) => {
     setTables(prev => prev.map(t => t.id !== tableId ? t : {
       ...t,
@@ -706,27 +1060,33 @@ export default function SeatMap({
   const handleTableSelect = (table)         => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick && onTableClick(table); };
 
   // ── Save layout (admin) ───────────────────────────────────────────────────
-  // Uses dispatchSeatMapUpdate so the client view reacts immediately in the
-  // same tab without needing to reload.
   const handleSave = () => {
     if (wing && room) {
-      // Always save as an array — syncSeatMapFromReservations checks
-      // Array.isArray() to decide whether to preserve multi-table layouts.
-      // Collapsing to a single object caused layout resets after refresh.
-      const payload = tables;
-      dispatchSeatMapUpdate(wing, room, payload);
+      dispatchSeatMapUpdate(wing, room, tables);
       try {
         const labelKey = `seatmap_labels:${wing}:${room}`;
         localStorage.setItem(labelKey, JSON.stringify(labels));
         window.dispatchEvent(new StorageEvent("storage", { key: labelKey, newValue: JSON.stringify(labels) }));
+      } catch {}
+      try {
+        const zoneKey = `seatmap_zones:${wing}:${room}`;
+        localStorage.setItem(zoneKey, JSON.stringify(venueZones));
+        window.dispatchEvent(new StorageEvent("storage", { key: zoneKey, newValue: JSON.stringify(venueZones) }));
+      } catch {}
+      try {
+        const ssKey = `seatmap_standalone:${wing}:${room}`;
+        localStorage.setItem(ssKey, JSON.stringify(standaloneSeats));
+        window.dispatchEvent(new StorageEvent("storage", { key: ssKey, newValue: JSON.stringify(standaloneSeats) }));
       } catch {}
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
 
-  const TBtn = ({ label, active, onClick }) => (
-    <button onClick={onClick} style={{ padding: "8px 16px", border: `2px solid ${active ? "#C9A84C" : "#D8D2C8"}`, background: active ? "#C9A84C" : "#fff", color: active ? "#1B2A4A" : "#555", borderRadius: 8, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1, cursor: "pointer", textTransform: "uppercase", transition: "all 0.13s", whiteSpace: "nowrap" }}>{label}</button>
+  const activeTool = tool === "addZone" ? `addZone:${addZoneType}` : tool;
+
+  const TBtn = ({ label, active, onClick, color }) => (
+    <button onClick={onClick} style={{ padding: "8px 16px", border: `2px solid ${active ? (color || "#C9A84C") : "#D8D2C8"}`, background: active ? (color || "#C9A84C") : "#fff", color: active ? (color === "#C9A84C" || !color ? "#1B2A4A" : "#fff") : "#555", borderRadius: 8, fontFamily: F.body, fontWeight: 700, fontSize: 11, letterSpacing: 1, cursor: "pointer", textTransform: "uppercase", transition: "all 0.13s", whiteSpace: "nowrap" }}>{label}</button>
   );
 
   const canvasStyle = {
@@ -736,6 +1096,13 @@ export default function SeatMap({
     userSelect: "none",
     boxShadow: "0 4px 20px rgba(27,42,74,0.06)",
     width: "100%",
+  };
+
+  // Active tool hint
+  const toolHints = {
+    addTable: "CLICK ANYWHERE BELOW TO PLACE A TABLE",
+    addSeat:  "CLICK ANYWHERE TO PLACE A STANDALONE SEAT",
+    addZone:  addZoneType ? `CLICK TO PLACE ${addZoneType.toUpperCase()} ZONE` : "SELECT A ZONE TYPE",
   };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -749,7 +1116,21 @@ export default function SeatMap({
       <div style={{ fontFamily: F.body, width: "100%" }}>
         <div style={{ ...canvasStyle, overflow: "hidden" }}>
           <ScaledCanvas virtualW={VIRTUAL_W} virtualH={VIRTUAL_H}>
+            {/* Venue zones rendered first (background) */}
+            {venueZones.map(zone => (
+              <VenueZone key={zone.id} zone={zone} editMode={false} isSelected={false} isDragging={false}
+                onDragStart={() => {}} onResizeStart={() => {}} onSelect={() => {}} onLabelEdit={() => {}} />
+            ))}
             {labels.map(lbl => <StaticLabel key={lbl.id} item={lbl} />)}
+            {/* Standalone seats */}
+            {standaloneSeats.map(seat => (
+              <StandaloneSeat key={seat.id} seat={seat} editMode={false}
+                isSelected={selectedSeat ? selectedSeat.id === seat.id : false}
+                isDragging={false}
+                onDragStart={() => {}} onSelect={() => {}}
+                onSeatClick={onSeatClick}
+              />
+            ))}
             {tables.map(table => (
               <TableNode
                 key={table.id} table={table} editMode={false}
@@ -777,9 +1158,47 @@ export default function SeatMap({
         {wing && room && <span style={{ fontSize: 14, fontFamily: F.body, fontWeight: 400, color: "#8A7F6E", marginLeft: 12 }}>{wing} — {room}</span>}
       </h2>
 
+      {/* Toolbar */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
-        <TBtn label="☰ Select"  active={tool === "select"}   onClick={() => setTool("select")} />
-        <TBtn label="＋ Table"  active={tool === "addTable"} onClick={() => setTool("addTable")} />
+        <TBtn label="☰ Select"   active={tool === "select"}   onClick={() => { setTool("select"); setAddZoneType(null); setShowZoneMenu(false); }} />
+        <TBtn label="＋ Table"   active={tool === "addTable"} onClick={() => { setTool("addTable"); setAddZoneType(null); setShowZoneMenu(false); }} />
+        <TBtn label="🪑 Seat"    active={tool === "addSeat"}  onClick={() => { setTool("addSeat"); setAddZoneType(null); setShowZoneMenu(false); }} />
+
+        {/* Zone dropdown */}
+        <div style={{ position: "relative" }}>
+          <TBtn
+            label={`🏟️ Zone ${showZoneMenu ? "▲" : "▼"}`}
+            active={tool === "addZone"}
+            onClick={() => { setShowZoneMenu(v => !v); }}
+            color="#6B4FBB"
+          />
+          {showZoneMenu && (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "#fff", border: "1.5px solid #E8E3DC", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", zIndex: 100, minWidth: 160, padding: "6px 0" }}>
+              {VENUE_ZONE_PRESETS.map(preset => (
+                <button
+                  key={preset.type}
+                  onClick={() => {
+                    setTool("addZone");
+                    setAddZoneType(preset.type);
+                    setShowZoneMenu(false);
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    width: "100%", padding: "9px 14px",
+                    background: addZoneType === preset.type ? "#F0ECFF" : "transparent",
+                    border: "none", cursor: "pointer",
+                    fontFamily: F.body, fontWeight: 600, fontSize: 12,
+                    color: "#1B2A4A", letterSpacing: 0.5, textAlign: "left",
+                  }}
+                >
+                  <div style={{ width: 12, height: 12, borderRadius: 3, background: preset.color, flexShrink: 0 }} />
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           {saved && (
             <span style={{ padding: "5px 12px", background: "#E8F5EE", color: "#4CAF79", borderRadius: 5, fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>
@@ -798,27 +1217,52 @@ export default function SeatMap({
         <div style={{ flex: "1 1 0", minWidth: 0 }}>
           <div style={{
             ...canvasStyle,
-            border: tool === "addTable" ? "2px dashed #C9A84C" : "2px solid transparent",
+            border: (tool === "addTable" || tool === "addSeat" || (tool === "addZone" && addZoneType))
+              ? "2px dashed #C9A84C" : "2px solid transparent",
             transition: "border 0.2s",
             overflow: "hidden",
-          }}>
-            {tool === "addTable" && (
-              <div style={{ background: "#C9A84C", color: "#1B2A4A", padding: "6px 0", textAlign: "center", fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1.5 }}>
-                CLICK ANYWHERE BELOW TO PLACE A TABLE
+          }}
+          onClick={() => showZoneMenu && setShowZoneMenu(false)}
+          >
+            {toolHints[tool] && (tool !== "addZone" || addZoneType) && (
+              <div style={{ background: tool === "addSeat" ? "#4CAF79" : tool === "addZone" ? "#6B4FBB" : "#C9A84C", color: tool === "addSeat" ? "#fff" : tool === "addZone" ? "#fff" : "#1B2A4A", padding: "6px 0", textAlign: "center", fontFamily: F.body, fontWeight: 700, fontSize: 10, letterSpacing: 1.5 }}>
+                {toolHints[tool]}
               </div>
             )}
             <ScaledCanvas virtualW={virtualWidth || 1200} virtualH={virtualHeight || 700} onScale={s => { adminScaleRef.current = s; }}>
               <div
                 ref={canvasRef}
-                style={{ position: "absolute", inset: 0, cursor: tool === "addTable" ? "crosshair" : "default" }}
+                style={{ position: "absolute", inset: 0, cursor: (tool === "addTable" || tool === "addSeat" || (tool === "addZone" && addZoneType)) ? "crosshair" : "default" }}
                 onClick={handleCanvasClick}
                 onMouseDown={e => { if (tool === "select" && e.target === canvasRef.current) setSelected(null); }}
               />
+
+              {/* Venue Zones (rendered below tables/seats) */}
+              {venueZones.map(zone => (
+                <VenueZone key={zone.id} zone={zone} editMode={true}
+                  isSelected={selected?.type === "zone" && selected.zoneId === zone.id}
+                  isDragging={activeDragId === zone.id}
+                  onDragStart={startZoneDrag}
+                  onResizeStart={startResize}
+                  onSelect={z => setSelected({ type: "zone", zoneId: z.id })}
+                  onLabelEdit={handleZoneLabelEdit}
+                />
+              ))}
 
               {labels.map(lbl => (
                 <DraggableLabel key={lbl.id} item={lbl}
                   onDragStart={(e, id) => startLabelDrag(e, id)}
                   isDragging={activeDragId === lbl.id} />
+              ))}
+
+              {/* Standalone seats */}
+              {standaloneSeats.map(seat => (
+                <StandaloneSeat key={seat.id} seat={seat} editMode={true}
+                  isSelected={selected?.type === "standaloneSeat" && selected.standaloneSeatId === seat.id}
+                  isDragging={activeDragId === seat.id}
+                  onDragStart={startStandaloneSeatDrag}
+                  onSelect={ss => setSelected({ type: "standaloneSeat", standaloneSeatId: ss.id })}
+                />
               ))}
 
               {tables.map(table => (
@@ -834,10 +1278,12 @@ export default function SeatMap({
                 />
               ))}
 
-              {tables.length === 0 && (
+              {tables.length === 0 && standaloneSeats.length === 0 && venueZones.length === 0 && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                  <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.25 }}>🪑</div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: "#A09890", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600 }}>No tables yet — click + Table to add one</div>
+                  <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.25 }}>🏟️</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: "#A09890", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, textAlign: "center" }}>
+                    Empty canvas — use the toolbar above to add tables, seats, or venue zones
+                  </div>
                 </div>
               )}
             </ScaledCanvas>
@@ -848,13 +1294,34 @@ export default function SeatMap({
         <div style={{ flex: "0 0 280px", width: 280, display: "flex", flexDirection: "column", gap: 14 }}>
           <HowToUse />
           <Inspector
-            selected={selected} selectedTable={selectedTable} selectedSeatObj={selectedSeatObj}
+            selected={selected}
+            selectedTable={selectedTable}
+            selectedSeatObj={selectedSeatObj}
+            selectedZone={selectedZone}
+            selectedStandaloneSeat={selectedStandaloneSeat}
             tables={tables} setTables={setTables}
+            venueZones={venueZones} setVenueZones={setVenueZones}
+            standaloneSeats={standaloneSeats} setStandaloneSeats={setStandaloneSeats}
             addSeat={addSeat} deleteSeat={deleteSeat} deleteTable={deleteTable}
             updateTable={updateTable} handleSeatLabelEdit={handleSeatLabelEdit}
             handleSeatStatus={handleSeatStatus} handleSeatPosition={handleSeatPosition}
           />
           <Legend />
+
+          {/* Zone palette */}
+          <div style={{ background: "#fff", borderRadius: 10, padding: "14px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 8, textTransform: "uppercase" }}>Venue Zones</div>
+            <div style={{ fontSize: 11, color: "#888", fontFamily: F.body, marginBottom: 8, lineHeight: 1.5 }}>
+              Use the <strong style={{ color: "#6B4FBB" }}>🏟️ Zone</strong> button above to add zones to the canvas.
+            </div>
+            {VENUE_ZONE_PRESETS.map(preset => (
+              <div key={preset.type} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 12, height: 12, borderRadius: 3, background: preset.color, border: "1px solid rgba(0,0,0,0.15)", flexShrink: 0 }} />
+                <span style={{ fontFamily: F.body, fontSize: 12, color: "#555", fontWeight: 500 }}>{preset.label}</span>
+              </div>
+            ))}
+          </div>
+
           <div style={{ background: "#fff", borderRadius: 10, padding: "14px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 8, textTransform: "uppercase" }}>Draggable Labels</div>
             <div style={{ fontSize: 11, color: "#888", fontFamily: F.body, marginBottom: 8, lineHeight: 1.5 }}>Drag these on the canvas:</div>

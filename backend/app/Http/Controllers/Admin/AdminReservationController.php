@@ -27,18 +27,28 @@ class AdminReservationController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $page = $request->get('page', 1);
+            $page    = $request->get('page', 1);
             $perPage = $request->get('per_page', 10);
-            
-            $reservations = $this->reservationService->getAllReservationsPaginated($page, $perPage);
-            
+
+            // ── Sort params sent by the frontend (sort=created_at&direction=desc) ──
+            $allowedSorts = ['created_at', 'updated_at', 'id', 'event_date', 'status'];
+            $sort      = in_array($request->get('sort'), $allowedSorts)
+                            ? $request->get('sort')
+                            : 'created_at';
+            $direction = in_array($request->get('direction'), ['asc', 'desc'])
+                            ? $request->get('direction')
+                            : 'desc';
+
+            $reservations = $this->reservationService
+                                 ->getAllReservationsPaginated($page, $perPage, $sort, $direction);
+
             return response()->json([
                 'data' => $reservations->items(),
                 'pagination' => [
                     'current_page' => $reservations->currentPage(),
-                    'per_page' => $reservations->perPage(),
-                    'total' => $reservations->total(),
-                    'last_page' => $reservations->lastPage(),
+                    'per_page'     => $reservations->perPage(),
+                    'total'        => $reservations->total(),
+                    'last_page'    => $reservations->lastPage(),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -59,34 +69,30 @@ class AdminReservationController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => 'required|string|max:20',
-            'venue_id' => 'required|exists:venues,id',
-            'table_number' => 'nullable|string|max:50',
-            'seat_number' => 'nullable|string|max:50',
-            'guests_count' => 'required|integer|min:1',
-            'event_date' => 'required|date',
-            'event_time' => 'required|string|max:50',
+            'name'             => 'required|string|max:255',
+            'email'            => 'required|email|max:255',
+            'phone'            => 'required|string|max:20',
+            'venue_id'         => 'required|exists:venues,id',
+            'table_number'     => 'nullable|string|max:50',
+            'seat_number'      => 'nullable|string|max:50',
+            'guests_count'     => 'required|integer|min:1',
+            'event_date'       => 'required|date',
+            'event_time'       => 'required|string|max:50',
             'special_requests' => 'nullable|string',
-            'type' => 'required|in:whole,individual',
+            'type'             => 'required|in:whole,individual',
         ]);
 
-        // Generate unique reference code
         $validated['reference_code'] = date('Y') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
-        $validated['status'] = 'pending';
-        $validated['submitted_at'] = now();
+        $validated['status']         = 'pending';
+        $validated['submitted_at']   = now();
 
         $reservation = Reservation::create($validated);
-        
-        // Broadcast reservation created event
+
         broadcast(new ReservationCreated($reservation))->toOthers();
-        
-        // Also broadcast to WebSocket
         WebsocketBroadcaster::broadcast('reservations', 'ReservationCreated', [
             'reservation' => $reservation
         ]);
-        
+
         return response()->json($reservation, 201);
     }
 
@@ -99,51 +105,44 @@ class AdminReservationController extends Controller
     public function update(Request $request, Reservation $reservation): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|max:255',
-            'phone' => 'sometimes|required|string|max:20',
-            'guests_count' => 'sometimes|required|integer|min:1',
-            'event_date' => 'sometimes|required|date',
-            'event_time' => 'sometimes|required|string|max:50',
+            'name'             => 'sometimes|required|string|max:255',
+            'email'            => 'sometimes|required|email|max:255',
+            'phone'            => 'sometimes|required|string|max:20',
+            'guests_count'     => 'sometimes|required|integer|min:1',
+            'event_date'       => 'sometimes|required|date',
+            'event_time'       => 'sometimes|required|string|max:50',
             'special_requests' => 'sometimes|nullable|string',
-            'status' => 'sometimes|required|in:pending,approved,rejected,reserved',
+            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved',
         ]);
 
         $reservation->update($validated);
-        
-        // Broadcast reservation updated event
+
         broadcast(new ReservationUpdated($reservation))->toOthers();
-        
-        // Also broadcast to WebSocket
         WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
             'reservation' => $reservation
         ]);
-        
+
         return response()->json($reservation);
     }
 
     public function destroy(string $id): JsonResponse
     {
         try {
-            // Try to find by ID first, then by reference_code
             $reservation = Reservation::where('id', $id)->first();
             if (!$reservation) {
                 $reservation = Reservation::where('reference_code', $id)->firstOrFail();
             }
-            
+
             $this->reservationService->deleteReservation($reservation);
-            
-            // Broadcast reservation deleted event
+
             broadcast(new ReservationDeleted($id))->toOthers();
-            
-            // Also broadcast to WebSocket
             WebsocketBroadcaster::broadcast('reservations', 'ReservationDeleted', [
                 'id' => $id
             ]);
-            
+
             return response()->json([
-                'success' => true,
-                'message' => 'Reservation deleted successfully',
+                'success'        => true,
+                'message'        => 'Reservation deleted successfully',
                 'reservation_id' => $id
             ]);
         } catch (\Exception $e) {
@@ -157,7 +156,7 @@ class AdminReservationController extends Controller
             ->with(['seats'])
             ->orderBy('event_date', 'asc')
             ->get();
-            
+
         return response()->json($reservations);
     }
 
@@ -166,18 +165,15 @@ class AdminReservationController extends Controller
         try {
             $reservation = Reservation::findOrFail($id);
             $this->reservationService->approveReservation($reservation);
-            
-            // Broadcast reservation updated event (approved)
+
             broadcast(new ReservationUpdated($reservation))->toOthers();
-            
-            // Also broadcast to WebSocket
             WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
                 'reservation' => $reservation
             ]);
-            
+
             return response()->json([
-                'success' => true,
-                'message' => 'Reservation approved successfully',
+                'success'        => true,
+                'message'        => 'Reservation approved successfully',
                 'reservation_id' => $reservation->reference_code
             ]);
         } catch (\Exception $e) {
@@ -190,18 +186,15 @@ class AdminReservationController extends Controller
         try {
             $reservation = Reservation::findOrFail($id);
             $this->reservationService->rejectReservation($reservation);
-            
-            // Broadcast reservation updated event (rejected)
+
             broadcast(new ReservationUpdated($reservation))->toOthers();
-            
-            // Also broadcast to WebSocket
             WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
                 'reservation' => $reservation
             ]);
-            
+
             return response()->json([
-                'success' => true,
-                'message' => 'Reservation rejected successfully',
+                'success'        => true,
+                'message'        => 'Reservation rejected successfully',
                 'reservation_id' => $reservation->reference_code
             ]);
         } catch (\Exception $e) {

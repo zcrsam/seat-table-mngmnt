@@ -6,8 +6,51 @@ const http = require('http');
 const axios = require('axios');
 const url = require('url');
 
-// Create HTTP server for WebSocket upgrade
-const server = http.createServer();
+// Create HTTP server for WebSocket upgrade and broadcast endpoint
+const server = http.createServer((req, res) => {
+  // Handle broadcast endpoint
+  if (req.method === 'POST' && req.url === '/broadcast') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        console.log(`[Broadcast] Received event: ${data.event}`);
+        
+        // Forward to all connected WebSocket clients
+        clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              event: data.event,
+              channel: data.channel || 'reservations',
+              payload: data.payload
+            }));
+          }
+        });
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (error) {
+        console.error('[Broadcast] Error parsing message:', error);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      }
+    });
+  } else {
+    // Handle broadcasts endpoint for polling
+    if (req.url === '/broadcasts') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ broadcasts: [] })); // Return empty for now
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  }
+});
+
 const wss = new WebSocket.Server({ server });
 
 // Store connected clients
