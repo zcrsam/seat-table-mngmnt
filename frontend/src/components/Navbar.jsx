@@ -9,21 +9,14 @@ export default function Nav() {
   const [active, setActive] = useState(null);
   const [scrolled, setScrolled] = useState(false);
 
-  // ─────────────────────────────────────────
-  // Detect scroll for navbar background
-  // ─────────────────────────────────────────
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
-
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ─────────────────────────────────────────
-  // Scroll helper
-  // ─────────────────────────────────────────
   const scrollToId = (id) => {
     requestAnimationFrame(() => {
       const el = document.getElementById(id);
@@ -31,24 +24,18 @@ export default function Nav() {
     });
   };
 
-  // Listen for homepage section changes (dispatched from HomePage)
   useEffect(() => {
     const handleHomeSection = (e) => {
       if (location.pathname !== "/") return;
       setActive(e?.detail ?? null);
     };
-
     window.addEventListener("homeActiveSection", handleHomeSection);
     return () => window.removeEventListener("homeActiveSection", handleHomeSection);
   }, [location.pathname]);
 
-  // ─────────────────────────────────────────
-  // EVENT click
-  // ─────────────────────────────────────────
   const handleEventClick = (e) => {
     e.preventDefault();
     setActive("event");
-
     if (location.pathname === "/") {
       scrollToId("home-event");
     } else {
@@ -56,13 +43,9 @@ export default function Nav() {
     }
   };
 
-  // ─────────────────────────────────────────
-  // DINING click
-  // ─────────────────────────────────────────
   const handleDiningClick = (e) => {
     e.preventDefault();
     setActive("dining");
-
     if (location.pathname === "/") {
       scrollToId("home-dining");
     } else {
@@ -73,7 +56,6 @@ export default function Nav() {
   return (
     <>
       <nav className={`nav ${scrolled ? "scrolled" : ""}`}>
-        {/* Logo only */}
         <a
           href="/"
           className="nav-brand"
@@ -86,21 +68,7 @@ export default function Nav() {
         </a>
 
         <div className="nav-links">
-          <a
-            href="#event"
-            className={`nav-link ${active === "event" ? "active" : ""}`}
-            onClick={handleEventClick}
-          >
-            EVENT
-          </a>
-
-          <a
-            href="#dining"
-            className={`nav-link ${active === "dining" ? "active" : ""}`}
-            onClick={handleDiningClick}
-          >
-            DINING
-          </a>
+          {/* Navigation links removed as requested */}
         </div>
       </nav>
 
@@ -115,12 +83,16 @@ export default function Nav() {
           top: 0;
           width: 100%;
           z-index: 200;
-          transition: background 0.3s ease, box-shadow 0.3s ease;
+          transition: background 0.3s ease, backdrop-filter 0.3s ease, box-shadow 0.3s ease;
+          box-sizing: border-box;
         }
 
         .nav.scrolled {
-          background: white;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+          background: rgba(255, 251, 244, 0.82);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          box-shadow: none;
+          border-bottom: 1px solid rgba(201, 168, 76, 0.15);
         }
 
         .nav-brand {
@@ -151,7 +123,6 @@ export default function Nav() {
           transition: background 0.2s ease, color 0.2s ease;
         }
 
-        /* Rectangle highlight */
         .nav-link.active {
           background: #C9A84C;
           color: white;

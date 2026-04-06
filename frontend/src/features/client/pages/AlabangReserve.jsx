@@ -1,1076 +1,1373 @@
-// src/features/home/pages/HomePage.jsx
-import { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-
+// src/pages/AlabangReserve.jsx
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import MainWingNavbar from "../components/MainWingNavbar";
+import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
+import {
+  getRoomData,
+  subscribeToSeatMapChanges,
+  dispatchSeatMapUpdate,
+} from "../../../utils/seatMapPersistence.js";
+import Echo from '../../../utils/websocket.js';
 import bellevueLogo from "../../../assets/bellevue-logo.png";
-import heroBanner from "../../../assets/banner-grandroom.jpg";
 
-import mainWingImg from "../../../assets/main-wing.jpeg";
-import towerWingImg from "../../../assets/tower-wing.jpeg";
-import diningImg from "../../../assets/dining.jpeg";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-import qsinaImg from "../../../assets/qsina.jpeg";
-import qsinaImg2 from "../../../assets/qsina2.jpeg";
-import qsinaImg3 from "../../../assets/qsina3.jpeg";
-import hanakazuImg from "../../../assets/hanakazu.jpeg";
-import hanakazuImg2 from "../../../assets/hanakazu2.jpeg";
-import hanakazuImg3 from "../../../assets/hanakazu3.jpeg";
-import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
+const WING = "Main Wing";
+const ROOM = "Alabang Function Room";
 
-// ─────────────────────────────────────────────
-// THEME CONTEXT
-// ─────────────────────────────────────────────
-const ThemeContext = createContext({ isDark: true, toggle: () => {} });
-const useTheme = () => useContext(ThemeContext);
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-// ─────────────────────────────────────────────
-// DESIGN TOKENS — per-theme
-// ─────────────────────────────────────────────
-function getTokens(isDark) {
-  return isDark
-    ? {
-        gold:        "#C9A84C",
-        goldLight:   "#E2C96A",
-        goldDark:    "#9A7A2E",
-        goldFaint:   "rgba(201,168,76,0.12)",
-        // backgrounds
-        pageBg:      "#0E0D09",
-        darkCard:    "#1A1812",
-        darkMid:     "#242018",
-        // text
-        textPrimary: "#F7F3EA",
-        textSub:     "rgba(245,239,224,0.52)",
-        textMuted:   "#8A8070",
-        textFaint:   "#4A4438",
-        textDeep:    "#3A3428",
-        // borders
-        border:      "rgba(201,168,76,0.18)",
-        borderLight: "rgba(201,168,76,0.10)",
-        // card / surface
-        cardBg:      "rgba(10,9,6,0.52)",
-        cardFooterBg:"rgba(201,168,76,0.05)",
-        widgetBg:    "rgba(0,0,0,0.5)",
-        fieldBg:     "rgba(255,255,255,0.07)",
-        // footer / newsletter
-        nlBg:        "#242018",
-        footerBg:    "#0E0D09",
-        // section
-        diningBg:    "#0E0D09",
-        // hero overlay
-        heroOverlay: "rgba(6,5,3,0.68)",
-        // badge
-        badgeBg:     "rgba(0,0,0,0.42)",
-        // scroll cue
-        scrollCueOp: 0.28,
-        // footer-link hover
-        footerLinkDefault: "#4A4438",
-      }
-    : {
-        gold:        "#A07828",
-        goldLight:   "#C9A84C",
-        goldDark:    "#7A5A18",
-        goldFaint:   "rgba(160,120,40,0.10)",
-        // backgrounds
-        pageBg:      "#F5F0E8",
-        darkCard:    "#FFFFFF",
-        darkMid:     "#EDE7D9",
-        // text
-        textPrimary: "#1A1612",
-        textSub:     "rgba(26,22,18,0.60)",
-        textMuted:   "#5A5040",
-        textFaint:   "#8A7A60",
-        textDeep:    "#9A8A70",
-        // borders
-        border:      "rgba(160,120,40,0.22)",
-        borderLight: "rgba(160,120,40,0.14)",
-        // card / surface
-        cardBg:      "rgba(255,255,255,0.82)",
-        cardFooterBg:"rgba(160,120,40,0.06)",
-        widgetBg:    "rgba(255,252,245,0.94)",
-        fieldBg:     "rgba(0,0,0,0.04)",
-        // footer / newsletter
-        nlBg:        "#EDE7D9",
-        footerBg:    "#F5F0E8",
-        // section
-        diningBg:    "#F5F0E8",
-        // hero overlay
-        heroOverlay: "rgba(245,240,232,0.0)",   // hero stays dark-by-design
-        // badge
-        badgeBg:     "rgba(255,255,255,0.72)",
-        // scroll cue
-        scrollCueOp: 0.38,
-        // footer-link hover
-        footerLinkDefault: "#7A6A50",
-      };
+function ChevronLeftIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2.5"
+      strokeLinecap="round" strokeLinejoin="round"
+      style={{ display: "block", flexShrink: 0 }}
+    >
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
 }
 
-const F = {
-  display: "Georgia, 'Times New Roman', serif",
-  body:    "'Inter', 'Helvetica Neue', Arial, sans-serif",
+const apiCall = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
+    ...options,
+    headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    let msg = data?.message || `HTTP ${response.status}`;
+    if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
+    throw new Error(msg);
+  }
+  return data;
 };
 
-// ─────────────────────────────────────────────
-// DATA
-// ─────────────────────────────────────────────
-const EVENT_CATEGORIES = [
-  { id: 1, label: "MAIN WING",  subtitle: "Elegant banquets & corporate events",    img: mainWingImg,  section: "main-wing" },
-  { id: 2, label: "TOWER WING", subtitle: "Grand celebrations & gala evenings",     img: towerWingImg, section: "tower-wing" },
-  { id: 3, label: "DINING",     subtitle: "Fine dining & culinary experiences",     img: diningImg,    section: "dining" },
-];
+const normalizeBooking = (b) => ({
+  db_id:            b.db_id ?? b.id ?? b.reservation_id ?? null,
+  id:               b.reference_code ?? b.ref_code ?? String(b.id ?? ""),
+  reference_code:   b.reference_code ?? b.ref_code ?? String(b.id ?? ""),
+  name:             b.name ?? b.guest_name ?? b.full_name ?? b.guest ?? "",
+  email:            b.email ?? b.guest_email ?? "",
+  phone:            b.phone ?? b.phone_number ?? b.contact ?? "",
+  room:             b.room ?? b.venue ?? b.room_name ?? b.venue_name ?? ROOM,
+  table_number:     b.table_number ?? b.table ?? b.table_no ?? "",
+  table:            b.table_number ?? b.table ?? b.table_no ?? "",
+  seat:             b.seat_number ?? b.seat ?? b.seats ?? "",
+  event_date:       b.event_date ?? b.eventDate ?? b.date ?? "",
+  event_time:       b.event_time ?? b.eventTime ?? b.time ?? "",
+  status:           (b.status ?? "pending").toLowerCase(),
+  guests:           b.guests_count ?? b.guests ?? b.guest_count ?? 1,
+  type:             b.type ?? "whole",
+  special_requests: b.special_requests ?? b.specialRequests ?? "",
+});
 
-const DINING_TIMES = [
-  { label: "Breakfast Buffet", hours: "6:00 – 10:00 AM" },
-  { label: "Lunch",            hours: "MON · TUE · SAT · SUN" },
-  { label: "Light Lunch",      hours: "WED · FRI" },
-  { label: "Dinner",           hours: "MON · THURS" },
-  { label: "Dinner Buffet",    hours: null },
-];
+const s = {
+  root:            { fontFamily: FONT, background: "#F7F3EA", minHeight: "100vh", width: "100%", color: "#1B2A4A" },
+  page:            { padding: "32px 40px", maxWidth: 1200, margin: "0 auto" },
+  pageTitle:       { fontSize: 38, fontWeight: 700, fontFamily: FONT, color: "#1B2A4A", margin: 0, lineHeight: 1.1, letterSpacing: "-0.5px" },
+  pageSubtitle:    { fontSize: 14, color: "#6b6256", fontFamily: FONT, marginTop: 6, marginBottom: 28, fontWeight: 400, maxWidth: 560, lineHeight: 1.5 },
+  toggleBar:       { display: "flex", alignItems: "center", gap: 20, marginBottom: 28, flexWrap: "wrap" },
+  toggleLabel:     { fontFamily: FONT, fontWeight: 700, fontSize: 11, letterSpacing: 1.5, color: "#888", textTransform: "uppercase" },
+  togglePillGroup: { display: "flex", alignItems: "center", background: "#E8E3DC", borderRadius: 24, padding: 3, gap: 2 },
+  togglePillBtn:   (active) => ({ padding: "8px 22px", border: "none", background: active ? "#1B2A4A" : "transparent", color: active ? "#FFFFFF" : "#888", cursor: "pointer", fontSize: 11, letterSpacing: 1.5, fontWeight: 700, fontFamily: FONT, borderRadius: 20, transition: "all 0.18s", outline: "none", textTransform: "uppercase" }),
+  layout:          { display: "flex", gap: 28, alignItems: "flex-start" },
+  mapCard:         { flex: 1, minWidth: 320 },
+  rightPanel:      { width: 260, display: "flex", flexDirection: "column", gap: 14, flexShrink: 0 },
 
-const RESTAURANTS = [
-  {
-    id: "qsina",
-    name: "Qsina",
-    description: "Qsina offers diverse culinary delights with both international buffets and à la carte options. From lavish breakfast spreads to intimate dinner experiences.",
-    imgs: [qsinaImg, qsinaImg2, qsinaImg3],
-    diningTimes: [
-      { label: "Breakfast Buffet", hours: "6:00 – 10:00 AM" },
-      { label: "Lunch",            hours: "MON · TUE · SAT · SUN" },
-      { label: "Light Lunch",      hours: "WED · FRI" },
-      { label: "Dinner",           hours: "MON · THURS" },
-      { label: "Dinner Buffet",    hours: null },
-    ],
-  },
-  {
-    id: "hanakazu",
-    name: "Hanakazu",
-    description: "Hanakazu brings authentic Japanese cuisine to The Bellevue Manila. Savor fresh sushi, sashimi, and teppanyaki in an elegant setting.",
-    imgs: [hanakazuImg, hanakazuImg2, hanakazuImg3],
-    diningTimes: [
-      { label: "Lunch",    hours: "11:30 AM – 2:30 PM" },
-      { label: "Dinner",   hours: "6:00 PM – 10:00 PM" },
-      { label: "Omakase",  hours: "By reservation" },
-    ],
-  },
-  {
-    id: "phoenix-court",
-    name: "Phoenix Court",
-    description: "Phoenix Court presents refined Cantonese and Chinese cuisine. Experience dim sum, Peking duck, and classic dishes in a sophisticated atmosphere.",
-    imgs: [phoenixCourtImg, qsinaImg2, qsinaImg3],
-    diningTimes: [
-      { label: "Dim Sum",  hours: "5:00 AM – 11:29 PM" },
-      { label: "Lunch",    hours: "11:30 AM – 2:30 PM" },
-      { label: "Dinner",   hours: "6:00 PM – 10:00 PM" },
-    ],
-  },
-];
+  legendCard:  { background: "#fff", borderRadius: 10, padding: "16px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
+  legendTitle: { fontFamily: FONT, fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 10, textTransform: "uppercase" },
+  legendRow:   { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 },
+  legendDot:   (color) => ({ width: 13, height: 13, borderRadius: 3, background: color, flexShrink: 0 }),
+  legendText:  { fontFamily: FONT, fontSize: 13, color: "#333", fontWeight: 500 },
 
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
-function Divider({ color, mb = 0, mt = 0 }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <div style={{ height: 1, background: color ?? C.borderLight, margin: `${mt}px 0 ${mb}px` }} />;
-}
+  selCard:  { background: "#fff", borderRadius: 10, padding: "16px 18px", color: "#1B2A4A", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
+  selTitle: { fontFamily: FONT, fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 10, textTransform: "uppercase" },
+  selRow:   { marginBottom: 6, display: "flex", alignItems: "baseline", gap: 4 },
+  selLabel: { fontFamily: FONT, fontSize: 10, letterSpacing: 1.5, color: "#999", fontWeight: 700, textTransform: "uppercase", flexShrink: 0 },
+  selVal:   { fontFamily: FONT, fontSize: 13, color: "#1B2A4A", fontWeight: 600 },
+  ctaBtn:   (enabled) => ({ marginTop: 10, width: "100%", padding: "11px 0", background: enabled ? "#C9A84C" : "#E8E3DC", color: enabled ? "#1B2A4A" : "#AAA", border: "none", borderRadius: 6, fontFamily: FONT, fontWeight: 700, fontSize: 11, letterSpacing: 1.5, cursor: enabled ? "pointer" : "default", transition: "all 0.2s", textTransform: "uppercase" }),
 
-function GoldLine({ width = 32 }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <span style={{ display: "inline-block", width, height: 1, background: C.gold, verticalAlign: "middle" }} />;
-}
+  policyCard:  { background: "#fff", borderRadius: 10, padding: "14px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
+  policyTitle: { fontFamily: FONT, fontWeight: 700, fontSize: 10, letterSpacing: 2, color: "#1B2A4A", marginBottom: 8, textTransform: "uppercase" },
+  policyText:  { fontFamily: FONT, fontSize: 12, color: "#666", lineHeight: 1.6 },
 
-function useScrollReveal(threshold = 0.15) {
-  const ref = useRef(null);
-  const [vis, setVis] = useState(false);
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") { setVis(true); return; }
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setVis(true); obs.disconnect(); }
-    }, { threshold });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return [ref, vis];
-}
+  overlay:    { position: "fixed", inset: 0, background: "rgba(27,42,74,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(3px)", padding: "12px" },
+  splitModal: { background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.22)", overflow: "hidden", position: "relative" },
 
-// ─────────────────────────────────────────────
-// THEME TOGGLE BUTTON
-// ─────────────────────────────────────────────
-function ThemeToggle() {
-  const { isDark, toggle } = useTheme();
-  const C = getTokens(isDark);
+  splitHeader:      { background: "#1B2A4A", padding: "24px 28px 20px", position: "relative" },
+  splitHeaderTag:   { fontFamily: FONT, fontSize: 10, letterSpacing: 2.5, color: "#C9A84C", fontWeight: 700, marginBottom: 6, textTransform: "uppercase" },
+  splitHeaderTitle: { fontFamily: FONT, fontSize: 20, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.15, margin: 0 },
+  splitBody:        { background: "#fff", padding: "20px 28px 28px" },
+
+  splitInfoCard:    { background: "#F7F3EA", borderRadius: 10, padding: "0 18px", marginBottom: 24 },
+  splitInfoRow:     { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: "1px solid #EAE5DC" },
+  splitInfoRowLast: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0" },
+  splitInfoKey:     { fontFamily: FONT, fontSize: 11, fontWeight: 600, letterSpacing: 1.5, color: "#999", textTransform: "uppercase" },
+  splitInfoVal:     { fontFamily: FONT, fontSize: 14, fontWeight: 700, color: "#1B2A4A", textAlign: "right", maxWidth: "60%" },
+
+  splitContinueBtn: { width: "100%", padding: "15px 0", background: "#1B2A4A", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontWeight: 700, fontSize: 12, letterSpacing: 2.5, cursor: "pointer", marginBottom: 10, textTransform: "uppercase", transition: "background 0.18s" },
+  splitCancelBtn:   { width: "100%", padding: "13px 0", background: "transparent", color: "#AAAAAA", border: "1.5px solid #E8E3DC", borderRadius: 8, fontFamily: FONT, fontWeight: 700, fontSize: 12, letterSpacing: 2.5, cursor: "pointer", textTransform: "uppercase", transition: "border-color 0.15s" },
+  splitCloseBtn:    { position: "absolute", top: 14, right: 16, width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, lineHeight: 1, transition: "background 0.15s" },
+
+  guestInputWrap: { textAlign: "center", margin: "4px 0 22px" },
+  guestInputRow:  { display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 10, border: "2px solid #C9A84C", borderRadius: 10, overflow: "hidden", maxWidth: 200, margin: "0 auto 10px" },
+  guestStepBtn:   { width: 52, height: 56, border: "none", background: "#F7F3EA", color: "#C9A84C", fontSize: 26, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontFamily: FONT, transition: "background 0.15s", flexShrink: 0 },
+  guestNumInput:  { flex: 1, border: "none", borderLeft: "1.5px solid #E8E3DC", borderRight: "1.5px solid #E8E3DC", textAlign: "center", fontFamily: FONT, fontSize: 32, fontWeight: 700, color: "#1B2A4A", outline: "none", background: "#fff", padding: "8px 0", minWidth: 0 },
+  guestLabel:     { fontFamily: FONT, fontSize: 9, letterSpacing: 2, color: "#999", fontWeight: 700, textTransform: "uppercase", textAlign: "center", marginTop: 6 },
+  guestNote:      { fontFamily: FONT, fontSize: 12, color: "#666", marginBottom: 0, lineHeight: 1.6, textAlign: "center", marginTop: 8 },
+
+  timerBar: { background: "#F7F3EA", borderRadius: 8, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, fontSize: 11, fontFamily: FONT, color: "#666", letterSpacing: 1, border: "1px solid #E8E3DC" },
+  timerNum: { color: "#C9A84C", fontWeight: 700, fontSize: 16, fontFamily: FONT },
+
+  infoBadge:      { background: "#F7F3EA", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 16, marginBottom: 16, fontSize: 12, fontFamily: FONT, color: "#666", border: "1px solid #E8E3DC", flexWrap: "wrap" },
+  infoBadgeItem:  { display: "flex", flexDirection: "column" },
+  infoBadgeLabel: { fontSize: 9, letterSpacing: 1.5, color: "#999", fontWeight: 700, textTransform: "uppercase", fontFamily: FONT },
+  infoBadgeVal:   { color: "#1B2A4A", fontWeight: 700, fontSize: 12, fontFamily: FONT },
+
+  formLabel: { fontFamily: FONT, fontSize: 11, fontWeight: 600, letterSpacing: 0.5, color: "#555", marginBottom: 5, display: "block" },
+  formInput: { width: "100%", padding: "10px 12px", borderRadius: 6, border: "1.5px solid #E0DAD0", background: "#FAFAF7", color: "#1B2A4A", fontFamily: FONT, fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none" },
+  formRow:   { display: "flex", gap: 10 },
+
+  sectionLabel: { fontFamily: FONT, fontSize: 10, letterSpacing: 1.5, fontWeight: 700, color: "#C9A84C", marginBottom: 10, marginTop: 16, textTransform: "uppercase" },
+  reviewRow:    { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #F0EDE4", padding: "9px 0", fontFamily: FONT, fontSize: 13 },
+  reviewKey:    { color: "#888" },
+  reviewVal:    { color: "#1B2A4A", fontWeight: 600, textAlign: "right" },
+  pendingBadge: { background: "#FFF3E0", color: "#E8A838", borderRadius: 4, padding: "2px 8px", fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: 1 },
+
+  editBtn:   { flex: 1, padding: "12px 0", border: "2px solid #1B2A4A", background: "transparent", color: "#1B2A4A", borderRadius: 6, fontFamily: FONT, fontWeight: 700, fontSize: 11, letterSpacing: 2, cursor: "pointer", textTransform: "uppercase" },
+  submitBtn: { flex: 1, padding: "12px 0", border: "none", background: "#1B2A4A", color: "#fff", borderRadius: 6, fontFamily: FONT, fontWeight: 700, fontSize: 11, letterSpacing: 2, cursor: "pointer", textTransform: "uppercase" },
+
+  errorBox: { background: "#FFF0F0", border: "1px solid #FFCDD2", borderRadius: 6, padding: "10px 12px", marginBottom: 14, fontFamily: FONT, fontSize: 12, color: "#C62828" },
+  backLink: { background: "none", border: "none", color: "#C9A84C", fontFamily: FONT, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "0 0 16px", letterSpacing: 1, display: "block" },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const getWholeSeatLabel = (guests, tableData = null) => {
+  if (!guests || guests < 1) return "Seat 1";
+  if (tableData?.seats?.length) {
+    const bookable = tableData.seats
+      .filter(s => s.status === "available")
+      .slice(0, guests)
+      .map(s => s.num ?? s.id);
+    if (bookable.length > 0) return `Seat ${bookable.join(", ")}`;
+  }
+  return `Seat ${Array.from({ length: guests }, (_, i) => i + 1).join(", ")}`;
+};
+
+const getSeatRatio = (table) => {
+  if (!table?.seats?.length) return null;
+  const available = table.seats.filter(s => s.status === "available").length;
+  return `${available}/${table.seats.length}`;
+};
+
+// ─── Step Indicator ───────────────────────────────────────────────────────────
+function StepIndicator({ step, light = false }) {
+  const steps       = ["Guest Count", "Details", "Confirm"];
+  const textColor   = light ? "rgba(255,255,255,0.55)" : "#BBB";
+  const doneColor   = "#C9A84C";
+  const lineDefault = light ? "rgba(255,255,255,0.20)" : "#E8E3DC";
+
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      style={{
-        position: "fixed",
-        top: 20,
-        right: 24,
-        zIndex: 99999,
-        width: 46,
-        height: 26,
-        borderRadius: 13,
-        border: `1.5px solid ${C.border}`,
-        background: isDark ? "rgba(201,168,76,0.15)" : "rgba(160,120,40,0.12)",
-        cursor: "pointer",
-        padding: 0,
-        display: "flex",
-        alignItems: "center",
-        transition: "background 0.3s, border-color 0.3s",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        boxShadow: isDark
-          ? "0 2px 12px rgba(0,0,0,0.5)"
-          : "0 2px 12px rgba(0,0,0,0.12)",
-      }}
-    >
-      {/* Track fill */}
-      <span style={{
-        position: "absolute",
-        inset: 2,
-        borderRadius: 11,
-        background: isDark
-          ? "linear-gradient(90deg,rgba(201,168,76,0.2),rgba(201,168,76,0.08))"
-          : "linear-gradient(90deg,rgba(255,220,100,0.5),rgba(255,180,30,0.3))",
-        transition: "background 0.3s",
-      }} />
-      {/* Thumb */}
-      <span style={{
-        position: "absolute",
-        left: isDark ? "calc(100% - 22px)" : 3,
-        width: 18,
-        height: 18,
-        borderRadius: "50%",
-        background: isDark ? C.gold : "#F5A623",
-        boxShadow: isDark ? "0 1px 4px rgba(0,0,0,0.5)" : "0 1px 4px rgba(0,0,0,0.18)",
-        transition: "left 0.28s cubic-bezier(.22,.68,0,1.2), background 0.3s",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 10,
-      }}>
-        {isDark ? "🌙" : "☀️"}
-      </span>
-    </button>
+    <div style={{ display: "flex", alignItems: "flex-start", marginBottom: 0, marginTop: 16 }}>
+      {steps.map((label, i) => {
+        const idx          = i + 1;
+        const done         = step > idx;
+        const active       = step === idx;
+        const circleBg     = done ? doneColor : active ? (light ? "rgba(255,255,255,0.18)" : "#1B2A4A") : (light ? "rgba(255,255,255,0.08)" : "#F0EDE8");
+        const circleBorder = done || active ? "none" : `2px solid ${light ? "rgba(255,255,255,0.25)" : "#DDD"}`;
+        const numColor     = "#fff";
+        const labelColor   = done ? doneColor : active ? (light ? "#fff" : "#1B2A4A") : textColor;
+
+        return (
+          <div key={label} style={{ display: "flex", alignItems: "flex-start", flex: i < steps.length - 1 ? 1 : "none" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: circleBg, border: circleBorder, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                {done ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <span style={{ fontFamily: FONT, fontSize: 11, fontWeight: 700, color: numColor }}>{idx}</span>
+                )}
+              </div>
+              <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 600, letterSpacing: 0.2, color: labelColor, whiteSpace: "nowrap" }}>
+                {label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{ flex: 1, height: 2, marginTop: 13, marginLeft: 6, marginRight: 6, background: done ? doneColor : lineDefault, borderRadius: 2, transition: "background 0.2s" }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// HERO + BROWSE — SINGLE FULL-SCREEN LANDING SECTION
-// ─────────────────────────────────────────────
-function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
+// ─── MODAL 1: Guest Count ─────────────────────────────────────────────────────
+function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel }) {
+  const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
+  const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
+  const capacity      = bookableSeats.length || tableData?.capacity || 8;
+  const [guests,   setGuests]   = useState(() => Math.min(2, capacity));
+  const [inputVal, setInputVal] = useState(String(Math.min(2, capacity)));
 
-  const [loaded, setLoaded] = useState(false);
-  const [hovCard, setHovCard] = useState(null);
+  const handleInputChange = (e) => {
+    const raw = e.target.value.replace(/[^0-9]/g, "");
+    setInputVal(raw);
+    const n = parseInt(raw, 10);
+    if (!isNaN(n) && n >= 1 && n <= capacity) setGuests(n);
+  };
+  const handleInputBlur = () => {
+    let n = parseInt(inputVal, 10);
+    if (isNaN(n) || n < 1) n = 1;
+    if (n > capacity) n = capacity;
+    setGuests(n);
+    setInputVal(String(n));
+  };
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoaded(true), 80);
-    return () => clearTimeout(t);
-  }, []);
-
-  const fade = (delay = 0) => ({
-    opacity: loaded ? 1 : 0,
-    transform: loaded ? "translateY(0)" : "translateY(20px)",
-    transition: `opacity 0.85s ${delay}s ease, transform 0.85s ${delay}s ease`,
-  });
-
-  // In light mode the hero image remains dark/blurred — only UI text/buttons adapt
-  const heroBrightness = isDark ? 0.22 : 0.28;
+  const infoRows = [
+    ["ROOM",        ROOM,                                                   null],
+    ["TABLE",       `Table ${tableData?.id ?? "—"}`,                        null],
+    ["SEAT NUMBER", `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,         null],
+    ["STATUS",
+      seatData?.status === "available" ? "Available" : "Unavailable",
+      seatData?.status === "available" ? "#3DAA6E" : "#E8A838"],
+  ];
 
   return (
-    <section style={{
-      position: "relative",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-    }}>
-      {/* ── Background ── */}
-      <img
-        src={heroBanner} alt=""
-        style={{
-          position: "absolute", inset: 0, width: "100%", height: "100%",
-          objectFit: "cover", filter: `blur(5px) brightness(${heroBrightness})`,
-          transform: "scale(1.06)", pointerEvents: "none",
-        }}
-      />
-      <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(6,5,3,0.68)" : "rgba(20,15,5,0.62)" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 26%, rgba(201,168,76,0.10) 0%, transparent 68%)" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 120% 100% at 50% 50%, transparent 38%, rgba(0,0,0,0.50) 100%)" }} />
-
-      {/* Top decorative rule */}
-      <div style={{
-        position: "absolute", top: 86,
-        left: "clamp(28px,5vw,72px)", right: "clamp(28px,5vw,72px)",
-        height: 1, background: "linear-gradient(90deg,transparent,rgba(201,168,76,0.20),transparent)",
-      }} />
-
-      {/* ── HERO COPY ── */}
-      <div style={{
-        position: "relative", flex: "0 0 auto",
-        display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center",
-        textAlign: "center",
-        padding: "clamp(108px,12vw,155px) clamp(24px,5vw,60px) clamp(40px,5vw,60px)",
-      }}>
-        <h1 style={{
-          ...fade(0.10),
-          fontFamily: F.display,
-          fontSize: "clamp(30px,5.2vw,65px)",
-          fontWeight: 600, color: "#F5EFE0",
-          lineHeight: 1.04, letterSpacing: "-0.025em",
-          margin: "0 0 18px",
-        }}>
-          Reserve Your 
-          <br />
-          <em style={{ color: C.gold, fontStyle: "italic" }}>Perfect Setting.</em>
-        </h1>
-
-        <p style={{
-          ...fade(0.19),
-          fontFamily: F.body, fontSize: "clamp(14px,1.4vw,16px)",
-          color: "rgba(245,239,224,0.52)", lineHeight: 1.85,
-          maxWidth: 460, margin: "0 auto 34px", fontWeight: 400,
-        }}>
-          Choose from premium venues and dining across three wings, then pick your seat and get confirmed in minutes.
-        </p>
-
-        <div style={{ ...fade(0.27), display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="#browse-wings" style={{ textDecoration: "none" }}>
-            <button
-              style={{
-                padding: "14px 34px", background: C.gold, border: "none", borderRadius: 4,
-                fontFamily: F.body, fontSize: 13, fontWeight: 700,
-                letterSpacing: "0.15em", textTransform: "uppercase",
-                color: "#0E0D09", cursor: "pointer",
-                transition: "background 0.2s, transform 0.15s",
-                boxShadow: "0 4px 24px rgba(201,168,76,0.28)",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "translateY(-1px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "translateY(0)"; }}
-            >
-              Browse Venues
-            </button>
-          </a>
-
-          <button
-            type="button"
-            onClick={onManageBooking}
-            style={{
-              padding: "13px 34px", background: "transparent",
-              border: "1.5px solid rgba(245,239,224,0.26)", borderRadius: 4,
-              fontFamily: F.body, fontSize: 13, fontWeight: 600,
-              letterSpacing: "0.15em", textTransform: "uppercase",
-              color: "rgba(245,239,224,0.68)", cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.borderColor = C.gold;
-              e.currentTarget.style.color = C.gold;
-              e.currentTarget.style.background = "rgba(201,168,76,0.07)";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.borderColor = "rgba(245,239,224,0.26)";
-              e.currentTarget.style.color = "rgba(245,239,224,0.68)";
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            Manage My Booking
-          </button>
-        </div>
-      </div>
-
-      {/* ── WING CARDS ── */}
-      <div
-        id="browse-wings"
-        style={{
-          position: "relative", flex: "1 0 auto",
-          padding: "0 clamp(20px,4vw,52px) clamp(52px,7vw,84px)",
-        }}
-      >
-        {/* Label divider */}
-        <div style={{
-          ...fade(0.37),
-          maxWidth: 1160, margin: "0 auto 28px",
-          display: "flex", alignItems: "center", gap: 18,
-        }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(201,168,76,0.14)" }} />
-          <span style={{ fontFamily: F.body, fontSize: 10, fontWeight: 700, letterSpacing: "0.30em", textTransform: "uppercase", color: "rgba(201,168,76,0.62)" }}>
-            Select a Wing to Reserve
-          </span>
-          <div style={{ flex: 1, height: 1, background: "rgba(201,168,76,0.14)" }} />
+    <div style={s.overlay}>
+      <div style={s.splitModal}>
+        <div style={s.splitHeader}>
+          <button style={s.splitCloseBtn} onClick={onCancel}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.24)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}>✕</button>
+          <div style={s.splitHeaderTag}>{mode === "individual" ? "SEAT RESERVATION" : "TABLE RESERVATION"}</div>
+          <h2 style={s.splitHeaderTitle}>{mode === "individual" ? "Reserve this seat?" : "Reserve this table?"}</h2>
+          <StepIndicator step={1} light={true} />
         </div>
 
-        {/* Cards */}
-        <div style={{
-          ...fade(0.43),
-          maxWidth: 1160, margin: "0 auto",
-          display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "clamp(10px,1.8vw,20px)",
-        }}>
-          {EVENT_CATEGORIES.map((cat) => (
-            <div
-              key={cat.id}
-              onClick={() => onNavigateToVenues(cat.section)}
-              onMouseEnter={() => setHovCard(cat.id)}
-              onMouseLeave={() => setHovCard(null)}
-              style={{
-                cursor: "pointer", borderRadius: 10, overflow: "hidden",
-                border: hovCard === cat.id ? "1px solid rgba(201,168,76,0.58)" : "1px solid rgba(201,168,76,0.13)",
-                boxShadow: hovCard === cat.id ? "0 20px 56px rgba(0,0,0,0.55)" : "0 4px 22px rgba(0,0,0,0.32)",
-                transform: hovCard === cat.id ? "translateY(-7px)" : "translateY(0)",
-                transition: "transform 0.30s cubic-bezier(.22,.68,0,1.2), box-shadow 0.30s, border-color 0.22s",
-                background: "rgba(10,9,6,0.52)",
-                backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-              }}
-            >
-              <div style={{ height: "clamp(155px,15vw,205px)", overflow: "hidden", position: "relative" }}>
-                <img
-                  src={cat.img} alt={cat.label} loading="lazy"
+        <div style={s.splitBody}>
+          {mode === "individual" && (
+            <div style={s.splitInfoCard}>
+              {infoRows.map(([key, val, color], i) => (
+                <div key={key} style={i === infoRows.length - 1 ? s.splitInfoRowLast : s.splitInfoRow}>
+                  <span style={s.splitInfoKey}>{key}</span>
+                  <span style={{ ...s.splitInfoVal, color: color || "#1B2A4A" }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {mode === "whole" && (
+            <>
+              <div style={s.guestInputWrap}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={inputVal}
+                  onChange={handleInputChange}
+                  onBlur={handleInputBlur}
+                  placeholder="0"
                   style={{
-                    width: "100%", height: "100%", objectFit: "cover",
-                    transition: "transform 0.55s ease",
-                    transform: hovCard === cat.id ? "scale(1.07)" : "scale(1.01)",
+                    ...s.guestNumInput,
+                    border: "2px solid #C9A84C",
+                    borderRadius: 10,
+                    width: "100%",
+                    maxWidth: 200,
+                    display: "block",
+                    margin: "0 auto 10px",
+                    MozAppearance: "textfield",
+                    WebkitAppearance: "none",
                   }}
                 />
-                <div style={{
-                  position: "absolute", inset: 0,
-                  background: "linear-gradient(to top, rgba(0,0,0,0.62) 0%, transparent 52%)",
-                  opacity: hovCard === cat.id ? 1 : 0.52, transition: "opacity 0.28s",
-                }} />
-                <div style={{
-                  position: "absolute", top: 13, left: 13,
-                  padding: "4px 10px",
-                  background: "rgba(0,0,0,0.42)",
-                  backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-                  border: "1px solid rgba(201,168,76,0.22)", borderRadius: 20,
-                }}>
-                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: "#C9A84C" }}>{cat.label}</span>
+                <div style={s.guestLabel}>NUMBER OF GUESTS</div>
+                <div style={s.guestNote}>
+                  Table <strong style={{ color: "#1B2A4A" }}>{tableData?.id}</strong> has{" "}
+                  <strong style={{ color: "#1B2A4A" }}>{capacity} available seat{capacity !== 1 ? "s" : ""}</strong>
+                  {pendingSeats.length > 0 && (
+                    <span style={{ color: "#E8A838", fontSize: 11 }}>
+                      {" "}({pendingSeats.length} pending admin approval)
+                    </span>
+                  )}.
                 </div>
               </div>
-
-              <div style={{
-                padding: "15px 18px 17px",
-                borderTop: "1px solid rgba(201,168,76,0.09)",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: hovCard === cat.id ? "rgba(201,168,76,0.05)" : "transparent",
-                transition: "background 0.22s",
-              }}>
-                <div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: "#F5EFE0", marginBottom: 3 }}>{cat.label}</div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: "rgba(138,128,112,0.85)" }}>{cat.subtitle}</div>
-                </div>
-                <div style={{
-                  width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                  border: `1px solid ${hovCard === cat.id ? "#C9A84C" : "rgba(201,168,76,0.24)"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: hovCard === cat.id ? "#C9A84C" : "transparent",
-                  transition: "all 0.22s",
-                }}>
-                  <span style={{
-                    fontSize: 13, color: hovCard === cat.id ? "#0E0D09" : "#C9A84C",
-                    display: "inline-block",
-                    transform: hovCard === cat.id ? "translateX(1px)" : "translateX(0)",
-                    transition: "transform 0.2s",
-                  }}>→</span>
-                </div>
+              <div style={{ background: "#F7F3EA", borderRadius: 8, padding: "10px 14px", marginBottom: 16, border: "1px solid #E8E3DC" }}>
+                <div style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#999", textTransform: "uppercase", marginBottom: 4 }}>SEATS TO BE RESERVED</div>
+                <div style={{ fontFamily: FONT, fontSize: 13, color: "#C9A84C", fontWeight: 700 }}>{getWholeSeatLabel(guests, tableData)}</div>
               </div>
-            </div>
-          ))}
-        </div>
+            </>
+          )}
 
-        {/* View All */}
-        <div style={{ ...fade(0.50), maxWidth: 1160, margin: "18px auto 0", display: "flex", justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            onClick={() => onNavigateToVenues()}
-            style={{
-              padding: "8px 20px", border: "1px solid rgba(201,168,76,0.26)",
-              background: "transparent", color: "rgba(245,239,224,0.46)",
-              fontFamily: F.body, fontSize: 11, fontWeight: 600,
-              letterSpacing: "0.12em", textTransform: "uppercase",
-              cursor: "pointer", borderRadius: 3, transition: "all 0.2s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.color = "#C9A84C"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(201,168,76,0.26)"; e.currentTarget.style.color = "rgba(245,239,224,0.46)"; }}
-          >
-            View All Venues →
+          <button style={s.splitContinueBtn}
+            onClick={() => onContinue(mode === "individual" ? 1 : guests)}
+            onMouseEnter={e => { e.currentTarget.style.background = "#2A3F6A"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#1B2A4A"; }}>
+            CONTINUE
+          </button>
+          <button style={s.splitCancelBtn} onClick={onCancel}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#BBBBBB"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#E8E3DC"; }}>
+            CANCEL
           </button>
         </div>
       </div>
-
-      {/* Scroll cue */}
-      <div style={{
-        position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-        opacity: loaded ? C.scrollCueOp : 0, transition: "opacity 1.2s 1.2s",
-        pointerEvents: "none",
-      }}>
-        <span style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: "#C9A84C" }}>Scroll</span>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
-        </svg>
-      </div>
-    </section>
+    </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// DINING SECTION
-// ─────────────────────────────────────────────
-function DiningSection({ onNavigate, initialRestaurantId }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-
-  const [ref, vis] = useScrollReveal(0.1);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("13:00");
-  const [guests, setGuests] = useState(2);
-  const [activeRestaurant, setActiveRestaurant] = useState(0);
-  const [forcedHighlightedLabel, setForcedHighlightedLabel] = useState(null);
-  const [activeImg, setActiveImg] = useState(0);
-
-  const restaurant = RESTAURANTS[activeRestaurant];
-  const imgs = restaurant?.imgs ?? [qsinaImg, qsinaImg2, qsinaImg3];
-  const totalRestaurants = RESTAURANTS.length;
+// ─── MODAL 2: Details ─────────────────────────────────────────────────────────
+function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill = null }) {
+  const today = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({
+    firstName:       prefill?.firstName       || "",
+    lastName:        prefill?.lastName        || "",
+    email:           prefill?.email           || "",
+    phone:           prefill?.phone           || "+63",
+    eventDate:       prefill?.eventDate       || today,
+    eventTime:       prefill?.eventTime       || "19:00",
+    specialRequests: prefill?.specialRequests || "",
+  });
+  const [secondsLeft, setSecondsLeft] = useState(24 * 60);
 
   useEffect(() => {
-    if (!initialRestaurantId) return;
-    const idx = RESTAURANTS.findIndex((r) => r.id === initialRestaurantId);
-    if (idx >= 0) setActiveRestaurant(idx);
-  }, [initialRestaurantId]);
-
-  const selectedMinutes = useMemo(() => {
-    if (!time) return null;
-    const s = String(time).trim();
-    let m = /^(\d{1,2}):(\d{2})$/.exec(s);
-    if (m) { let hh = Number(m[1]); const mm = Number(m[2]); if (Number.isFinite(hh) && Number.isFinite(mm)) { if (hh === 24) hh = 0; return hh * 60 + mm; } }
-    m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(s.replace(/\s+/g, " ")) || /^(\d{1,2})\s*(AM|PM)$/i.exec(s);
-    if (m) { const hh = Number(m[1]); const mm = Number(m[2] || 0); const ap = (m[3] || m[2] || "").toUpperCase(); if (Number.isFinite(hh) && Number.isFinite(mm)) { let h = hh % 12; if (ap === "PM") h += 12; return h * 60 + mm; } }
-    return null;
-  }, [time]);
-
-  const parseHoursRange = (hours) => {
-    if (!hours || typeof hours !== "string") return null;
-    const re = /(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*[–-]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i;
-    const m = re.exec(hours); if (!m) return null;
-    const toMin = (h, min, ap) => { let hh = Number(h); const mm = Number(min || 0); const u = String(ap || "").toUpperCase(); if (u === "AM") { if (hh === 12) hh = 0; } else if (u === "PM") { if (hh !== 12) hh += 12; } return hh * 60 + mm; };
-    const start = toMin(m[1], m[2], m[3]); const end = toMin(m[4], m[5], m[6]);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-    return { start, end };
-  };
-
-  const fallbackSlot = useMemo(() => {
-    if (selectedMinutes == null) return null;
-    if (selectedMinutes >= 360 && selectedMinutes < 600) return "Breakfast Buffet";
-    if (selectedMinutes >= 660 && selectedMinutes < 780) return "Lunch";
-    if (selectedMinutes >= 780 && selectedMinutes < 1020) return "Light Lunch";
-    if (selectedMinutes >= 1020 && selectedMinutes < 1200) return "Dinner";
-    if (selectedMinutes >= 1200 && selectedMinutes < 1320) return "Dinner Buffet";
-    return null;
-  }, [selectedMinutes]);
-
-  const getNextDateForWeekdays = (weekdays) => {
-    if (!weekdays?.length) return null;
-    const names = ["sun","mon","tue","wed","thu","fri","sat"];
-    const today = new Date();
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(today); d.setDate(today.getDate() + i);
-      const dow = names[d.getDay()];
-      if (weekdays.includes(dow)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (prefill) {
+      setForm({
+        firstName:       prefill.firstName       || "",
+        lastName:        prefill.lastName        || "",
+        email:           prefill.email           || "",
+        phone:           prefill.phone           || "+63",
+        eventDate:       prefill.eventDate       || today,
+        eventTime:       prefill.eventTime       || "19:00",
+        specialRequests: prefill.specialRequests || "",
+      });
     }
-    return null;
-  };
+  }, [prefill]);
 
-  const repTime = (label) => ({ "Breakfast Buffet":"08:00", Lunch:"12:00", "Light Lunch":"15:00", Dinner:"18:00", "Dinner Buffet":"20:00" })[label] || "12:00";
-
-  const selectDiningTime = (d) => {
-    const range = parseHoursRange(d.hours);
-    if (range) { const hh = Math.floor(range.start/60); const mm = range.start%60; setTime(`${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`); }
-    else setTime(repTime(d.label));
-    const hh = String(d.hours || "").toLowerCase();
-    const dayMatches = hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g);
-    if (dayMatches?.length) { const tokens = dayMatches.map((s) => s.replace("thur","thu").slice(0,3)); const next = getNextDateForWeekdays(tokens); if (next) setDate(next); }
-    setForcedHighlightedLabel(d.label);
-  };
-
-  const highlightedLabel = useMemo(() => {
-    const times = restaurant?.diningTimes ?? DINING_TIMES;
-    if (forcedHighlightedLabel && times.some((t) => t.label === forcedHighlightedLabel)) return forcedHighlightedLabel;
-    if (!times?.length || selectedMinutes == null) return null;
-    for (const t of times) {
-      const range = parseHoursRange(t.hours); if (!range) continue;
-      const { start, end } = range;
-      if (start <= end ? selectedMinutes >= start && selectedMinutes <= end : selectedMinutes >= start || selectedMinutes <= end) return t.label;
-    }
-    if (!fallbackSlot) return null;
-    const norm = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-    const candidates = fallbackSlot === "Light Lunch" ? ["Light Lunch","Lunch"] : fallbackSlot === "Dinner Buffet" ? ["Dinner Buffet","Dinner"] : [fallbackSlot];
-    const nCands = candidates.map(norm);
-    let selectedDay = null;
-    if (date) { const d = new Date(date+"T00:00:00"); if (!Number.isNaN(d.getTime())) selectedDay = ["sun","mon","tue","wed","thu","fri","sat"][d.getDay()]; }
-    for (const t of times) {
-      const range = parseHoursRange(t.hours); if (range) continue;
-      const hh = String(t.hours||"").toLowerCase();
-      const hasDays = /mon|tue|wed|thu|thur|fri|sat|sun/.test(hh);
-      if (hasDays) {
-        if (!selectedDay) continue;
-        const tokens = (hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g)||[]).map((s)=>s.replace("thur","thu").slice(0,3));
-        if (!tokens.includes(selectedDay)) continue;
-        if (nCands.includes(norm(t.label))) return t.label;
-      } else { if (!t.hours && nCands.includes(norm(t.label))) return t.label; }
-    }
-    return null;
-  }, [restaurant, selectedMinutes, fallbackSlot, date, forcedHighlightedLabel]);
-
-  useEffect(() => { setActiveImg(0); }, [activeRestaurant]);
-  useEffect(() => { setForcedHighlightedLabel(null); }, [activeRestaurant]);
   useEffect(() => {
-    const id = setInterval(() => setActiveImg((n) => (n+1) % imgs.length), 4000);
+    if (secondsLeft <= 0) { onCancel(); return; }
+    const id = setInterval(() => setSecondsLeft(s => s - 1), 1000);
     return () => clearInterval(id);
-  }, [imgs.length]);
+  }, [secondsLeft]);
+
+  const mins     = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const secs     = String(secondsLeft % 60).padStart(2, "0");
+  const isUrgent = secondsLeft <= 60;
+
+  const set = k => e => {
+    const value = e.target.value;
+    if (k === "phone") {
+      if (value.startsWith('+63')) {
+        const digitsAfter63 = value.slice(3).replace(/[^0-9]/g, '');
+        const limitedDigits = digitsAfter63.slice(0, 10);
+        setForm(f => ({ ...f, [k]: '+63' + limitedDigits }));
+      } else {
+        const digitsOnly = value.replace(/[^0-9]/g, '').slice(0, 10);
+        setForm(f => ({ ...f, [k]: '+63' + digitsOnly }));
+      }
+    } else {
+      setForm(f => ({ ...f, [k]: value }));
+    }
+  };
+
+  const allFilled = form.firstName && form.lastName && form.email && form.phone && form.eventDate;
+
+  const seatDisplay = mode === "whole"
+    ? getWholeSeatLabel(guests, tableData)
+    : (seatData ? `Seat ${seatData.num ?? seatData.id}` : "—");
 
   return (
-    <section
-      ref={ref}
-      style={{
-        background: C.diningBg,
-        padding: "clamp(64px,9vw,110px) clamp(20px,5vw,60px)",
-        overflow: "hidden",
-        transition: "background 0.35s ease",
-      }}
-    >
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(40px,6vw,80px)", alignItems: "start" }}>
+    <div style={s.overlay}>
+      <div style={s.splitModal}>
+        <div style={s.splitHeader}>
+          <button style={s.splitCloseBtn} onClick={onCancel}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.24)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}>✕</button>
+          <div style={s.splitHeaderTag}>{mode === "individual" ? "SEAT RESERVATION" : "TABLE RESERVATION"}</div>
+          <h2 style={s.splitHeaderTitle}>Your Information</h2>
+          <StepIndicator step={2} light={true} />
+        </div>
 
-          {/* LEFT */}
-          <div style={{ position: "relative", opacity: vis ? 1 : 0, transform: vis ? "none" : "translateX(-30px)", transition: "opacity 0.8s, transform 0.8s" }}>
-            <div style={{ borderRadius: 10, overflow: "hidden", height: 420, position: "relative" }}>
-              {imgs.map((src, i) => (
-                <img key={src} src={src} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: activeImg === i ? 1 : 0, transition: "opacity 0.55s ease" }} />
-              ))}
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(14,13,9,0.85) 0%,transparent 55%)", pointerEvents: "none" }} />
-              <div style={{ position: "absolute", bottom: 110, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 6 }}>
-                {imgs.map((_, i) => (
-                  <button key={i} type="button" onClick={() => setActiveImg(i)} style={{ width: 6, height: 6, borderRadius: "50%", border: "none", background: i === activeImg ? C.gold : "rgba(255,255,255,0.35)", cursor: "pointer", padding: 0, transition: "background 0.2s" }} />
-                ))}
-              </div>
-            </div>
-
-            {/* Floating widget */}
-            <div style={{
-              position: "absolute", bottom: -28, left: 24, right: 24,
-              background: C.widgetBg,
-              backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-              border: `1px solid ${C.border}`, borderRadius: 10,
-              padding: "22px 24px",
-              boxShadow: isDark ? "0 20px 60px rgba(0,0,0,0.5)" : "0 20px 60px rgba(0,0,0,0.12)",
-              transition: "background 0.35s, border-color 0.35s",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                <div style={{ width: 26, height: 26, borderRadius: "50%", background: C.goldFaint, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: C.gold, fontSize: 14 }}>⌖</span>
-                </div>
-                <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold }}>Find Restaurants</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                <FieldInput type="date" value={date} onChange={(v) => { setForcedHighlightedLabel(null); setDate(v); }} />
-                <FieldInput type="time" value={time} onChange={(v) => { setForcedHighlightedLabel(null); setTime(v); }} />
-              </div>
-              <GuestPicker value={guests} onChange={setGuests} style={{ marginBottom: 14 }} />
-              <button type="button" onClick={() => onNavigate("venue")}
-                style={{ width: "100%", padding: "12px", background: C.gold, border: "none", borderRadius: 4, fontFamily: F.body, fontSize: 13, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isDark ? "#0E0D09" : "#FFFFFF", cursor: "pointer", transition: "background 0.2s" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = C.goldLight)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = C.gold)}>
-                SUBMIT
-              </button>
-            </div>
+        <div style={{ ...s.splitBody, maxHeight: "65vh", overflowY: "auto" }}>
+          <div style={{ ...s.timerBar, border: isUrgent ? "1px solid #E0524433" : "1px solid #E8E3DC", background: isUrgent ? "#FFF5F5" : "#F7F3EA" }}>
+            <span style={{ color: "#555" }}>
+              Seat is being held for you<br />
+              <span style={{ fontSize: 10, color: isUrgent ? "#E05252" : "#888" }}>
+                {isUrgent ? "⚠ Hurry! Your hold is about to expire." : "Complete this form before the timer expires"}
+              </span>
+            </span>
+            <span style={{ ...s.timerNum, color: isUrgent ? "#E05252" : "#C9A84C" }}>
+              {mins}:{secs}<span style={{ fontSize: 9, color: "#AAA", marginLeft: 2 }}>min</span>
+            </span>
           </div>
 
-          {/* RIGHT */}
-          <div style={{ paddingTop: 10, opacity: vis ? 1 : 0, transform: vis ? "none" : "translateX(30px)", transition: "opacity 0.8s 0.15s, transform 0.8s 0.15s", position: "relative", zIndex: 10005 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-              {[{d:-1,disabled:activeRestaurant===0,lbl:"←"},{d:1,disabled:activeRestaurant===totalRestaurants-1,lbl:"→"}].map(({d,disabled,lbl}) => (
-                <button key={lbl} type="button" disabled={disabled}
-                  onClick={() => setActiveRestaurant((n) => Math.max(0, Math.min(totalRestaurants-1, n+d)))}
-                  style={{ width: 32, height: 32, borderRadius: "50%", border: `1px solid ${C.border}`, background: "transparent", color: disabled ? C.textMuted : C.gold, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, fontFamily: F.body, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", fontSize: 16 }}
-                  onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.borderColor = C.gold; } }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
+          <div style={s.infoBadge}>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>ROOM</span><span style={s.infoBadgeVal}>{ROOM}</span></div>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>TABLE</span><span style={s.infoBadgeVal}>{tableData?.id ?? "—"}</span></div>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>SEAT{mode === "whole" && guests > 1 ? "S" : ""}</span><span style={{ ...s.infoBadgeVal, color: "#C9A84C" }}>{seatDisplay}</span></div>
+            <div style={s.infoBadgeItem}><span style={s.infoBadgeLabel}>GUESTS</span><span style={s.infoBadgeVal}>{guests}</span></div>
+          </div>
 
-            <h2 style={{ fontFamily: F.display, fontSize: "clamp(38px,5vw,60px)", fontWeight: 600, color: C.textPrimary, marginBottom: 14, lineHeight: 0.95, letterSpacing: "-0.01em", transition: "color 0.35s" }}>
-              {restaurant?.name ?? "Qsina"}
-            </h2>
-            <p style={{ fontFamily: F.body, fontSize: 14, color: C.textMuted, lineHeight: 1.85, marginBottom: 28, maxWidth: 380, transition: "color 0.35s" }}>
-              {restaurant?.description ?? "Qsina offers diverse culinary delights with both international buffets and à la carte options."}
-            </p>
+          <div style={s.formRow}>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>FIRST NAME *</label><input style={s.formInput} value={form.firstName} onChange={set("firstName")} /></div>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>LAST NAME *</label><input style={s.formInput} value={form.lastName} onChange={set("lastName")} /></div>
+          </div>
+          <label style={s.formLabel}>EMAIL ADDRESS *</label>
+          <input style={s.formInput} value={form.email} onChange={set("email")} type="email" />
+          <label style={s.formLabel}>PHONE NUMBER *</label>
+          <input style={s.formInput} value={form.phone} onChange={set("phone")} type="tel" inputMode="numeric" pattern="[0-9]*" placeholder="Enter phone number" maxLength="13" />
+          <div style={s.formRow}>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>EVENT DATE *</label><input style={s.formInput} value={form.eventDate} onChange={set("eventDate")} type="date" min={today} /></div>
+            <div style={{ flex: 1 }}><label style={s.formLabel}>EVENT TIME</label><input style={s.formInput} value={form.eventTime} onChange={set("eventTime")} type="time" /></div>
+          </div>
+          <label style={s.formLabel}>SPECIAL REQUESTS</label>
+          <textarea style={{ ...s.formInput, resize: "vertical", minHeight: 56 }} value={form.specialRequests} onChange={set("specialRequests")} />
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 32 }}>
-              {(restaurant?.diningTimes ?? DINING_TIMES).map((d) => {
-                const active = highlightedLabel ? d.label === highlightedLabel : false;
-                return (
-                  <button key={d.label} type="button" onClick={() => selectDiningTime(d)}
-                    style={{
-                      padding: "7px 14px", borderRadius: 3,
-                      background: active ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"),
-                      border: `1px solid ${active ? C.gold : C.border}`,
-                      cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start",
-                      position: "relative", zIndex: 10006,
-                      transition: "background 0.2s, border-color 0.2s",
-                    }}>
-                    <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", color: active ? (isDark ? "#0E0D09" : "#FFFFFF") : C.gold }}>{d.label}</div>
-                    {d.hours && <div style={{ fontFamily: F.body, fontSize: 12, color: active ? (isDark ? "rgba(14,13,9,0.55)" : "rgba(255,255,255,0.7)") : C.textMuted, marginTop: 2 }}>{d.hours}</div>}
-                  </button>
-                );
-              })}
-            </div>
+          <button
+            disabled={!allFilled}
+            style={{ ...s.splitContinueBtn, marginTop: 6, opacity: allFilled ? 1 : 0.45, cursor: allFilled ? "pointer" : "default" }}
+            onClick={() => allFilled && onReview(form)}>
+            REVIEW BOOKING
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-            <div style={{ display: "flex", gap: 10 }}>
-              {imgs.map((src, i) => (
-                <div key={src}
-                  onClick={() => { setActiveImg(i); const pref = (restaurant?.diningTimes ?? DINING_TIMES)[0]; if (pref) selectDiningTime(pref); }}
-                  style={{ flex: 1, height: 72, borderRadius: 5, overflow: "hidden", cursor: "pointer", border: activeImg === i ? `2px solid ${C.gold}` : "2px solid transparent", transition: "border 0.2s", position: "relative", zIndex: 40 }}>
-                  <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.4s" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")} />
-                </div>
-              ))}
+// ─── MODAL 3: Review ──────────────────────────────────────────────────────────
+function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook = false, rebookFrom = null }) {
+  const formatTime = t => {
+    if (!t) return null;
+    const [h, m] = t.split(":");
+    const hr = parseInt(h);
+    return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
+  };
+
+  const seatDisplay = mode === "whole"
+    ? getWholeSeatLabel(guests, tableData)
+    : `Seat ${seatData?.num ?? seatData?.number ?? seatData?.label ?? seatData?.id ?? "—"}`;
+
+  const rows = [
+    ["Venue",      "The Bellevue Manila"],
+    ["Room",       `${WING} — ${ROOM}`],
+    ["Table",      `Table ${tableData?.id ?? "—"}`],
+    ["Seat(s)",    seatDisplay],
+    ["Guests",     `${guests} guest${guests !== 1 ? "s" : ""}`],
+    ["Event Date", form.eventDate || "—"],
+    ["Event Time", form.eventTime ? formatTime(form.eventTime) : null],
+  ];
+
+  return (
+    <div style={s.overlay}>
+      <div style={s.splitModal}>
+        <div style={s.splitHeader}>
+          <button style={s.splitCloseBtn} onClick={onEdit}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.24)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}>✕</button>
+          <div style={s.splitHeaderTag}>{isRebook ? "REBOOK / MOVE SEAT" : mode === "individual" ? "SEAT RESERVATION" : "TABLE RESERVATION"}</div>
+          <h2 style={s.splitHeaderTitle}>Review Your Booking</h2>
+          <StepIndicator step={3} light={true} />
+        </div>
+
+        <div style={{ ...s.splitBody, maxHeight: "65vh", overflowY: "auto" }}>
+          {isRebook && rebookFrom && (
+            <div style={{ background: "#FFF8E1", border: "1px solid #FFE082", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontFamily: FONT, fontSize: 12, color: "#7B5E00" }}>
+              <strong>Rebooking notice:</strong> Your previous reservation{" "}
+              <strong style={{ color: "#C9A84C" }}>{rebookFrom.reference_code || rebookFrom.id}</strong> will be cancelled automatically when you submit.
             </div>
+          )}
+
+          <div style={s.sectionLabel}>RESERVATION DETAILS</div>
+          {rows.map(([k, v]) => (
+            <div key={k} style={s.reviewRow}>
+              <span style={s.reviewKey}>{k}</span>
+              {k === "Event Time" && !v
+                ? <span style={s.pendingBadge}>Pending</span>
+                : <span style={{ ...s.reviewVal, color: k === "Seat(s)" ? "#C9A84C" : "#1B2A4A" }}>{v}</span>}
+            </div>
+          ))}
+
+          <div style={s.sectionLabel}>GUEST INFORMATION</div>
+          {[
+            ["Full Name",        `${form.firstName} ${form.lastName}`],
+            ["Email",            form.email],
+            ["Phone",            form.phone],
+            ["Special Requests", form.specialRequests || "None"],
+          ].map(([k, v]) => (
+            <div key={k} style={s.reviewRow}>
+              <span style={s.reviewKey}>{k}</span>
+              <span style={s.reviewVal}>{v}</span>
+            </div>
+          ))}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+            <button style={s.editBtn} onClick={onEdit} disabled={submitting}>EDIT DETAILS</button>
+            <button
+              style={{ ...s.submitBtn, opacity: submitting ? 0.6 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
+              onClick={onSubmit} disabled={submitting}>
+              {submitting ? "SUBMITTING…" : isRebook ? "CONFIRM REBOOK" : "SUBMIT"}
+            </button>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
-function FieldInput({ type, value, onChange }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
+// ─── QRCodeWithRef ────────────────────────────────────────────────────────────
+function QRCodeWithRef({ value, size = 120, imgRef }) {
+  const [imgSrc, setImgSrc] = useState(null);
+
+  useEffect(() => {
+    if (!value) return;
+    let cancelled = false;
+
+    const doRender = () => {
+      const tmp = document.createElement("div");
+      tmp.style.cssText = "position:absolute;left:-9999px;top:-9999px;visibility:hidden;";
+      document.body.appendChild(tmp);
+      try {
+        new window.QRCode(tmp, {
+          text: value,
+          width: size * 4,
+          height: size * 4,
+          colorDark: "#000000",
+          colorLight: "#FFFFFF",
+          correctLevel: window.QRCode.CorrectLevel.M,
+        });
+
+        const tryExtract = (attempt = 0) => {
+          const qrCanvas = tmp.querySelector("canvas");
+          if (qrCanvas) {
+            const src = qrCanvas.toDataURL("image/png");
+            if (!cancelled) {
+              setImgSrc(src);
+              if (imgRef) imgRef.current = src;
+            }
+            document.body.removeChild(tmp);
+            return;
+          }
+          const qrImg = tmp.querySelector("img");
+          if (qrImg && qrImg.src) {
+            if (!cancelled) {
+              setImgSrc(qrImg.src);
+              if (imgRef) imgRef.current = qrImg.src;
+            }
+            document.body.removeChild(tmp);
+            return;
+          }
+          if (attempt < 5) {
+            setTimeout(() => tryExtract(attempt + 1), 100 * (attempt + 1));
+          } else {
+            document.body.removeChild(tmp);
+          }
+        };
+
+        tryExtract();
+      } catch (e) {
+        if (tmp.parentNode) document.body.removeChild(tmp);
+      }
+    };
+
+    if (window.QRCode) {
+      doRender();
+    } else {
+      const existing = document.querySelector('script[data-qrcodejs]');
+      if (existing) {
+        existing.addEventListener("load", doRender);
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+        script.setAttribute("data-qrcodejs", "1");
+        script.onload = doRender;
+        document.head.appendChild(script);
+      }
+    }
+
+    return () => { cancelled = true; };
+  }, [value, size]);
+
+  if (!imgSrc) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: 10, background: "#F0EDE8", border: "1px solid #E8E3DC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#CCC", fontFamily: FONT }}>
+        QR
+      </div>
+    );
+  }
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%",
-        padding: "10px 13px",
-        background: C.fieldBg,
-        border: `1px solid ${C.border}`,
-        borderRadius: 4,
-        color: C.textPrimary,
-        fontFamily: F.body,
-        fontSize: 13,
-        outline: "none",
-        boxSizing: "border-box",
-        colorScheme: isDark ? "dark" : "light",
-        transition: "background 0.3s, border-color 0.3s, color 0.3s",
-      }}
+    <img
+      src={imgSrc}
+      alt="QR Code"
+      style={{ width: size, height: size, display: "block", borderRadius: 10, imageRendering: "pixelated" }}
     />
   );
 }
 
-function GuestPicker({ value, onChange, min = 1, max = 20, style }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  const clamp = (n) => Math.max(min, Math.min(max, n));
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12,
-      padding: "10px 13px",
-      background: C.fieldBg,
-      border: `1px solid ${C.border}`,
-      borderRadius: 4,
-      transition: "background 0.3s, border-color 0.3s",
-      ...style,
-    }}>
-      <button type="button" onClick={() => onChange(clamp(value-1))} disabled={value<=min} style={{ width: 32, height: 32, borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: value<=min ? C.textMuted : C.gold, fontSize: 18, cursor: value<=min ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: value<=min ? 0.5 : 1 }}>−</button>
-      <div style={{ flex: 1, display: "grid", gap: 4 }}>
-        <div style={{ fontFamily: F.body, fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textSub, textAlign: "center" }}>Guests</div>
-        <input type="text" inputMode="numeric" pattern="[0-9]*" value={String(value)}
-          onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g,""); const next = raw===""?min:Number(raw); if(!Number.isFinite(next))return; onChange(clamp(Math.round(next))); }}
-          style={{ width: "100%", height: 32, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", border: `1px solid ${C.border}`, borderRadius: 6, color: C.textPrimary, fontFamily: F.body, fontSize: 14, textAlign: "center", outline: "none", WebkitAppearance: "textfield", MozAppearance: "textfield", transition: "background 0.3s, color 0.3s" }} />
-      </div>
-      <button type="button" onClick={() => onChange(clamp(value+1))} disabled={value>=max} style={{ width: 32, height: 32, borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: value>=max ? C.textMuted : C.gold, fontSize: 18, cursor: value>=max ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: value>=max ? 0.5 : 1 }}>+</button>
-    </div>
-  );
-}
+// ─── buildQrValue ─────────────────────────────────────────────────────────────
+// Uses vCard (BEGIN:VCARD) format — the single most universally supported
+// structured QR type. Every iOS/Android scanner opens a vCard as a
+// "Add Contact" or "View Card" sheet — NEVER as a search or phone call.
+// We put all reservation details in the NOTE field so the user sees them.
+// The ORG field acts as the title. FN (full name) is required by the spec.
+const buildQrValue = ({ refCode, table, date, venue = "ALABANG" }) => {
+  const clean     = (str = "") => String(str).replace(/[^\w\- ]/g, "").toUpperCase().trim().slice(0, 30);
+  const cleanDate = (d   = "") => String(d).replace(/[^0-9\-]/g, "").slice(0, 10);
 
-// ─────────────────────────────────────────────
-// NEWSLETTER
-// ─────────────────────────────────────────────
-function NewsletterSection() {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
+  const ref   = clean(refCode) || "N/A";
+  const tbl   = clean(table)   || "N/A";
+  const dt    = cleanDate(date) || "N/A";
+  const ven   = clean(venue)   || "ALABANG";
 
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [ref, vis] = useScrollReveal(0.2);
+  // vCard 3.0 — opens as a contact card on all iOS and Android scanners
+  return [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    `FN:Bellevue Manila Reservation`,
+    `ORG:The Bellevue Manila`,
+    `NOTE:RESERVATION DETAILS\\nRef No: ${ref}\\nTable: ${tbl}\\nDate: ${dt}\\nVenue: ${ven}\\nStatus: Pending Approval`,
+    "END:VCARD",
+  ].join("\n");
+};
 
-  return (
-    <section
-      ref={ref}
-      style={{
-        position: "relative", overflow: "hidden",
-        background: C.nlBg,
-        borderTop: `1px solid ${C.borderLight}`,
-        transition: "background 0.35s ease",
-      }}
-    >
-      <div style={{ position: "absolute", inset: 0, opacity: isDark ? 0.03 : 0.04, backgroundImage: `linear-gradient(${C.gold} 1px,transparent 1px),linear-gradient(90deg,${C.gold} 1px,transparent 1px)`, backgroundSize: "60px 60px" }} />
-      <div style={{
-        position: "relative", maxWidth: 1100, margin: "0 auto",
-        padding: "clamp(50px,7vw,80px) clamp(20px,5vw,60px)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 40, flexWrap: "wrap",
-        opacity: vis ? 1 : 0, transition: "opacity 0.8s",
-      }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <GoldLine width={20} />
-            <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: C.gold }}>Stay Connected</span>
-          </div>
-          <h3 style={{ fontFamily: F.display, fontSize: "clamp(24px,3.5vw,36px)", fontWeight: 600, color: C.textPrimary, lineHeight: 1.2, margin: 0, transition: "color 0.35s" }}>Via email</h3>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "flex-end" }}>
-          <div style={{ display: "flex", overflow: "hidden", borderRadius: 3, border: `1px solid ${C.border}` }}>
-            <input
-              type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              style={{
-                padding: "13px 20px",
-                background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-                border: "none", color: C.textPrimary,
-                fontFamily: F.body, fontSize: 14, outline: "none", width: 260,
-                transition: "background 0.3s, color 0.3s",
-              }}
-            />
-            <button type="button"
-              onClick={() => { if (!email) return; setSent(true); setTimeout(() => { setSent(false); setEmail(""); }, 2500); }}
-              style={{
-                padding: "13px 18px",
-                background: sent ? C.gold : (isDark ? "#0E0D09" : "#1A1612"),
-                border: "none", cursor: "pointer",
-                color: sent ? (isDark ? "#0E0D09" : "#FFFFFF") : C.gold,
-                transition: "all 0.25s", fontFamily: F.body, fontSize: 16,
-              }}>
-              {sent ? "✓" : "→"}
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            {[["f","Facebook","https://www.facebook.com/thebellevuemanila/"],["t","X","https://x.com/bellevuemanila"],["i","Instagram","https://www.instagram.com/bellevuemanila/"],["y","YouTube","https://www.youtube.com/channel/UC01W6kRH_R-T0ok6RDT3aGg"]].map(([icon,label,href]) => (
-              <a key={label} href={href} target="_blank" rel="noreferrer" title={label}
-                style={{ width: 36, height: 36, borderRadius: "50%", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: F.body, fontSize: 14, fontWeight: 700, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted; }}>
-                {icon}
-              </a>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+// ─── MODAL: Success ────────────────────────────────────────────────────────────
+function ModalSuccess({ refCode, onBack, mode, guests, isRebook = false, bookingDetails = null }) {
+  const qrImgRef = useRef(null);
+  const [saving,   setSaving]   = useState(false);
+  const [qrReady,  setQrReady]  = useState(false);
 
-// ─────────────────────────────────────────────
-// FOOTER
-// ─────────────────────────────────────────────
-function Footer({ onNavigate, onManageBooking }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-
-  return (
-    <footer style={{ background: C.footerBg, borderTop: `1px solid ${C.borderLight}`, transition: "background 0.35s ease" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(50px,7vw,80px) clamp(20px,5vw,60px) clamp(30px,4vw,48px)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 40, marginBottom: 56 }}>
-          <div>
-            <div style={{ marginBottom: 18 }}>
-              <img
-                src={bellevueLogo}
-                alt="The Bellevue Manila"
-                style={{
-                  height: 42, width: "auto", display: "block",
-                  filter: isDark ? "none" : "brightness(0) saturate(100%) invert(30%) sepia(50%) saturate(400%) hue-rotate(5deg)",
-                  transition: "filter 0.35s",
-                }}
-              />
-            </div>
-            <p style={{ fontFamily: F.body, fontSize: 14, color: C.textFaint, lineHeight: 1.85, margin: "0 0 16px", transition: "color 0.35s" }}>
-              Luxury event spaces and seamless reservations in the heart of Alabang.
-            </p>
-            <button type="button" onClick={onManageBooking}
-              style={{
-                padding: "9px 18px", background: "transparent",
-                border: `1px solid ${C.border}`, borderRadius: 3,
-                fontFamily: F.body, fontSize: 12, fontWeight: 600,
-                color: C.gold, cursor: "pointer",
-                letterSpacing: "0.08em", transition: "all 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.color = isDark ? "#0E0D09" : "#FFFFFF"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.gold; }}
-            >
-              Manage My Booking →
-            </button>
-          </div>
-
-          <div>
-            <FooterHeading>Venues</FooterHeading>
-            <FooterLink onClick={() => onNavigate("main-wing")}>Main Wing</FooterLink>
-            <FooterLink onClick={() => onNavigate("tower-wing")}>Tower Wing</FooterLink>
-            <FooterLink onClick={() => onNavigate("dining")}>Dining</FooterLink>
-          </div>
-          <div>
-            <FooterHeading>Reservations</FooterHeading>
-            <FooterLink onClick={() => onNavigate("main-wing")}>Book a Seat</FooterLink>
-            <FooterLink onClick={() => onNavigate("dining")}>Book a Table</FooterLink>
-            <FooterLink onClick={onManageBooking}>Manage Booking</FooterLink>
-          </div>
-          <div>
-            <FooterHeading>Contact</FooterHeading>
-            <p style={{ fontFamily: F.body, fontSize: 14, color: C.textFaint, lineHeight: 2, margin: 0, transition: "color 0.35s" }}>
-              02 871 8181 5139<br />
-              North Bridgeway, Filinvest City<br />
-              Alabang, Muntinlupa City<br />
-              <a href="mailto:reservations@thebellevue.com" style={{ color: C.goldDark, textDecoration: "none" }}>reservations@thebellevue.com</a>
-            </p>
-          </div>
-        </div>
-
-        <Divider mb={24} />
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <span style={{ fontFamily: F.body, fontSize: 14, color: C.textDeep, transition: "color 0.35s" }}>© {new Date().getFullYear()} The Bellevue Manila. All rights reserved.</span>
-          <span style={{ fontFamily: F.body, fontSize: 14, color: C.textDeep, transition: "color 0.35s" }}>Seat & Table Management System</span>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-function FooterHeading({ children }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: C.gold, marginBottom: 16 }}>{children}</div>;
-}
-
-function FooterLink({ children, onClick }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  const [hov, setHov] = useState(false);
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{ fontFamily: F.body, fontSize: 14, color: hov ? C.gold : C.footerLinkDefault, marginBottom: 10, cursor: "pointer", transition: "color 0.2s" }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// ROOT
-// ─────────────────────────────────────────────
-export default function HomePage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [diningRestaurantId, setDiningRestaurantId] = useState(null);
-
-  // ── Theme state — persisted in localStorage ──
-  const [isDark, setIsDark] = useState(() => {
+  const formatDate = (d) => {
+    if (!d) return "—";
     try {
-      const saved = localStorage.getItem("bellevue-theme");
-      if (saved !== null) return saved === "dark";
-    } catch {}
-    // Default: respect OS preference
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
+      return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    } catch { return d; }
+  };
+
+  const qrValue = buildQrValue({
+    refCode: refCode || "",
+    table:   bookingDetails?.table || "",
+    date:    bookingDetails?.date  || "",
+    venue:   "ALABANG",
   });
 
-  const toggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      try { localStorage.setItem("bellevue-theme", next ? "dark" : "light"); } catch {}
-      return next;
-    });
-  };
-
-  const C = getTokens(isDark);
-
-  const goToVenues = (section) => {
-    if (section) navigate(`/venues?section=${section}`);
-    else navigate("/venues");
-  };
-
-  const goToManageBooking = () => navigate("/manage-booking");
-
+  // Poll until QR image is rendered
   useEffect(() => {
-    const headerH = 72; const markerY = headerH + 8;
-    const inView = (id) => { const el = document.getElementById(id); if (!el) return false; const r = el.getBoundingClientRect(); return r.top <= markerY && r.bottom > markerY; };
-    const onScroll = () => window.dispatchEvent(new CustomEvent("homeActiveSection", { detail: inView("home-dining") ? "dining" : null }));
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+    let tries = 0;
+    const poll = setInterval(() => {
+      if (qrImgRef.current) { setQrReady(true); clearInterval(poll); }
+      if (++tries > 20) clearInterval(poll);
+    }, 100);
+    return () => clearInterval(poll);
   }, []);
 
-  useEffect(() => {
-    if (location.pathname === "/" && (!location.state || !location.state.scrollTo)) window.scrollTo(0, 0);
-  }, []);
+  // ── Save Photo: QR code + reference code only, clean white card ──────────
+  const handleSavePhoto = useCallback(async () => {
+    if (saving || !qrReady) return;
+    setSaving(true);
+    try {
+      const dpr    = 3;
+      const W      = 320;
+      const H      = 380;
+      const canvas = document.createElement("canvas");
+      canvas.width  = W * dpr;
+      canvas.height = H * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
 
-  useEffect(() => {
-    if (location.pathname === "/" && location.state?.scrollTo) {
-      if (location.state.scrollTo === "dining") {
-        requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-      }
-      navigate(".", { replace: true, state: null });
-    }
-  }, [location.pathname, location.state, navigate]);
+      // White background
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.roundRect(0, 0, W, H, 16);
+      ctx.fill();
 
-  const handleNavigate = (target, payload) => {
-    if (target === "venue") { navigate("/venues"); return; }
-    if (target === "dining") {
-      const q = typeof payload === "string" ? payload.trim().toLowerCase() : "";
-      if (q) {
-        const m = RESTAURANTS.find((r) => r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
-        if (m) setDiningRestaurantId(m.id);
+      // Gold top bar
+      const barH = 6;
+      ctx.fillStyle = "#C9A84C";
+      ctx.beginPath();
+      ctx.roundRect(0, 0, W, barH, [16, 16, 0, 0]);
+      ctx.fill();
+
+      // QR code centered
+      const qrSrc  = qrImgRef.current;
+      const qrSize = 220;
+      const qrX    = (W - qrSize) / 2;
+      const qrY    = barH + 28;
+
+      if (qrSrc) {
+        await new Promise((resolve) => {
+          const qImg  = new Image();
+          qImg.onload = () => {
+            // White padding behind QR for clean scan
+            ctx.fillStyle = "#FFFFFF";
+            ctx.beginPath();
+            ctx.roundRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20, 10);
+            ctx.fill();
+
+            ctx.drawImage(qImg, qrX, qrY, qrSize, qrSize);
+            resolve();
+          };
+          qImg.onerror = resolve;
+          qImg.src     = qrSrc;
+        });
       }
-      requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-      return;
+
+      // Divider
+      const divY = qrY + qrSize + 20;
+      ctx.strokeStyle = "#EAE5DC";
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.moveTo(28, divY);
+      ctx.lineTo(W - 28, divY);
+      ctx.stroke();
+
+      // Reference code label
+      ctx.fillStyle = "#BBBBBB";
+      ctx.font      = `600 9px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.letterSpacing = "1.5px";
+      ctx.fillText("REFERENCE CODE", W / 2, divY + 20);
+
+      // Reference code value — big, bold, navy
+      ctx.fillStyle = "#1B2A4A";
+      ctx.font      = `bold 26px sans-serif`;
+      ctx.fillText(refCode || "—", W / 2, divY + 52);
+
+      ctx.textAlign = "left";
+
+      // Download
+      const link    = document.createElement("a");
+      link.download = `bellevue-reservation-${refCode || "ticket"}.png`;
+      link.href     = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      console.error("Save photo failed:", err);
+      alert("Could not save photo. Please try again.");
+    } finally {
+      setSaving(false);
     }
-    if (target === "admin") navigate("/admin");
-  };
+  }, [refCode, saving, qrReady]);
+
+  const infoRows = [
+    { label: "TABLE",  value: bookingDetails?.table || "—" },
+    { label: "DATE",   value: formatDate(bookingDetails?.date)  },
+    { label: "GUESTS", value: String(guests)                    },
+    { label: "STATUS", value: "Pending", gold: true             },
+  ];
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
-      <div style={{ background: C.pageBg, minHeight: "100vh", transition: "background 0.35s ease" }}>
+    <div style={s.overlay}>
+      <div style={{
+        background: "#fff", borderRadius: 14, width: "100%", maxWidth: 420,
+        boxShadow: "0 24px 60px rgba(0,0,0,0.22)", overflow: "hidden",
+      }}>
 
-        {/* ── Floating theme toggle ── */}
-        <ThemeToggle />
-
-        {/* ── 1: Hero + Browse Wings ── */}
-        <HeroBrowseSection
-          onNavigateToVenues={goToVenues}
-          onManageBooking={goToManageBooking}
-        />
-
-        {/* ── 2: Dining ── */}
-        <div id="home-dining">
-          <DiningSection onNavigate={handleNavigate} initialRestaurantId={diningRestaurantId} />
+        {/* Header */}
+        <div style={{ background: "#1B2A4A", padding: "20px 24px 16px", position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <img
+            src={bellevueLogo}
+            alt="The Bellevue Manila"
+            style={{ height: 36, width: "auto", display: "block", objectFit: "contain" }}
+          />
+          <button onClick={onBack} style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: "rgba(255,255,255,0.10)", border: "none",
+            color: "rgba(255,255,255,0.6)", fontSize: 13, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: FONT, lineHeight: 1, transition: "background 0.15s", flexShrink: 0,
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.22)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.10)"; }}>&#x2715;</button>
         </div>
 
-        {/* ── 3: Newsletter ── */}
-        <NewsletterSection />
+        {/* Gold line */}
+        <div style={{ height: 2, background: "linear-gradient(90deg, #C9A84C, #E8C96C, #C9A84C)" }} />
 
-        {/* ── 4: Footer ── */}
-        <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
+        {/* Body */}
+        <div style={{ padding: "20px 24px 24px" }}>
+
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>
+              {isRebook ? "Seat Moved" : "Reservation Submitted"}
+            </div>
+            <div style={{ fontFamily: FONT, fontSize: 22, fontWeight: 700, color: "#1B2A4A", lineHeight: 1.15 }}>
+              Pending Approval
+            </div>
+            <div style={{ fontFamily: FONT, fontSize: 12, color: "#999", marginTop: 3 }}>
+              Your booking has been received and awaits confirmation.
+            </div>
+          </div>
+
+          {/* Reference code */}
+          <div style={{ borderTop: "1px solid #EAE5DC", borderBottom: "1px solid #EAE5DC", padding: "14px 0", marginBottom: 16 }}>
+            <div style={{ fontFamily: FONT, fontSize: 9, color: "#BBB", letterSpacing: 1.8, fontWeight: 700, textTransform: "uppercase", marginBottom: 5 }}>Reference Code</div>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 22, color: "#1B2A4A", letterSpacing: 4, lineHeight: 1 }}>{refCode || "—"}</div>
+          </div>
+
+          {/* Info rows + QR */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+            <div style={{ flex: 1 }}>
+              {infoRows.map(({ label, value, gold }, i) => (
+                <div key={label} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "9px 0",
+                  borderBottom: i < infoRows.length - 1 ? "1px solid #F0EDE8" : "none",
+                }}>
+                  <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, color: "#BBBBBB", textTransform: "uppercase" }}>{label}</span>
+                  <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: gold ? "#C9A84C" : "#1B2A4A" }}>{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* QR */}
+            <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              <div style={{ padding: 8, background: "#fff", border: "1px solid #EAE5DC", borderRadius: 8 }}>
+                <QRCodeWithRef value={qrValue} size={96} imgRef={qrImgRef} />
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: 8, color: "#CCCCCC", letterSpacing: 0.4, textAlign: "center" }}>Scan to verify</div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={handleSavePhoto}
+              disabled={saving || !qrReady}
+              style={{
+                flex: 1, padding: "11px 0",
+                background: "transparent",
+                color: (saving || !qrReady) ? "#CCC" : "#1B2A4A",
+                border: `1.5px solid ${(saving || !qrReady) ? "#E8E3DC" : "#1B2A4A"}`,
+                borderRadius: 6,
+                fontFamily: FONT, fontWeight: 700, fontSize: 10, letterSpacing: 1.5,
+                cursor: (saving || !qrReady) ? "not-allowed" : "pointer",
+                textTransform: "uppercase",
+                transition: "all 0.18s",
+                opacity: !qrReady ? 0.5 : 1,
+              }}
+              onMouseEnter={e => { if (!saving && qrReady) { e.currentTarget.style.background = "#1B2A4A"; e.currentTarget.style.color = "#fff"; } }}
+              onMouseLeave={e => { if (!saving && qrReady) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#1B2A4A"; } }}
+            >
+              {saving ? "SAVING..." : !qrReady ? "LOADING..." : "SAVE PHOTO"}
+            </button>
+
+            <button
+              onClick={onBack}
+              style={{
+                flex: 1, padding: "11px 0", background: "#C9A84C", color: "#1B2A4A",
+                border: "none", borderRadius: 6, fontFamily: FONT, fontWeight: 700,
+                fontSize: 10, letterSpacing: 1.5, cursor: "pointer",
+                textTransform: "uppercase", transition: "background 0.18s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#B89635"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#C9A84C"; }}
+            >
+              BACK TO MAP
+            </button>
+          </div>
+        </div>
       </div>
-    </ThemeContext.Provider>
+    </div>
+  );
+}
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+export default function AlabangReserve() {
+  const navigate = useNavigate();
+  const [mode,          setMode]          = useState("whole");
+  const [selectedSeat,  setSelectedSeat]  = useState(null);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [windowSize,    setWindowSize]    = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [modal,         setModal]         = useState(null);
+  const [guests,        setGuests]        = useState(2);
+  const [formData,      setFormData]      = useState(null);
+  const [refCode,       setRefCode]       = useState(null);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [wsConnected,   setWsConnected]   = useState(false);
+
+  const [rebookFrom,         setRebookFrom]         = useState(null);
+  const [lastBookingDetails, setLastBookingDetails] = useState(null);
+
+  const echoRef = useRef(null);
+
+  const [tableData, setTableData] = useState(() => {
+    const raw = getRoomData(WING, ROOM, null);
+    if (!raw) return null;
+    if (Array.isArray(raw)) return raw.filter(t => t.seats?.length > 0);
+    if (raw.seats?.length > 0) return raw;
+    return null;
+  });
+
+  useEffect(() => {
+    const unsub = subscribeToSeatMapChanges(({ wing, room, data }) => {
+      if (wing !== WING || room !== ROOM) return;
+      if (Array.isArray(data))          setTableData(data.filter(t => t.seats?.length > 0));
+      else if (data?.seats?.length > 0) setTableData(data);
+      else                              setTableData(null);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const SEAT_KEY = `seatmap:${WING}:${ROOM}`;
+    const onStorage = (e) => {
+      if (e.key !== SEAT_KEY) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (!parsed) return;
+        if (Array.isArray(parsed))         setTableData(parsed.filter(t => t.seats?.length > 0));
+        else if (parsed.seats?.length > 0) setTableData(parsed);
+      } catch {}
+    };
+    const onSeatMapUpdate = (e) => {
+      const { wing, room, data } = e.detail || {};
+      if (wing !== WING || room !== ROOM) return;
+      try {
+        if (Array.isArray(data))          setTableData(data.filter(t => t.seats?.length > 0));
+        else if (data?.seats?.length > 0) setTableData(data);
+        else                              setTableData(null);
+      } catch {}
+    };
+    window.addEventListener("storage",        onStorage);
+    window.addEventListener("seatmap-update", onSeatMapUpdate);
+    return () => {
+      window.removeEventListener("storage",        onStorage);
+      window.removeEventListener("seatmap-update", onSeatMapUpdate);
+    };
+  }, []);
+
+  const hasSynced = useRef(false);
+  useEffect(() => {
+    if (hasSynced.current) return;
+    hasSynced.current = true;
+    const syncWithDatabase = async () => {
+      try {
+        const res = { success: true, data: [] };
+        if (!res.success) return;
+        setTableData(prev => {
+          if (!prev) return prev;
+          const applyToTable = (tbl) => ({
+            ...tbl,
+            seats: (tbl.seats || []).map(seat => {
+              const match = res.data.find(r => {
+                if (r.table !== String(tbl.id)) return false;
+                const nums = String(r.seat || "").replace(/Seat\s*/gi, "").split(",").map(s => parseInt(s.trim())).filter(Boolean);
+                return nums.includes(seat.num);
+              });
+              return match ? { ...seat, status: match.status } : seat;
+            }),
+          });
+          const result = Array.isArray(prev) ? prev.map(applyToTable) : applyToTable(prev);
+          dispatchSeatMapUpdate(WING, ROOM, result);
+          return result;
+        });
+      } catch (err) {
+        console.warn("[AlabangReserve] Seat sync failed:", err.message);
+      }
+    };
+    syncWithDatabase();
+    const interval = setInterval(syncWithDatabase, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+
+  useEffect(() => {
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
+      try {
+        echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
+      } catch (err) {
+        console.log("WebSocket init failed:", err);
+        return;
+      }
+    }
+    const echo = echoRef.current;
+    if (!echo) return;
+    try {
+      const channel   = echo.channel("reservations");
+      const syncSeats = async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, { headers: { Accept: "application/json" } });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.data) dispatchSeatMapUpdate(WING, ROOM, data.data);
+          }
+        } catch (err) { console.error("Failed to sync seats:", err); }
+      };
+      channel.listen("ReservationCreated", syncSeats);
+      channel.listen("ReservationUpdated", syncSeats);
+      channel.listen("ReservationDeleted", syncSeats);
+      channel.listen("SeatReserved",       syncSeats);
+      channel.listen("TableReserved",      syncSeats);
+      echo.connector.pusher.connection.bind("connected",    () => setWsConnected(true));
+      echo.connector.pusher.connection.bind("disconnected", () => setWsConnected(false));
+      echo.connector.pusher.connection.bind("error",        () => setWsConnected(false));
+      return () => {
+        try {
+          ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"]
+            .forEach(e => channel.stopListening(e));
+        } catch (_) {}
+      };
+    } catch (err) { console.log("WebSocket channel setup failed:", err); }
+  }, []);
+
+  const dispatchCancelSeat = (booking) => {
+    const key = `seatmap:${WING}:${ROOM}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    try {
+      const parsed   = JSON.parse(raw);
+      const tables   = Array.isArray(parsed) ? parsed : [parsed];
+      const tableNum = String(booking.table_number || booking.table || "").replace(/^T/i, "");
+      const updated  = tables.map(t => {
+        if (tableNum && String(t.id).replace(/^T/i, "") !== tableNum) return t;
+        const newSeats = t.seats.map(s => s.status === "pending" ? { ...s, status: "available" } : s);
+        return { ...t, seats: newSeats };
+      });
+      const payload = Array.isArray(parsed) ? updated : updated[0];
+      localStorage.setItem(key, JSON.stringify(payload));
+      dispatchSeatMapUpdate(WING, ROOM, payload);
+      setTableData(Array.isArray(payload) ? payload.filter(t => t.seats?.length > 0) : payload);
+    } catch (e) { console.warn("dispatchCancelSeat failed:", e); }
+  };
+
+  const resolveTableForSeat = (seat) => {
+    if (!seat || !tableData) return null;
+    if (Array.isArray(tableData)) return tableData.find(t => t.seats?.some(s => s.id === seat.id)) || tableData[0] || null;
+    return tableData;
+  };
+  const getActiveTable = () => selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData) || null;
+
+  const handleTableClick    = (table) => { setSelectedTable(table); setModal("guestCount"); };
+  const handleSeatClick     = (seat)  => {
+    if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
+    setSelectedSeat(seat);
+    setSelectedTable(resolveTableForSeat(seat));
+  };
+  const handleGuestContinue = (g)    => { setGuests(g); setModal("details"); };
+  const handleReview        = (form) => { setFormData(form); setModal("review"); };
+  const handleEditDetails   = ()     => { setModal("details"); };
+
+  const handleSubmit = async () => {
+    if (!formData || submitting) return;
+    setSubmitting(true);
+    try {
+      const activeTable = getActiveTable();
+      const payload = {
+        name:             `${formData.firstName} ${formData.lastName}`,
+        email:            formData.email,
+        phone:            formData.phone,
+        venue_id:         1,
+        table_number:     String(activeTable?.id ?? "T1"),
+        seat_number:      mode === "individual"
+                          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+                          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
+        guests_count:     guests,
+        event_date:       formData.eventDate,
+        event_time:       formData.eventTime ? formData.eventTime.substring(0, 5) : null,
+        special_requests: formData.specialRequests || "",
+        type:             mode,
+      };
+
+      const response   = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
+      const newRefCode = response.reference_code || "—";
+      setRefCode(newRefCode);
+
+      setLastBookingDetails({
+        room:  ROOM,
+        table: `Table ${activeTable?.id ?? "—"}`,
+        date:  formData.eventDate,
+        name:  `${formData.firstName} ${formData.lastName}`,
+      });
+
+      if (rebookFrom) {
+        try {
+          await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" });
+          dispatchCancelSeat(rebookFrom);
+        } catch (e) {
+          console.warn("[AlabangReserve] Could not cancel old booking during rebook:", e.message);
+        }
+      }
+
+      if (activeTable) {
+        const markPending = (tbl) => {
+          if (mode === "individual") {
+            return { ...tbl, seats: (tbl.seats || []).map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+          }
+          let marked = 0;
+          return {
+            ...tbl,
+            seats: (tbl.seats || []).map(s => {
+              if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
+              return s;
+            }),
+          };
+        };
+        const updated = Array.isArray(tableData)
+          ? tableData.map(t => t.id === activeTable.id ? markPending(t) : t)
+          : markPending(tableData);
+        setTableData(updated);
+        dispatchSeatMapUpdate(WING, ROOM, updated);
+      }
+
+      setModal("success");
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleBack = () => {
+    setModal(null);
+    setSelectedSeat(null);
+    setSelectedTable(null);
+    setRefCode(null);
+    setFormData(null);
+    setGuests(2);
+    setRebookFrom(null);
+    setLastBookingDetails(null);
+  };
+
+  const handleRebookRequest = (booking) => {
+    setRebookFrom(booking);
+    setModal(null);
+    if (booking.type) setMode(booking.type);
+  };
+
+  const isMobile    = windowSize.width < 600;
+  const isTablet    = windowSize.width < 900;
+  const activeTable = getActiveTable();
+  const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
+
+  const displayTable = mode === "whole"
+    ? (activeTable ? `Table ${activeTable.id}` : "—")
+    : (selectedTable ? `Table ${selectedTable.id}` : "—");
+  const displaySeat = mode === "individual"
+    ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
+    : getWholeSeatLabel(guests, activeTable);
+  const seatRatio = activeTable ? getSeatRatio(activeTable) : null;
+
+  const rebookPrefill = rebookFrom ? {
+    firstName:       (rebookFrom.name || "").split(/\s+/)[0] || "",
+    lastName:        (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "",
+    email:           rebookFrom.email || "",
+    phone:           rebookFrom.phone || "",
+    eventDate:       rebookFrom.event_date || rebookFrom.eventDate || "",
+    eventTime:       rebookFrom.event_time || rebookFrom.eventTime || "19:00",
+    specialRequests: rebookFrom.special_requests || "",
+  } : null;
+
+  const detailsPrefill = formData ? {
+    firstName:       formData.firstName       || "",
+    lastName:        formData.lastName        || "",
+    email:           formData.email           || "",
+    phone:           formData.phone           || "+63",
+    eventDate:       formData.eventDate       || "",
+    eventTime:       formData.eventTime       || "19:00",
+    specialRequests: formData.specialRequests || "",
+  } : rebookPrefill;
+
+  const pagePadding = isMobile ? "12px 14px" : isTablet ? "20px 20px" : "32px 40px";
+
+  return (
+    <div style={s.root}>
+      <MainWingNavbar active="ALABANG FUNCTION ROOM" />
+
+      <div style={{ ...s.page, padding: pagePadding }}>
+
+        {/* Back */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, marginTop: 8 }}>
+          <button onClick={() => navigate("/venues")} aria-label="Back to venues"
+            style={{ width: 40, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: "50%", border: "2px solid #C9A84C", color: "#C9A84C", cursor: "pointer", flexShrink: 0, transition: "background 0.15s, color 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#C9A84C"; e.currentTarget.style.color = "#fff"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#fff";    e.currentTarget.style.color = "#C9A84C"; }}>
+            <ChevronLeftIcon size={18} />
+          </button>
+          <div style={{ width: 28, height: 2, background: "#C9A84C", borderRadius: 2 }} />
+          <div style={{ color: "#C9A84C", fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", fontFamily: FONT }}>
+            ALL VENUES
+          </div>
+        </div>
+
+        {/* Rebook banner */}
+        {rebookFrom && (
+          <div style={{ background: "#FFF8E1", border: "1px solid #FFE082", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <div style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: "#7B5E00", letterSpacing: 0.5 }}>
+                🔄 Rebooking mode — select your new {mode === "individual" ? "seat" : "table"}
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: 11, color: "#9B7500", marginTop: 3 }}>
+                Previous booking: <strong>{rebookFrom.reference_code || rebookFrom.id}</strong> · Old seat will be released on submit.
+              </div>
+            </div>
+            <button
+              onClick={() => setRebookFrom(null)}
+              style={{ background: "transparent", border: "1px solid #FFE082", borderRadius: 6, padding: "5px 12px", fontFamily: FONT, fontSize: 11, fontWeight: 700, color: "#9B7500", cursor: "pointer", letterSpacing: 0.5, flexShrink: 0 }}>
+              Cancel rebook
+            </button>
+          </div>
+        )}
+
+        <h1 style={{ ...s.pageTitle, fontSize: isMobile ? 24 : isTablet ? 30 : 38 }}>
+          Alabang Function Room
+        </h1>
+        <p style={{ ...s.pageSubtitle, fontSize: isMobile ? 13 : 14, marginBottom: isMobile ? 18 : 28 }}>
+          Book your preferred table in the Main Wing of Alabang Function Room
+        </p>
+
+        {/* Mode toggle */}
+        <div style={{ ...s.toggleBar, marginBottom: isMobile ? 16 : 24, gap: isMobile ? 10 : 20, flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center" }}>
+          <span style={s.toggleLabel}>I WANT TO RESERVE A:</span>
+          <div style={s.togglePillGroup}>
+            <button style={{ ...s.togglePillBtn(mode === "whole"),      padding: isMobile ? "9px 18px" : "8px 22px", fontSize: isMobile ? 12 : 11 }} onClick={() => { setMode("whole");      setSelectedSeat(null); }}>Whole Table</button>
+            <button style={{ ...s.togglePillBtn(mode === "individual"), padding: isMobile ? "9px 18px" : "8px 22px", fontSize: isMobile ? 12 : 11 }} onClick={() => { setMode("individual"); setSelectedTable(null); }}>Individual Seat</button>
+          </div>
+        </div>
+
+        {/* Layout */}
+        <div style={{ ...s.layout, flexDirection: isMobile || isTablet ? "column" : "row", gap: isMobile ? 16 : 28 }}>
+          <div style={{ ...s.mapCard, minWidth: 0, width: "100%" }}>
+            <SeatMap
+              tableData={tableData}
+              editMode={false}
+              selectedSeat={selectedSeat}
+              onSeatClick={handleSeatClick}
+              onTableClick={handleTableClick}
+              windowWidth={windowSize.width}
+              wing={WING}
+              room={ROOM}
+            />
+          </div>
+
+          <div style={{ ...s.rightPanel, width: isMobile || isTablet ? "100%" : 260, flexDirection: "column" }}>
+            {/* Legend */}
+            <div style={s.legendCard}>
+              <div style={s.legendTitle}>Status Legend</div>
+              <div style={{ display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", flexDirection: isMobile ? "row" : "column", gap: isMobile ? "6px 18px" : 0 }}>
+                {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                  <div key={key} style={{ ...s.legendRow, marginBottom: isMobile ? 0 : 8 }}>
+                    <div style={s.legendDot(color)} />
+                    <span style={{ ...s.legendText, fontSize: isMobile ? 14 : 13 }}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Selection + CTA */}
+            <div style={s.selCard}>
+              <div style={s.selTitle}>Your Selection</div>
+              <div style={s.selRow}>
+                <span style={s.selLabel}>TABLE:</span>
+                <span style={{ ...s.selVal, fontSize: isMobile ? 15 : 13 }}>
+                  {displayTable}
+                  {seatRatio && (
+                    <span style={{ marginLeft: 6, background: "#F7F3EA", border: "1px solid #E8E3DC", borderRadius: 4, padding: "1px 6px", fontSize: 10, color: "#C9A84C", fontWeight: 700, fontFamily: FONT }}>
+                      {seatRatio}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div style={s.selRow}>
+                <span style={s.selLabel}>SEAT{mode === "whole" && guests > 1 ? "S" : ""}:</span>
+                <span style={{ ...s.selVal, color: "#C9A84C", fontSize: mode === "whole" ? (isMobile ? 12 : 11) : (isMobile ? 15 : 13) }}>{displaySeat}</span>
+              </div>
+              <div style={s.selRow}>
+                <span style={{ ...s.selLabel, fontSize: 9 }}>ROOM:</span>
+                <span style={{ ...s.selVal, fontSize: isMobile ? 12 : 11, color: "#666" }}>{ROOM}</span>
+              </div>
+
+              {mode === "whole" && (
+                <button
+                  style={{ ...s.ctaBtn(true), padding: isMobile ? "14px 0" : "11px 0", fontSize: isMobile ? 13 : 11 }}
+                  onClick={() => setModal("guestCount")}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#B89635"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "#C9A84C"; }}>
+                  {rebookFrom ? "Move to This Table" : "Reserve This Table"}
+                </button>
+              )}
+              {mode === "individual" && (
+                <button
+                  style={{ ...s.ctaBtn(canProceed), padding: isMobile ? "14px 0" : "11px 0", fontSize: isMobile ? 13 : 11 }}
+                  onClick={canProceed ? () => setModal("guestCount") : undefined}>
+                  {selectedSeat
+                    ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat")
+                    : "Select a Seat First"}
+                </button>
+              )}
+            </div>
+
+            {/* Policy */}
+            <div style={s.policyCard}>
+              <div style={s.policyTitle}>Hotel Policy</div>
+              <div style={{ ...s.policyText, fontSize: isMobile ? 13 : 12 }}>
+                Pending seats are held for one (1) day. After expiry the seat returns to available.<br /><br />
+                Reservations are confirmed only after admin approval.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modals ── */}
+
+      {modal === "guestCount" && (
+        <ModalGuestCount
+          seatData={mode === "individual" ? selectedSeat : null}
+          tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable}
+          mode={mode}
+          onContinue={handleGuestContinue}
+          onCancel={() => setModal(null)}
+        />
+      )}
+
+      {modal === "details" && (
+        <ModalDetails
+          tableData={activeTable}
+          seatData={selectedSeat}
+          mode={mode}
+          guests={guests}
+          onReview={handleReview}
+          onCancel={() => setModal(null)}
+          prefill={detailsPrefill}
+        />
+      )}
+
+      {modal === "review" && formData && (
+        <ModalReview
+          form={formData}
+          guests={guests}
+          mode={mode}
+          tableData={activeTable}
+          seatData={selectedSeat}
+          onSubmit={handleSubmit}
+          onEdit={handleEditDetails}
+          submitting={submitting}
+          isRebook={!!rebookFrom}
+          rebookFrom={rebookFrom}
+        />
+      )}
+
+      {modal === "success" && (
+        <ModalSuccess
+          refCode={refCode}
+          onBack={handleBack}
+          mode={mode}
+          guests={guests}
+          isRebook={!!rebookFrom}
+          bookingDetails={lastBookingDetails}
+        />
+      )}
+    </div>
   );
 }
