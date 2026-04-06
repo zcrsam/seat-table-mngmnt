@@ -68,15 +68,11 @@ function CloseBtn({ onClick, disabled = false }) {
       title="Close"
       style={{
         width: 36, height: 36, borderRadius: "50%",
-        background: "#C9A84C",
-        border: "2px solid #C9A84C",
+        background: "#C9A84C", border: "2px solid #C9A84C",
         cursor: disabled ? "not-allowed" : "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-        transition: "background 0.18s, transform 0.15s",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.28)",
-        padding: 0,
-        zIndex: 10,
+        flexShrink: 0, transition: "background 0.18s, transform 0.15s",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.28)", padding: 0, zIndex: 10,
       }}
       onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = "#A07828"; e.currentTarget.style.transform = "scale(1.08)"; } }}
       onMouseLeave={(e) => { if (!disabled) { e.currentTarget.style.background = "#C9A84C"; e.currentTarget.style.transform = "scale(1)"; } }}
@@ -91,7 +87,38 @@ function CloseBtn({ onClick, disabled = false }) {
 }
 
 // ─────────────────────────────────────────────
-// PARSE LOOKUP  "abane35" → { surname:"abane", phone:"35" }
+// SHARED FIELD INPUT
+// ─────────────────────────────────────────────
+function Field({ label, value, onChange, type = "text", placeholder = "", C, required = false }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: "block", fontFamily: F.body, fontSize: 10, letterSpacing: "0.16em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 5 }}>
+        {label}{required && <span style={{ color: C.red, marginLeft: 3 }}>*</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          width: "100%", boxSizing: "border-box", padding: "10px 13px",
+          border: `1.5px solid ${focused ? C.inputFocus : C.inputBorder}`,
+          borderRadius: 9, background: C.inputBg,
+          fontFamily: F.body, fontSize: 13, color: C.textPrimary,
+          outline: "none", transition: "border-color 0.2s, box-shadow 0.2s",
+          boxShadow: focused ? `0 0 0 3px ${C.gold}22` : "none",
+          colorScheme: C.inputBg.includes("255") ? "light" : "dark",
+        }}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PARSE LOOKUP
 // ─────────────────────────────────────────────
 function parseLookup(raw) {
   const t = raw.trim();
@@ -101,9 +128,6 @@ function parseLookup(raw) {
   return null;
 }
 
-// ─────────────────────────────────────────────
-// Normalize any API shape into a flat array
-// ─────────────────────────────────────────────
 function extractList(data) {
   if (!data) return [];
   if (Array.isArray(data))               return data;
@@ -114,9 +138,6 @@ function extractList(data) {
   return [];
 }
 
-// ─────────────────────────────────────────────
-// Client-side filter
-// ─────────────────────────────────────────────
 function clientFilter(list, surname, phone) {
   const sLow = surname.toLowerCase();
   return list.filter((r) => {
@@ -199,6 +220,176 @@ function DetailRow({ label, value, C }) {
 }
 
 // ─────────────────────────────────────────────
+// EDIT MODAL  ← NEW
+// ─────────────────────────────────────────────
+function EditModal({ reservation, onClose, onSaved, C, isDark }) {
+  const [form, setForm] = useState({
+    name:             reservation.name         || "",
+    email:            reservation.email        || "",
+    phone:            reservation.phone        || reservation.contact_number || reservation.mobile || "",
+    event_date:       reservation.event_date   || reservation.eventDate || "",
+    event_time:       reservation.event_time   || reservation.eventTime || "",
+    guests_count:     reservation.guests_count || reservation.guests    || "",
+    special_requests: reservation.special_requests || "",
+  });
+  const [saving,  setSaving]  = useState(false);
+  const [errMsg,  setErrMsg]  = useState("");
+
+  const set = (key) => (val) => setForm((p) => ({ ...p, [key]: val }));
+
+  const handleSave = async () => {
+    if (!form.name.trim())       { setErrMsg("Name is required.");       return; }
+    if (!form.email.trim())      { setErrMsg("Email is required.");      return; }
+    if (!form.phone.trim())      { setErrMsg("Phone is required.");      return; }
+    if (!form.event_date)        { setErrMsg("Event date is required."); return; }
+    if (!form.event_time)        { setErrMsg("Event time is required."); return; }
+    if (!form.guests_count)      { setErrMsg("Guest count is required."); return; }
+
+    setErrMsg(""); setSaving(true);
+    const numId = Number(reservation.db_id ?? reservation.numeric_id ?? reservation.id);
+
+    try {
+      const res = await fetch(`${API_BASE}/reservations/${numId}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body:    JSON.stringify({
+          name:             form.name.trim(),
+          email:            form.email.trim(),
+          phone:            form.phone.trim(),
+          event_date:       form.event_date,
+          event_time:       form.event_time,
+          guests_count:     Number(form.guests_count),
+          special_requests: form.special_requests.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || `HTTP ${res.status}`);
+      }
+
+      const updated = await res.json();
+
+      // Merge updated fields back into the reservation object
+      const merged = {
+        ...reservation,
+        name:             form.name.trim(),
+        email:            form.email.trim(),
+        phone:            form.phone.trim(),
+        event_date:       form.event_date,
+        eventDate:        form.event_date,
+        event_time:       form.event_time,
+        eventTime:        form.event_time,
+        guests_count:     Number(form.guests_count),
+        guests:           Number(form.guests_count),
+        special_requests: form.special_requests.trim(),
+      };
+
+      onSaved(merged);
+    } catch (e) {
+      setErrMsg(e.message || "Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:4500, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(8px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
+    >
+      <div style={{ background:C.cardBg, borderRadius:20, width:500, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.45)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, position:"relative", animation:"scaleIn 0.22s ease" }}>
+
+        {/* Header */}
+        <div style={{ background:`linear-gradient(110deg, ${C.heroBg1} 0%, ${C.heroBg2} 100%)`, padding:"20px 22px 18px", borderRadius:"20px 20px 0 0", position:"sticky", top:0, zIndex:1 }}>
+          <div style={{ position:"absolute", top:14, right:14, zIndex:20 }}>
+            <CloseBtn onClick={onClose} disabled={saving} />
+          </div>
+          <div style={{ paddingRight:48 }}>
+            <div style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.22em", color:"#C9A84C", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Edit Booking</div>
+            <div style={{ fontFamily:F.display, fontSize:18, fontWeight:600, color:"#F7F3EA" }}>Update Your Details</div>
+            <div style={{ fontFamily:F.mono, fontSize:11, color:"#C9A84C", letterSpacing:"0.10em", fontWeight:700, marginTop:4 }}>
+              REF #{reservation.id || reservation.reference_code || "—"}
+            </div>
+          </div>
+        </div>
+
+        {/* Form body */}
+        <div style={{ padding:"22px 24px 26px" }}>
+
+          {errMsg && (
+            <div style={{ display:"flex", alignItems:"flex-start", gap:8, background:"rgba(224,82,82,0.08)", border:"1px solid rgba(224,82,82,0.24)", borderRadius:10, padding:"10px 13px", marginBottom:16, fontSize:12, color:C.red, lineHeight:1.6 }}>
+              <span style={{ flexShrink:0 }}>⚠️</span>
+              <span>{errMsg}</span>
+            </div>
+          )}
+
+          {/* Section: Personal Info */}
+          <div style={{ fontSize:9, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:12, paddingBottom:6, borderBottom:`1px solid ${C.cardBorder}` }}>
+            Personal Information
+          </div>
+
+          <Field label="Full Name"     value={form.name}   onChange={set("name")}  C={C} required placeholder="e.g. Sarah Abane" />
+          <Field label="Email Address" value={form.email}  onChange={set("email")} C={C} required type="email" placeholder="e.g. sarah@email.com" />
+          <Field label="Phone Number"  value={form.phone}  onChange={set("phone")} C={C} required type="tel"   placeholder="e.g. 09171234567" />
+
+          {/* Section: Event Info */}
+          <div style={{ fontSize:9, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:12, marginTop:20, paddingBottom:6, borderBottom:`1px solid ${C.cardBorder}` }}>
+            Event Details
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <Field label="Event Date" value={form.event_date} onChange={set("event_date")} C={C} required type="date" />
+            <Field label="Event Time" value={form.event_time} onChange={set("event_time")} C={C} required type="time" />
+          </div>
+
+          <Field label="Number of Guests" value={String(form.guests_count)} onChange={set("guests_count")} C={C} required type="number" placeholder="e.g. 4" />
+
+          {/* Special requests — textarea */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:"block", fontFamily:F.body, fontSize:10, letterSpacing:"0.16em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:5 }}>
+              Special Requests
+            </label>
+            <textarea
+              value={form.special_requests}
+              onChange={(e) => set("special_requests")(e.target.value)}
+              placeholder="Any dietary needs, accessibility requirements, etc."
+              rows={3}
+              style={{ width:"100%", boxSizing:"border-box", padding:"10px 13px", border:`1.5px solid ${C.inputBorder}`, borderRadius:9, background:C.inputBg, fontFamily:F.body, fontSize:13, color:C.textPrimary, outline:"none", resize:"vertical", transition:"border-color 0.2s", colorScheme: isDark ? "dark" : "light" }}
+              onFocus={(e)  => { e.currentTarget.style.borderColor = C.inputFocus; e.currentTarget.style.boxShadow = `0 0 0 3px ${C.gold}22`; }}
+              onBlur={(e)   => { e.currentTarget.style.borderColor = C.inputBorder; e.currentTarget.style.boxShadow = "none"; }}
+            />
+          </div>
+
+          {/* Note */}
+          <div style={{ background:C.goldFaint, border:`1px solid ${C.cardBorder}`, borderRadius:8, padding:"9px 12px", marginBottom:18, fontSize:11, color:C.textMuted, lineHeight:1.6 }}>
+            ℹ️ Venue, table, and seat cannot be changed here. Contact us directly for those changes.
+          </div>
+
+          {/* Actions */}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={onClose} disabled={saving}
+              style={{ flex:1, padding:"11px", border:`1.5px solid ${C.cardBorder}`, borderRadius:10, background:"transparent", color:C.textMuted, fontFamily:F.body, fontSize:13, fontWeight:600, cursor:saving?"not-allowed":"pointer", transition:"all 0.2s" }}
+              onMouseEnter={(e)=>{ if(!saving){e.currentTarget.style.borderColor=C.gold; e.currentTarget.style.color=C.gold;} }}
+              onMouseLeave={(e)=>{ e.currentTarget.style.borderColor=C.cardBorder; e.currentTarget.style.color=C.textMuted; }}>
+              Cancel
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              style={{ flex:2, padding:"11px", border:"none", borderRadius:10, background:saving?"#888":C.gold, color: isDark?"#0E0D09":"#fff", fontFamily:F.body, fontSize:13, fontWeight:700, cursor:saving?"not-allowed":"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+              onMouseEnter={(e)=>{ if(!saving) e.currentTarget.style.background=C.goldLight; }}
+              onMouseLeave={(e)=>{ if(!saving) e.currentTarget.style.background=C.gold; }}>
+              {saving
+                ? <><span style={{ display:"inline-block", width:13, height:13, border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} /> Saving…</>
+                : "✓ Save Changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // CANCEL MODAL
 // ─────────────────────────────────────────────
 function CancelModal({ reservation, onConfirm, onClose, loading, C }) {
@@ -209,12 +400,9 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ background:C.cardBg, borderRadius:18, padding:"28px 24px", width:400, maxWidth:"95vw", boxShadow:"0 32px 80px rgba(0,0,0,0.35)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, position:"relative", animation:"scaleIn 0.2s ease" }}>
-
-        {/* ── X close button ── */}
         <div style={{ position:"absolute", top:14, right:14 }}>
           <CloseBtn onClick={onClose} disabled={loading} />
         </div>
-
         <div style={{ fontSize:28, marginBottom:12 }}>⚠️</div>
         <div style={{ fontSize:10, letterSpacing:"0.22em", color:C.gold, fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Cancel Booking</div>
         <div style={{ fontSize:18, fontWeight:700, color:C.textPrimary, marginBottom:12, fontFamily:F.display }}>Are you sure?</div>
@@ -246,9 +434,9 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C }) {
 }
 
 // ─────────────────────────────────────────────
-// RESERVATION DETAIL MODAL
+// RESERVATION DETAIL MODAL  (Edit button added)
 // ─────────────────────────────────────────────
-function ReservationDetailModal({ reservation, onClose, onCancel, C, isDark, fmtDate, fmtTime }) {
+function ReservationDetailModal({ reservation, onClose, onCancel, onEdit, C, isDark, fmtDate, fmtTime }) {
   const isPending  = reservation.status === "pending";
   const isApproved = reservation.status === "reserved";
   const isRejected = reservation.status === "rejected";
@@ -261,17 +449,15 @@ function ReservationDetailModal({ reservation, onClose, onCancel, C, isDark, fmt
     >
       <div style={{ background:C.cardBg, borderRadius:20, width:500, maxWidth:"95vw", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.45)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, position:"relative", animation:"scaleIn 0.22s ease" }}>
 
-        {/* ── Header band ── */}
+        {/* Header */}
         <div style={{ background:`linear-gradient(110deg, ${C.heroBg1} 0%, ${C.heroBg2} 100%)`, padding:"20px 22px 18px", borderRadius:"20px 20px 0 0", position:"sticky", top:0, zIndex:1 }}>
-          {/* X button — top-right of header */}
           <div style={{ position:"absolute", top:14, right:14, zIndex:20 }}>
             <CloseBtn onClick={onClose} />
           </div>
-
           <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", paddingRight:48 }}>
             <div>
               <div style={{ fontFamily:F.display, fontSize:18, fontWeight:600, color:"#F7F3EA", marginBottom:4 }}>{reservation.name}</div>
-              <div style={{ fontFamily:F.mono, fontSize:11, color:C.gold, letterSpacing:"0.12em", fontWeight:700 }}>REF #{reservation.id || reservation.reference_code || "—"}</div>
+              <div style={{ fontFamily:F.mono, fontSize:11, color:"#C9A84C", letterSpacing:"0.12em", fontWeight:700 }}>REF #{reservation.id || reservation.reference_code || "—"}</div>
             </div>
             <StatusBadge status={reservation.status} C={C} />
           </div>
@@ -289,23 +475,39 @@ function ReservationDetailModal({ reservation, onClose, onCancel, C, isDark, fmt
               : reservation.seat ? `Table ${reservation.table || "—"}, Seat ${reservation.seat}` : null
             } C={C} />
           <DetailRow label="Type"  value={reservation.type === "whole" ? "Whole Table" : reservation.type === "seat" ? "Individual Seat" : reservation.type || null} C={C} />
-          <DetailRow label="Email" value={reservation.email}                                       C={C} />
+          <DetailRow label="Email" value={reservation.email}                                                 C={C} />
           <DetailRow label="Phone" value={reservation.phone || reservation.contact_number || reservation.mobile} C={C} />
+          {reservation.special_requests && (
+            <DetailRow label="Requests" value={reservation.special_requests} C={C} />
+          )}
 
           <div style={{ marginTop:14, padding:"10px 13px", borderRadius:8, background:C.statusNote[statusKey], border:`1px solid ${C.statusNoteBorder[statusKey]}`, fontSize:12, color:C.textMuted, lineHeight:1.6 }}>
-            {isPending  && <><strong style={{ color:C.textPrimary }}>Pending review.</strong> You may cancel while not yet approved.</>}
+            {isPending  && <><strong style={{ color:C.textPrimary }}>Pending review.</strong> You may edit or cancel while not yet approved.</>}
             {isApproved && <><strong style={{ color:C.textPrimary }}>Confirmed.</strong> Please arrive on time. Cancellation unavailable for confirmed bookings.</>}
             {isRejected && <><strong style={{ color:C.textPrimary }}>Cancelled.</strong> This booking is no longer active.</>}
           </div>
 
+          {/* Edit + Cancel buttons — only for pending */}
           {isPending && (
-            <button
-              onClick={() => { onClose(); onCancel(reservation); }}
-              style={{ marginTop:14, width:"100%", padding:"11px", background:"transparent", border:`1.5px solid ${C.red}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.red, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-              onMouseEnter={(e)=>{ e.currentTarget.style.background=C.red; e.currentTarget.style.color="#fff"; }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.red; }}>
-              🗑 Cancel This Booking
-            </button>
+            <div style={{ display:"flex", gap:10, marginTop:14 }}>
+              {/* Edit button */}
+              <button
+                onClick={() => { onClose(); onEdit(reservation); }}
+                style={{ flex:1, padding:"11px", background:"transparent", border:`1.5px solid ${C.gold}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.gold, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
+                onMouseEnter={(e)=>{ e.currentTarget.style.background=C.goldFaint; }}
+                onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; }}>
+                ✏️ Edit Details
+              </button>
+
+              {/* Cancel button */}
+              <button
+                onClick={() => { onClose(); onCancel(reservation); }}
+                style={{ flex:1, padding:"11px", background:"transparent", border:`1.5px solid ${C.red}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.red, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
+                onMouseEnter={(e)=>{ e.currentTarget.style.background=C.red; e.currentTarget.style.color="#fff"; }}
+                onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.red; }}>
+                🗑 Cancel Booking
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -314,7 +516,7 @@ function ReservationDetailModal({ reservation, onClose, onCancel, C, isDark, fmt
 }
 
 // ─────────────────────────────────────────────
-// RESULTS MODAL  (list of reservations found)
+// RESULTS MODAL
 // ─────────────────────────────────────────────
 function ResultsModal({ results, onClose, onSelectReservation, C, isDark, fmtDate, fmtTime }) {
   return (
@@ -324,31 +526,25 @@ function ResultsModal({ results, onClose, onSelectReservation, C, isDark, fmtDat
     >
       <div style={{ background:C.cardBg, borderRadius:20, width:540, maxWidth:"95vw", maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 40px 100px rgba(0,0,0,0.45)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, animation:"scaleIn 0.22s ease", overflow:"hidden" }}>
 
-        {/* ── Modal header ── */}
         <div style={{ background:`linear-gradient(110deg, ${C.heroBg1} 0%, ${C.heroBg2} 100%)`, padding:"18px 22px 16px", flexShrink:0, borderRadius:"20px 20px 0 0", position:"relative" }}>
-          {/* X button — absolutely positioned top-right */}
           <div style={{ position:"absolute", top:14, right:14, zIndex:20 }}>
             <CloseBtn onClick={onClose} />
           </div>
-
           <div style={{ paddingRight:52 }}>
-            <div style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.22em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>
-              Reservations Found
-            </div>
+            <div style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.22em", color:"#C9A84C", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Reservations Found</div>
             <div style={{ fontFamily:F.display, fontSize:20, fontWeight:600, color:"#F7F3EA" }}>
               {results.length} Booking{results.length !== 1 ? "s" : ""} Located
             </div>
           </div>
         </div>
 
-        {/* ── Scrollable list ── */}
         <div style={{ overflowY:"auto", padding:"16px 18px 20px", display:"flex", flexDirection:"column", gap:10 }}>
           {results.map((r, idx) => (
             <div
               key={r.id || idx}
               onClick={() => onSelectReservation(r)}
               style={{ background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", borderRadius:12, border:`1px solid ${C.cardBorder}`, padding:"14px 18px", cursor:"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}
-              onMouseEnter={(e)=>{ e.currentTarget.style.borderColor=C.gold; e.currentTarget.style.background= isDark ? "rgba(201,168,76,0.06)" : "rgba(160,120,40,0.05)"; e.currentTarget.style.transform="translateX(3px)"; }}
+              onMouseEnter={(e)=>{ e.currentTarget.style.borderColor="#C9A84C"; e.currentTarget.style.background= isDark ? "rgba(201,168,76,0.06)" : "rgba(160,120,40,0.05)"; e.currentTarget.style.transform="translateX(3px)"; }}
               onMouseLeave={(e)=>{ e.currentTarget.style.borderColor=C.cardBorder; e.currentTarget.style.background= isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"; e.currentTarget.style.transform="translateX(0)"; }}>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontFamily:F.display, fontSize:15, fontWeight:600, color:C.textPrimary, marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.name}</div>
@@ -395,16 +591,17 @@ export default function ManageBooking() {
 
   const C = getTokens(isDark);
 
-  const [lookup,             setLookup]             = useState("");
-  const [results,            setResults]            = useState(null);
-  const [searching,          setSearching]          = useState(false);
-  const [error,              setError]              = useState("");
-  const [cancelTarget,       setCancelTarget]       = useState(null);
-  const [cancelling,         setCancelling]         = useState(false);
-  const [toast,              setToast]              = useState(null);
-  const [focused,            setFocused]            = useState(false);
-  const [showResultsModal,   setShowResultsModal]   = useState(false);
-  const [selectedReservation,setSelectedReservation]= useState(null);
+  const [lookup,              setLookup]              = useState("");
+  const [results,             setResults]             = useState(null);
+  const [searching,           setSearching]           = useState(false);
+  const [error,               setError]               = useState("");
+  const [cancelTarget,        setCancelTarget]        = useState(null);
+  const [cancelling,          setCancelling]          = useState(false);
+  const [editTarget,          setEditTarget]          = useState(null);   // ← NEW
+  const [toast,               setToast]               = useState(null);
+  const [focused,             setFocused]             = useState(false);
+  const [showResultsModal,    setShowResultsModal]    = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState(null);
 
   const showToast = (msg, isSuccess = true) => {
     setToast({ msg, isSuccess });
@@ -424,24 +621,6 @@ export default function ManageBooking() {
     return isNaN(p) ? d : p.toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
   };
 
-  // ── localStorage fallback ───────────────────────────────────────────────
-  const localSearch = (surname, phone) => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("bellevue_reservations") || "[]");
-      const matched = clientFilter(stored, surname, phone);
-      setResults(matched);
-      if (matched.length > 0) {
-        setShowResultsModal(true);
-      } else {
-        setError("No reservations found. Double-check your lookup code and try again.");
-      }
-    } catch {
-      setError("Unable to search at this time. Please try again.");
-      setResults([]);
-    }
-  };
-
-  // ── Safe fetch helper ───────────────────────────────────────────────────
   const tryFetch = async (url) => {
     try {
       const res  = await fetch(url, { headers: { Accept: "application/json" } });
@@ -455,7 +634,6 @@ export default function ManageBooking() {
     }
   };
 
-  // ── Main search ─────────────────────────────────────────────────────────
   const handleSearch = async () => {
     const trimmed = lookup.trim();
     if (!trimmed) { setError("Please enter your lookup code."); return; }
@@ -480,31 +658,17 @@ export default function ManageBooking() {
         const matched = clientFilter(extractList(s1.data), surname, phone);
         if (matched.length > 0) { finishWithMatched(matched); return; }
       }
-
       const s2 = await tryFetch(`${API_BASE}/reservations/search?surname=${encodeURIComponent(surname)}&phone_last2=${encodeURIComponent(phone)}`);
-      if (s2.ok) {
-        const list = extractList(s2.data);
-        if (list.length > 0) { finishWithMatched(list); return; }
-      }
-
+      if (s2.ok) { const list = extractList(s2.data); if (list.length > 0) { finishWithMatched(list); return; } }
       const s3 = await tryFetch(`${API_BASE}/reservations/search?last_name=${encodeURIComponent(surname)}&phone=${encodeURIComponent(phone)}`);
-      if (s3.ok) {
-        const list = extractList(s3.data);
-        if (list.length > 0) { finishWithMatched(list); return; }
-      }
-
+      if (s3.ok) { const list = extractList(s3.data); if (list.length > 0) { finishWithMatched(list); return; } }
       const s4 = await tryFetch(`${API_BASE}/reservations/lookup?code=${encodeURIComponent(surname + phone)}`);
-      if (s4.ok) {
-        const list = extractList(s4.data);
-        if (list.length > 0) { finishWithMatched(list); return; }
-      }
-
+      if (s4.ok) { const list = extractList(s4.data); if (list.length > 0) { finishWithMatched(list); return; } }
       const s5 = await tryFetch(`${API_BASE}/reservations`);
       if (s5.data) {
         const matched = clientFilter(extractList(s5.data), surname, phone);
         if (matched.length > 0) { finishWithMatched(matched); return; }
       }
-
       setError("No reservations found. Double-check your lookup code and try again.");
     } finally {
       setSearching(false);
@@ -537,35 +701,35 @@ export default function ManageBooking() {
     showToast("Booking cancelled successfully.");
   };
 
-  // ─────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────
+  // ── Edit saved callback ──────────────────────────────────────────────────
+  const handleEditSaved = (updatedReservation) => {
+    // Update results list so the list modal reflects new data
+    setResults((prev) =>
+      prev?.map((r) => r.id === updatedReservation.id ? updatedReservation : r) ?? prev
+    );
+    setEditTarget(null);
+    // Re-open detail modal with updated data
+    setSelectedReservation(updatedReservation);
+    showToast("Details updated successfully! ✓");
+  };
+
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
       <div style={{ minHeight:"100vh", fontFamily:F.body, position:"relative", overflow:"hidden" }}>
 
-        {/* ── Full-page blurred background image ── */}
+        {/* Background */}
         <div style={{ position:"fixed", inset:0, zIndex:0 }}>
-          <div style={{
-            position:"absolute", inset:0,
-            backgroundImage:"url('/src/assets/bg-login.jpeg')",
-            backgroundSize:"cover", backgroundPosition:"center",
-            filter:"blur(3px) brightness(0.85)",
-            transform:"scale(1.04)",
-          }} />
+          <div style={{ position:"absolute", inset:0, backgroundImage:"url('/src/assets/bg-login.jpeg')", backgroundSize:"cover", backgroundPosition:"center", filter:"blur(3px) brightness(0.85)", transform:"scale(1.04)" }} />
           <div style={{ position:"absolute", inset:0, background: isDark ? "rgba(14,13,9,0.45)" : "rgba(245,240,232,0.38)" }} />
         </div>
 
         <ManageBookingNav />
 
-        {/* ── Centered content ── */}
         <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px clamp(16px,5vw,48px) 48px" }}>
 
           {/* Back button */}
           <div style={{ position:"absolute", top:80, left:"clamp(16px,4vw,52px)" }}>
-            <button
-              onClick={() => navigate("/")}
-              title="Go back"
+            <button onClick={() => navigate("/")} title="Go back"
               style={{ width:48, height:48, borderRadius:"50%", background:"rgba(201,168,76,0.12)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${C.gold}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", transition:"all 0.22s", padding:0 }}
               onMouseEnter={(e)=>{ e.currentTarget.style.background="rgba(201,168,76,0.28)"; e.currentTarget.style.transform="scale(1.08)"; }}
               onMouseLeave={(e)=>{ e.currentTarget.style.background="rgba(201,168,76,0.12)"; e.currentTarget.style.transform="scale(1)"; }}>
@@ -590,7 +754,7 @@ export default function ManageBooking() {
             </p>
           </div>
 
-          {/* ── Search card ── */}
+          {/* Search card */}
           <div style={{ width:"100%", maxWidth:480, background: isDark ? "rgba(14,13,9,0.78)" : "rgba(255,251,244,0.88)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderRadius:20, border:`1px solid ${C.overlayCardBorder}`, padding:"28px 26px 26px", boxShadow:"0 24px 80px rgba(0,0,0,0.30)", transition:"background 0.35s" }}>
 
             <label style={{ display:"block", fontFamily:F.body, fontSize:10, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:6 }}>
@@ -608,15 +772,7 @@ export default function ManageBooking() {
               onBlur={() => setFocused(false)}
               placeholder="e.g.  abane35  or  DelaC23"
               autoComplete="off" spellCheck={false}
-              style={{
-                width:"100%", boxSizing:"border-box", padding:"14px 16px",
-                border:`1.5px solid ${error ? C.red : focused ? C.inputFocus : C.inputBorder}`,
-                borderRadius:12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)",
-                fontFamily:F.mono, fontSize:18, fontWeight:700, letterSpacing:"0.06em", color:C.textPrimary,
-                outline:"none", transition:"border-color 0.2s, box-shadow 0.2s",
-                boxShadow: focused ? `0 0 0 3px ${C.gold}22` : error ? `0 0 0 3px ${C.red}14` : "none",
-                colorScheme: isDark ? "dark" : "light", marginBottom:8,
-              }}
+              style={{ width:"100%", boxSizing:"border-box", padding:"14px 16px", border:`1.5px solid ${error ? C.red : focused ? C.inputFocus : C.inputBorder}`, borderRadius:12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily:F.mono, fontSize:18, fontWeight:700, letterSpacing:"0.06em", color:C.textPrimary, outline:"none", transition:"border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : error ? `0 0 0 3px ${C.red}14` : "none", colorScheme: isDark ? "dark" : "light", marginBottom:8 }}
             />
 
             <div style={{ fontSize:11, color:C.textMuted, marginBottom: error ? 12 : 18, lineHeight:1.6 }}>
@@ -631,8 +787,7 @@ export default function ManageBooking() {
             )}
 
             <button
-              onClick={handleSearch}
-              disabled={searching}
+              onClick={handleSearch} disabled={searching}
               style={{ width:"100%", padding:"14px", background: searching ? (isDark ? "#2A2018" : "#D4C9B0") : C.gold, border:"none", borderRadius:12, fontFamily:F.body, fontSize:13, fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color: searching ? C.textMuted : (isDark ? "#0E0D09" : "#FFFFFF"), cursor: searching ? "not-allowed" : "pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
               onMouseEnter={(e) => { if (!searching) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${C.gold}40`; } }}
               onMouseLeave={(e) => { if (!searching) { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
@@ -652,29 +807,38 @@ export default function ManageBooking() {
           </div>
         </div>
 
-        {/* ── Results modal (list) ── */}
+        {/* Results modal */}
         {showResultsModal && results && results.length > 0 && (
           <ResultsModal
             results={results}
             onClose={() => setShowResultsModal(false)}
             onSelectReservation={(r) => { setShowResultsModal(false); setSelectedReservation(r); }}
-            C={C} isDark={isDark}
-            fmtDate={fmtDate} fmtTime={fmtTime}
+            C={C} isDark={isDark} fmtDate={fmtDate} fmtTime={fmtTime}
           />
         )}
 
-        {/* ── Single reservation detail modal ── */}
-        {selectedReservation && (
+        {/* Detail modal */}
+        {selectedReservation && !editTarget && (
           <ReservationDetailModal
             reservation={selectedReservation}
             onClose={() => setSelectedReservation(null)}
             onCancel={(r) => { setCancelTarget(r); }}
-            C={C} isDark={isDark}
-            fmtDate={fmtDate} fmtTime={fmtTime}
+            onEdit={(r) => { setEditTarget(r); }}
+            C={C} isDark={isDark} fmtDate={fmtDate} fmtTime={fmtTime}
           />
         )}
 
-        {/* ── Cancel confirmation modal ── */}
+        {/* Edit modal ← NEW */}
+        {editTarget && (
+          <EditModal
+            reservation={editTarget}
+            onClose={() => { setEditTarget(null); setSelectedReservation(editTarget); }}
+            onSaved={handleEditSaved}
+            C={C} isDark={isDark}
+          />
+        )}
+
+        {/* Cancel modal */}
         {cancelTarget && (
           <CancelModal
             reservation={cancelTarget} loading={cancelling}
@@ -682,7 +846,7 @@ export default function ManageBooking() {
           />
         )}
 
-        {/* ── Toast ── */}
+        {/* Toast */}
         {toast && (
           <div style={{ position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)", background: toast.isSuccess ? C.green : C.red, color:"#fff", fontFamily:F.body, fontSize:13, fontWeight:700, padding:"13px 24px", borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.28)", zIndex:9999, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8, animation:"slideUp 0.3s ease" }}>
             {toast.isSuccess ? "✅" : "❌"} {toast.msg}
@@ -690,11 +854,11 @@ export default function ManageBooking() {
         )}
 
         <style>{`
-          @keyframes slideUp { from{opacity:0;transform:translateX(-50%) translateY(12px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
-          @keyframes spin { to{transform:rotate(360deg)} }
-          @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-          @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-          @keyframes scaleIn { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+          @keyframes slideUp  { from{opacity:0;transform:translateX(-50%) translateY(12px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+          @keyframes spin     { to{transform:rotate(360deg)} }
+          @keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+          @keyframes scaleIn  { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
         `}</style>
       </div>
     </ThemeContext.Provider>

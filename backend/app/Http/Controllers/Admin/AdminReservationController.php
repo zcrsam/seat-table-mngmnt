@@ -12,8 +12,10 @@ use App\Events\ReservationUpdated;
 use App\Events\ReservationDeleted;
 use App\Events\SeatReserved;
 use App\Events\TableReserved;
+use App\Mail\ReservationStatusMail;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Mail;
 
 class AdminReservationController extends Controller
 {
@@ -30,7 +32,6 @@ class AdminReservationController extends Controller
             $page    = $request->get('page', 1);
             $perPage = $request->get('per_page', 10);
 
-            // ── Sort params sent by the frontend (sort=created_at&direction=desc) ──
             $allowedSorts = ['created_at', 'updated_at', 'id', 'event_date', 'status'];
             $sort      = in_array($request->get('sort'), $allowedSorts)
                             ? $request->get('sort')
@@ -87,6 +88,14 @@ class AdminReservationController extends Controller
         $validated['submitted_at']   = now();
 
         $reservation = Reservation::create($validated);
+
+        // Send pending confirmation email to the client
+        try {
+            Mail::to($reservation->email)
+                ->send(new ReservationStatusMail($reservation, 'pending'));
+        } catch (\Exception $e) {
+            \Log::error('Failed to send pending email: ' . $e->getMessage());
+        }
 
         broadcast(new ReservationCreated($reservation))->toOthers();
         WebsocketBroadcaster::broadcast('reservations', 'ReservationCreated', [
@@ -166,6 +175,14 @@ class AdminReservationController extends Controller
             $reservation = Reservation::findOrFail($id);
             $this->reservationService->approveReservation($reservation);
 
+            // Send approval email to the client
+            try {
+                Mail::to($reservation->email)
+                    ->send(new ReservationStatusMail($reservation, 'approved'));
+            } catch (\Exception $e) {
+                \Log::error('Failed to send approval email: ' . $e->getMessage());
+            }
+
             broadcast(new ReservationUpdated($reservation))->toOthers();
             WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
                 'reservation' => $reservation
@@ -186,6 +203,14 @@ class AdminReservationController extends Controller
         try {
             $reservation = Reservation::findOrFail($id);
             $this->reservationService->rejectReservation($reservation);
+
+            // Send rejection email to the client
+            try {
+                Mail::to($reservation->email)
+                    ->send(new ReservationStatusMail($reservation, 'rejected'));
+            } catch (\Exception $e) {
+                \Log::error('Failed to send rejection email: ' . $e->getMessage());
+            }
 
             broadcast(new ReservationUpdated($reservation))->toOthers();
             WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
