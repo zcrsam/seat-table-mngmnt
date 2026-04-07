@@ -91,7 +91,7 @@ function useResponsive() {
 // Assets
 import alabangImg       from "../../../assets/afc.jpeg";
 import lagunaImg        from "../../../assets/laguna.jpeg";
-import twentyTwentyImg  from "../../../assets/20:20.jpeg";
+import twentyTwentyImg  from "../../../assets/20-20.jpeg";
 import businessCenterImg from "../../../assets/bc.jpeg";
 import towerBallroomImg from "../../../assets/towerb.jpeg";
 import grandBallroomImg from "../../../assets/grandr.jpg";
