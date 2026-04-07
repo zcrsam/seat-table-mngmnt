@@ -9,7 +9,9 @@ import FunctionRoom2020 from "../features/client/pages/FunctionRoom2020";
 import BusinessCenter from "../features/client/pages/BusinessCenter";
 import AdminReserve from "../features/admin/pages/AdminReserve";
 import AdminDashboard from "../features/admin/pages/Dashboard";       
-import NotificationDashboard from "../features/admin/pages/Notifications";   
+import NotificationDashboard from "../features/admin/pages/Notifications";  
+import ForgotCode from "../features/client/pages/ForgotCode";
+
 
 export default function AppRoutes() {
   return (
@@ -25,7 +27,9 @@ export default function AppRoutes() {
         <Route path="/business-center" element={<BusinessCenter />} />
         <Route path="/admin" element={<AdminReserve />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />     
-        <Route path="/admin/notifications" element={<NotificationDashboard />} />   
+        <Route path="/admin/notifications" element={<NotificationDashboard />} />  
+        <Route path="/forgotcode" element={<ForgotCode />} />  
+
       </Routes>
     </BrowserRouter>
   );
