@@ -178,15 +178,19 @@ class AdminReservationController extends Controller
             // Send approval email to the client
             try {
                 Mail::to($reservation->email)
-                    ->send(new ReservationStatusMail($reservation, 'approved'));
+                    ->send(new ReservationStatusMail($reservation, 'reserved'));
             } catch (\Exception $e) {
                 \Log::error('Failed to send approval email: ' . $e->getMessage());
             }
 
-            broadcast(new ReservationUpdated($reservation))->toOthers();
-            WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
-                'reservation' => $reservation
-            ]);
+            try {
+                broadcast(new ReservationUpdated($reservation))->toOthers();
+                WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
+                    'reservation' => $reservation
+                ]);
+            } catch (\Throwable $broadcastError) {
+                \Log::warning('Reservation approve broadcast failed: ' . $broadcastError->getMessage());
+            }
 
             return response()->json([
                 'success'        => true,
@@ -198,24 +202,32 @@ class AdminReservationController extends Controller
         }
     }
 
-    public function reject(int $id): JsonResponse
+    public function reject(Request $request, int $id): JsonResponse
     {
         try {
+            $validated = $request->validate([
+                'reason' => 'required|string|min:5|max:1000',
+            ]);
+
             $reservation = Reservation::findOrFail($id);
-            $this->reservationService->rejectReservation($reservation);
+            $this->reservationService->rejectReservation($reservation, $validated['reason']);
 
             // Send rejection email to the client
             try {
                 Mail::to($reservation->email)
-                    ->send(new ReservationStatusMail($reservation, 'rejected'));
+                    ->send(new ReservationStatusMail($reservation, 'rejected', $validated['reason']));
             } catch (\Exception $e) {
                 \Log::error('Failed to send rejection email: ' . $e->getMessage());
             }
 
-            broadcast(new ReservationUpdated($reservation))->toOthers();
-            WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
-                'reservation' => $reservation
-            ]);
+            try {
+                broadcast(new ReservationUpdated($reservation))->toOthers();
+                WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
+                    'reservation' => $reservation
+                ]);
+            } catch (\Throwable $broadcastError) {
+                \Log::warning('Reservation reject broadcast failed: ' . $broadcastError->getMessage());
+            }
 
             return response()->json([
                 'success'        => true,

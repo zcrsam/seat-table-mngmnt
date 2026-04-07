@@ -81,6 +81,7 @@
 
         .status-pending  { background: rgba(244,158,12,0.10); color: #F49E0C; border: 1px solid rgba(244,158,12,0.35); }
         .status-approved { background: rgba(15,186,129,0.10); color: #0FBA81; border: 1px solid rgba(15,186,129,0.35); }
+        .status-reserved { background: rgba(15,186,129,0.10); color: #0FBA81; border: 1px solid rgba(15,186,129,0.35); }
         .status-rejected { background: rgba(224,82,82,0.10);  color: #E05252; border: 1px solid rgba(224,82,82,0.35); }
 
         /* Greeting */
@@ -163,6 +164,7 @@
 
         .message-pending  { background: rgba(244,158,12,0.07); border: 1px solid rgba(244,158,12,0.20); color: #92670A; }
         .message-approved { background: rgba(15,186,129,0.07); border: 1px solid rgba(15,186,129,0.20); color: #0A7A55; }
+        .message-reserved { background: rgba(15,186,129,0.07); border: 1px solid rgba(15,186,129,0.20); color: #0A7A55; }
         .message-rejected { background: rgba(224,82,82,0.07);  border: 1px solid rgba(224,82,82,0.20);  color: #B03030; }
 
         /* ── Footer ── */
@@ -198,7 +200,7 @@
         {{-- ── Content ── --}}
         <div class="content">
 
-            <span class="status-badge status-{{ $status }}">{{ $statusText }}</span>
+            <span class="status-badge status-{{ $displayStatus ?? $status }}">{{ $statusText }}</span>
 
             <p class="greeting">Hello, {{ $reservation->name ?? 'Valued Guest' }}</p>
 
@@ -282,22 +284,34 @@
                 </div>
                 @endif
 
+                @if($status === 'rejected' && !empty($rejectionReason))
+                <div class="detail-row">
+                    <span class="detail-label">Rejection Reason</span>
+                    <span class="detail-value">{{ $rejectionReason }}</span>
+                </div>
+                @endif
+
             </div>
 
             {{-- Status-specific message --}}
-            <div class="status-message message-{{ $status }}">
+            <div class="status-message message-{{ $displayStatus ?? $status }}">
                 @if($status === 'pending')
                     Your reservation has been received and is currently <strong>pending review</strong>.
                     Our team will process your request shortly and you will receive another email
                     once a decision has been made. Thank you for your patience.
-                @elseif($status === 'approved')
+                @elseif($status === 'approved' || $status === 'reserved')
                     🎉 Great news! Your reservation has been <strong>approved and confirmed</strong>.
                     Please arrive at least 15 minutes before your scheduled time. We look forward
                     to welcoming you to The Bellevue Manila.
                 @elseif($status === 'rejected')
                     We regret to inform you that we are unable to accommodate your reservation at
-                    this time due to availability constraints. Please contact our reservations desk
-                    directly so we can assist you in finding a suitable alternative.
+                    this time.
+                    @if(!empty($rejectionReason))
+                        Reason: <strong>{{ $rejectionReason }}</strong>
+                    @else
+                        Please contact our reservations desk directly so we can assist you in
+                        finding a suitable alternative.
+                    @endif
                 @endif
             </div>
 
