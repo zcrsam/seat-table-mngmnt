@@ -17,7 +17,7 @@ import laguna from "../assets/laguna.jpeg";
 import towerb from "../assets/towerb.jpeg";
 import afc from "../assets/afc.jpeg";
 import grandRoom from "../assets/grandr.jpg";
-import twentyTwenty from "../assets/20:20.jpeg";
+import twentyTwenty from "../assets/20-20.jpeg";
 import bc from "../assets/bc.jpeg";
 
 export const EVENT_CATEGORIES = [

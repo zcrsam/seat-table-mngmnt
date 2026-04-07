@@ -42,7 +42,7 @@ class VenueSeeder extends Seeder
             'capacity' => 50,
             'price_per_hour' => 3000.00,
             'description' => 'Intimate setting for smaller gatherings and meetings.',
-            'image' => '20:20.jpeg',
+            'image' => '20-20.jpeg',
             'is_active' => 1,
         ]);
 
