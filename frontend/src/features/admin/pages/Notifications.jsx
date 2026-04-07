@@ -776,7 +776,7 @@ export default function NotificationDashboard() {
   const [pendingPerPage, setPendingPerPage] = useState(20);
   const [donePerPage,    setDonePerPage]    = useState(20);
 
-  const [leftTab,        setLeftTab]        = useState("upcoming");
+  const [leftTab,        setLeftTab]        = useState("pending");
 
   const knownIds    = useRef(new Set());
   const firedAlerts = useRef(new Set());
