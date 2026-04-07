@@ -1,4 +1,4 @@
-// src/features/booking/pages/ManageBooking.jsx
+// src/features/booking/pages/ForgotCode.jsx
 import { useState, useEffect, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
@@ -747,10 +747,10 @@ export default function ManageBooking() {
               <span style={{ display:"inline-block", width:28, height:1.5, background:C.gold }} />
             </div>
             <h1 style={{ fontFamily:F.display, fontSize:"clamp(26px,5vw,42px)", fontWeight:600, color:"#F7F3EA", lineHeight:1.15, margin:"0 0 10px", letterSpacing:"-0.01em", textShadow:"0 2px 20px rgba(0,0,0,0.35)" }}>
-              Manage Your Reservation
+              Forgot Your Reference Code
             </h1>
             <p style={{ fontFamily:F.body, fontSize:14, color:"rgba(247,243,234,0.65)", margin:0, lineHeight:1.6, maxWidth:560 }}>
-              Enter your reference code to access and manage your booking.
+              Enter your combination code to access your reference code. (Surname + last 2 digit of phone number)
             </p>
           </div>
 
@@ -758,15 +758,15 @@ export default function ManageBooking() {
           <div style={{ width:"100%", maxWidth:480, background: isDark ? "rgba(14,13,9,0.78)" : "rgba(255,251,244,0.88)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderRadius:20, border:`1px solid ${C.overlayCardBorder}`, padding:"28px 26px 26px", boxShadow:"0 24px 80px rgba(0,0,0,0.30)", transition:"background 0.35s" }}>
 
             <label style={{ display:"block", fontFamily:F.body, fontSize:10, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:6 }}>
-              Reference Code
+              Put here your combination code
             </label>
             
-
             <input
               value={lookup}
               onChange={(e) => { setLookup(e.target.value); setError(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               onFocus={() => setFocused(true)}
+              placeholder="e.g. abane35"
               onBlur={() => setFocused(false)}
               autoComplete="off" spellCheck={false}
               style={{ width:"100%", boxSizing:"border-box", padding:"14px 16px", border:`1.5px solid ${error ? C.red : focused ? C.inputFocus : C.inputBorder}`, borderRadius:12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily:F.mono, fontSize:18, fontWeight:700, letterSpacing:"0.06em", color:C.textPrimary, outline:"none", transition:"border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : error ? `0 0 0 3px ${C.red}14` : "none", colorScheme: isDark ? "dark" : "light", marginBottom:8 }}
@@ -787,22 +787,9 @@ export default function ManageBooking() {
               onMouseLeave={(e) => { if (!searching) { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
               {searching
                 ? <><span style={{ display:"inline-block", width:13, height:13, border:`2px solid ${C.textMuted}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />Searching…</>
-                : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Find My Booking</>
+                : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Submit</>
               }
             </button>
-
-            <div style={{ textAlign:"center", paddingTop:18 }}>
-              <span style={{ fontFamily:F.body, fontSize:12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}>Need to make a booking? </span>
-              <button onClick={() => navigate("/venues")}
-                style={{ background:"none", border:"none", fontFamily:F.body, fontSize:12, fontWeight:700, color:C.gold, cursor:"pointer", padding:0, letterSpacing:"0.04em", textDecoration:"underline", textUnderlineOffset:3 }}>
-                View All Venues → 
-              </button>
-              <span style={{ fontFamily:F.body, fontSize:12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}><br />  Forgot your reference code? </span>
-              <button onClick={() => navigate("/forgotcode")}
-                style={{ background:"none", border:"none", fontFamily:F.body, fontSize:12, fontWeight:700, color:C.red, cursor:"pointer", padding:0, letterSpacing:"0.04em", textDecoration:"underline", textUnderlineOffset:3 }}>
-                Click here →
-              </button>
-            </div>
           </div>
         </div>
 
