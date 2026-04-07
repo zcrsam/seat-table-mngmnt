@@ -21,7 +21,8 @@ class Reservation extends Model
         'special_requests',
         'status',
         'type',
-        'submitted_at'
+        'submitted_at',
+        'rejection_reason'
     ];
 
     protected $casts = [

@@ -15,9 +15,10 @@ const directAPI = {
     if (!r.ok) throw new Error(data?.message || `HTTP ${r.status}`);
     return data;
   }),
-  reject: (id) => fetch(`${API_BASE}/reservations/${id}/reject`, {
+  reject: (id, reason) => fetch(`${API_BASE}/reservations/${id}/reject`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ reason }),
   }).then(async r => {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data?.message || `HTTP ${r.status}`);
@@ -45,15 +46,15 @@ function getNumericId(res) {
   );
 }
 
-async function callAPI(method, numericId) {
+async function callAPI(method, numericId, payload) {
   try {
     if (typeof reservationAPI[method] === "function") {
-      return await reservationAPI[method](numericId);
+      return await reservationAPI[method](numericId, payload);
     }
   } catch (err) {
     if (!err.message?.includes("not a function")) throw err;
   }
-  return await directAPI[method](numericId);
+  return await directAPI[method](numericId, payload);
 }
 
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
@@ -736,15 +737,20 @@ function Dashboard({ onLogout }) {
     showToast("Reservation approved — seats reserved (red).", "#4CAF79");
   };
 
-  const handleReject = async (id) => {
+  const handleReject = async (id, providedReason) => {
     const res = reservations.find(r => r.id === id);
     if (!res) { showToast("Reservation not found", "#E05252"); return; }
     let numericId;
     try { numericId = getNumericId(res); } catch (e) { showToast(`Cannot reject: ${e.message}`, "#E05252"); return; }
-    try { await callAPI("reject", numericId); } catch (error) {
+    const rejectionReason = (providedReason ?? "").trim();
+    if (!rejectionReason) {
+      showToast("A rejection reason is required.", "#E05252");
+      return;
+    }
+    try { await callAPI("reject", numericId, rejectionReason); } catch (error) {
       showToast(`Failed to reject: ${error?.response?.data?.message || error?.message || "Unknown error"}`, "#E05252"); return;
     }
-    setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected" } : r));
+    setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected", rejectionReason } : r));
     setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)), rejected: prev.rejected + 1 }));
     syncSeatToStorage(res, "rejected");
     showToast("Reservation rejected — seats freed (green).", "#E05252");
@@ -982,7 +988,7 @@ function Dashboard({ onLogout }) {
                             <td style={{ padding: "12px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                               <button onClick={() => setViewRes(r)} style={{ padding: "4px 8px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>VIEW</button>
                               {r.status !== "reserved" && <button onClick={() => handleApprove(r.id)} style={{ padding: "4px 8px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>✓</button>}
-                              {r.status !== "rejected" && <button onClick={() => handleReject(r.id)} style={{ padding: "4px 8px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>✕</button>}
+                              {r.status !== "rejected" && <button onClick={() => setViewRes(r)} style={{ padding: "4px 8px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 8, fontWeight: 700, cursor: "pointer", marginRight: 4 }}>✕</button>}
                               <button onClick={() => handleDelete(r.id)} style={{ padding: "4px 8px", border: "1px solid #E1E4E8", background: "transparent", color: "#B0B7C3", borderRadius: 4, fontSize: 10, cursor: "pointer", lineHeight: 1, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "#E05252"; e.currentTarget.style.color = "#E05252"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = "#B0B7C3"; }}>🗑</button>
                             </td>
                           </>
@@ -1009,7 +1015,7 @@ function Dashboard({ onLogout }) {
                             <td style={{ padding: "14px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                               <button onClick={() => setViewRes(r)} style={{ padding: "5px 12px", border: "1px solid #E1E4E8", background: "transparent", color: "#6C757D", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>VIEW</button>
                               {r.status !== "reserved" && <button onClick={() => handleApprove(r.id)} style={{ padding: "5px 12px", border: "1px solid #4CAF79", background: "transparent", color: "#4CAF79", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✓ Approve</button>}
-                              {r.status !== "rejected" && <button onClick={() => handleReject(r.id)} style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕ Reject</button>}
+                              {r.status !== "rejected" && <button onClick={() => setViewRes(r)} style={{ padding: "5px 12px", border: "1px solid #E05252", background: "transparent", color: "#E05252", borderRadius: 4, fontSize: 9, fontWeight: 700, letterSpacing: 1.2, cursor: "pointer", marginRight: 6 }}>✕ Reject</button>}
                               <button onClick={() => handleDelete(r.id)} style={{ padding: "5px 10px", border: "1px solid #E1E4E8", background: "transparent", color: "#B0B7C3", borderRadius: 4, fontSize: 11, cursor: "pointer", lineHeight: 1, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "#E05252"; e.currentTarget.style.color = "#E05252"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "#E1E4E8"; e.currentTarget.style.color = "#B0B7C3"; }}>🗑</button>
                             </td>
                           </>
@@ -1235,7 +1241,7 @@ function Dashboard({ onLogout }) {
           res={{ ...viewRes, seat: viewRes.type === "whole" ? `${viewRes.guests}${viewRes.tableCapacity ? ` / ${viewRes.tableCapacity}` : ""} seats reserved` : (viewRes.seat || "—"), typeLabel: viewRes.type === "whole" ? `Partial Table (${viewRes.guests} guest${viewRes.guests !== 1 ? "s" : ""})` : "Individual Seat" }}
           onClose={() => setViewRes(null)}
           onApprove={id => { handleApprove(id); setViewRes(null); }}
-          onReject={id  => { handleReject(id);  setViewRes(null); }}
+          onReject={(id, reason) => { handleReject(id, reason); setViewRes(null); }}
         />
       )}
 

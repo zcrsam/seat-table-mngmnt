@@ -50,9 +50,12 @@ class ReservationService
     /**
      * Reject a reservation and release seats
      */
-    public function rejectReservation(Reservation $reservation): Reservation
+    public function rejectReservation(Reservation $reservation, string $reason): Reservation
     {
-        $reservation->update(['status' => 'rejected']);
+        $reservation->update([
+            'status' => 'rejected',
+            'rejection_reason' => $reason,
+        ]);
 
         // Update the specific seat status back to available if seat_number is specified
         if ($reservation->seat_number) {
@@ -133,6 +136,7 @@ class ReservationService
                         'specialRequests'  => $reservation->special_requests,
                         'status'           => $reservation->status,
                         'type'             => $reservation->type,
+                        'rejectionReason'  => $reservation->rejection_reason,
                         'submittedAt'      => $submittedAt,
                         'submittedTimestamp' => $reservation->submitted_at
                             ? $reservation->submitted_at->timestamp
@@ -164,6 +168,7 @@ class ReservationService
                     'specialRequests'  => $reservation->special_requests,
                     'status'           => $reservation->status,
                     'type'             => $reservation->type,
+                    'rejectionReason'  => $reservation->rejection_reason,
                     'submittedAt'      => $reservation->submitted_at->format('M j, Y · g:i A'),
                     'submittedTimestamp' => $reservation->submitted_at->timestamp,
                 ];

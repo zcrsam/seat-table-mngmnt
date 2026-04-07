@@ -26,5 +26,5 @@ export const reservationAPI = {
   approve: (id) => api.patch(`/admin/reservations/${id}/approve`),
 
   // Reject reservation
-  reject: (id) => api.patch(`/admin/reservations/${id}/reject`),
+  reject: (id, reason) => api.patch(`/admin/reservations/${id}/reject`, { reason }),
 };
