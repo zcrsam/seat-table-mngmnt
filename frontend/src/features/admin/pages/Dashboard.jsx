@@ -47,6 +47,7 @@ function getNumericId(res) {
 }
 
 async function callAPI(method, numericId, payload) {
+<<<<<<< HEAD
   console.log(`Calling API: ${method} with ID: ${numericId}, payload:`, payload);
   
   // Try directAPI first since it has the correct endpoints
@@ -69,10 +70,19 @@ async function callAPI(method, numericId, payload) {
     } catch (reservationError) {
       console.warn(`reservationAPI.${method} failed:`, reservationError);
       throw reservationError;
+=======
+  try {
+    if (typeof reservationAPI[method] === "function") {
+      return await reservationAPI[method](numericId, payload);
+>>>>>>> 8d1ee13 (Implement rejection reason for reservations and update email notifications)
     }
     
     throw directError;
   }
+<<<<<<< HEAD
+=======
+  return await directAPI[method](numericId, payload);
+>>>>>>> 8d1ee13 (Implement rejection reason for reservations and update email notifications)
 }
 
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
@@ -764,6 +774,7 @@ function Dashboard({ onLogout }) {
     if (!rejectionReason) {
       showToast("A rejection reason is required.", "#E05252");
       return;
+<<<<<<< HEAD
     }
     try {
       await callAPI("reject", numericId, rejectionReason);
@@ -776,6 +787,12 @@ function Dashboard({ onLogout }) {
       showToast(`Failed to reject: ${errorMessage}`, "#E05252");
       return;
     }
+=======
+    }
+    try { await callAPI("reject", numericId, rejectionReason); } catch (error) {
+      showToast(`Failed to reject: ${error?.response?.data?.message || error?.message || "Unknown error"}`, "#E05252"); return;
+    }
+>>>>>>> 8d1ee13 (Implement rejection reason for reservations and update email notifications)
     setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected", rejectionReason } : r));
     setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)), rejected: prev.rejected + 1 }));
     syncSeatToStorage(res, "rejected");
