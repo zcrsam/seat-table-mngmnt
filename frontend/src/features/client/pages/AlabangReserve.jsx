@@ -766,24 +766,7 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook = false, booking
         boxShadow: "0 24px 60px rgba(0,0,0,0.22)", overflow: "hidden",
       }}>
 
-        {/* Header */}
-        <div style={{ background: "#1B2A4A", padding: "20px 24px 16px", position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <img
-            src={bellevueLogo}
-            alt="The Bellevue Manila"
-            style={{ height: 36, width: "auto", display: "block", objectFit: "contain" }}
-          />
-          <button onClick={onBack} style={{
-            width: 28, height: 28, borderRadius: "50%",
-            background: "rgba(255,255,255,0.10)", border: "none",
-            color: "rgba(255,255,255,0.6)", fontSize: 13, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: FONT, lineHeight: 1, transition: "background 0.15s", flexShrink: 0,
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.22)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.10)"; }}>&#x2715;</button>
-        </div>
-
+        
         {/* Gold line */}
         <div style={{ height: 2, background: "linear-gradient(90deg, #C9A84C, #E8C96C, #C9A84C)" }} />
 
