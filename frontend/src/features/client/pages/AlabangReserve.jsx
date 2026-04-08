@@ -610,29 +610,26 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
 }
 
 // ─── buildQrValue ─────────────────────────────────────────────────────────────
-// Uses vCard (BEGIN:VCARD) format — the single most universally supported
-// structured QR type. Every iOS/Android scanner opens a vCard as a
-// "Add Contact" or "View Card" sheet — NEVER as a search or phone call.
-// We put all reservation details in the NOTE field so the user sees them.
-// The ORG field acts as the title. FN (full name) is required by the spec.
+// Encode a URL so phone scanners open a web page (not a contact card).
 const buildQrValue = ({ refCode, table, date, venue = "ALABANG" }) => {
-  const clean     = (str = "") => String(str).replace(/[^\w\- ]/g, "").toUpperCase().trim().slice(0, 30);
-  const cleanDate = (d   = "") => String(d).replace(/[^0-9\-]/g, "").slice(0, 10);
+  const clean = (value = "", fallback = "N/A") => {
+    const v = String(value).trim();
+    return v || fallback;
+  };
 
-  const ref   = clean(refCode) || "N/A";
-  const tbl   = clean(table)   || "N/A";
-  const dt    = cleanDate(date) || "N/A";
-  const ven   = clean(venue)   || "ALABANG";
+  const ref = clean(refCode);
+  const tbl = clean(table);
+  const dt  = clean(date);
+  const ven = clean(venue, "ALABANG");
 
-  // vCard 3.0 — opens as a contact card on all iOS and Android scanners
-  return [
-    "BEGIN:VCARD",
-    "VERSION:3.0",
-    `FN:Bellevue Manila Reservation`,
-    `ORG:The Bellevue Manila`,
-    `NOTE:RESERVATION DETAILS\\nRef No: ${ref}\\nTable: ${tbl}\\nDate: ${dt}\\nVenue: ${ven}\\nStatus: Pending Approval`,
-    "END:VCARD",
-  ].join("\n");
+  const basePath = String(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
+  const confirmationUrl = new URL(`${basePath}qr-confirmation.html`, window.location.origin);
+  confirmationUrl.searchParams.set("ref", ref);
+  confirmationUrl.searchParams.set("table", tbl);
+  confirmationUrl.searchParams.set("date", dt);
+  confirmationUrl.searchParams.set("venue", ven);
+
+  return confirmationUrl.toString();
 };
 
 // ─── MODAL: Success ────────────────────────────────────────────────────────────
