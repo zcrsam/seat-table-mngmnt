@@ -1,11 +1,8 @@
 // src/features/booking/pages/ForgotCode.jsx
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-// ─────────────────────────────────────────────
-// THEME CONTEXT
-// ─────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
@@ -17,17 +14,11 @@ function getTokens(isDark) {
         inputBg: "rgba(255,255,255,0.06)", inputBorder: "rgba(201,168,76,0.22)", inputFocus: "#C9A84C",
         textPrimary: "#F7F3EA", textMuted: "#8A8070",
         navBg: "rgba(14,13,9,0.85)", navBorder: "rgba(201,168,76,0.15)",
-        heroBg1: "#0E0D09", heroBg2: "#1A1812", headerHint: "#C9A84C",
-        labelColor: "rgba(201,168,76,0.72)", divider: "rgba(201,168,76,0.12)",
         red: "#E05252", green: "#0FBA81",
-        overlayCard: "rgba(14,13,9,0.82)",
-        overlayCardBorder: "rgba(201,168,76,0.18)",
+        divider: "rgba(201,168,76,0.12)",
         badgePending:  { bg: "rgba(244,158,12,0.15)",  color: "#F49E0C" },
         badgeApproved: { bg: "rgba(15,186,129,0.15)",  color: "#0FBA81" },
         badgeRejected: { bg: "rgba(224,82,82,0.15)",   color: "#E05252" },
-        statusNote:       { pending: "rgba(244,158,12,0.08)",  approved: "rgba(15,186,129,0.08)",  rejected: "rgba(224,82,82,0.08)" },
-        statusNoteBorder: { pending: "rgba(244,158,12,0.22)",  approved: "rgba(15,186,129,0.22)",  rejected: "rgba(224,82,82,0.22)" },
-        detailBorder: "rgba(201,168,76,0.08)", detailLabel: "rgba(201,168,76,0.66)", detailValue: "#F5EFE0",
       }
     : {
         gold: "#A07828", goldLight: "#C9A84C", goldFaint: "rgba(160,120,40,0.10)",
@@ -35,17 +26,11 @@ function getTokens(isDark) {
         inputBg: "rgba(255,255,255,0.90)", inputBorder: "rgba(160,120,40,0.28)", inputFocus: "#9A7A2E",
         textPrimary: "#1A1612", textMuted: "#5A5040",
         navBg: "rgba(245,240,232,0.90)", navBorder: "rgba(160,120,40,0.18)",
-        heroBg1: "#1A1612", heroBg2: "#2A2018", headerHint: "#C9A84C",
-        labelColor: "rgba(160,120,40,0.80)", divider: "rgba(160,120,40,0.14)",
         red: "#C0392B", green: "#0FBA81",
-        overlayCard: "rgba(255,251,244,0.90)",
-        overlayCardBorder: "rgba(160,120,40,0.22)",
+        divider: "rgba(160,120,40,0.14)",
         badgePending:  { bg: "rgba(244,158,12,0.15)",  color: "#B8860B" },
         badgeApproved: { bg: "rgba(15,186,129,0.15)",  color: "#0FBA81" },
         badgeRejected: { bg: "rgba(224,82,82,0.15)",   color: "#C0392B" },
-        statusNote:       { pending: "rgba(244,158,12,0.08)",  approved: "rgba(15,186,129,0.08)",  rejected: "rgba(224,82,82,0.08)" },
-        statusNoteBorder: { pending: "rgba(244,158,12,0.22)",  approved: "rgba(15,186,129,0.22)",  rejected: "rgba(224,82,82,0.22)" },
-        detailBorder: "rgba(160,120,40,0.08)", detailLabel: "rgba(160,120,40,0.66)", detailValue: "#1A1612",
       };
 }
 
@@ -57,69 +42,7 @@ const F = {
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-// ─────────────────────────────────────────────
-// SHARED CLOSE BUTTON
-// ─────────────────────────────────────────────
-function CloseBtn({ onClick, disabled = false }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title="Close"
-      style={{
-        width: 36, height: 36, borderRadius: "50%",
-        background: "#C9A84C", border: "2px solid #C9A84C",
-        cursor: disabled ? "not-allowed" : "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0, transition: "background 0.18s, transform 0.15s",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.28)", padding: 0, zIndex: 10,
-      }}
-      onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = "#A07828"; e.currentTarget.style.transform = "scale(1.08)"; } }}
-      onMouseLeave={(e) => { if (!disabled) { e.currentTarget.style.background = "#C9A84C"; e.currentTarget.style.transform = "scale(1)"; } }}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-        stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18" />
-        <line x1="6" y1="6" x2="18" y2="18" />
-      </svg>
-    </button>
-  );
-}
-
-// ─────────────────────────────────────────────
-// SHARED FIELD INPUT
-// ─────────────────────────────────────────────
-function Field({ label, value, onChange, type = "text", placeholder = "", C, required = false }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ display: "block", fontFamily: F.body, fontSize: 10, letterSpacing: "0.16em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 5 }}>
-        {label}{required && <span style={{ color: C.red, marginLeft: 3 }}>*</span>}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: "100%", boxSizing: "border-box", padding: "10px 13px",
-          border: `1.5px solid ${focused ? C.inputFocus : C.inputBorder}`,
-          borderRadius: 9, background: C.inputBg,
-          fontFamily: F.body, fontSize: 13, color: C.textPrimary,
-          outline: "none", transition: "border-color 0.2s, box-shadow 0.2s",
-          boxShadow: focused ? `0 0 0 3px ${C.gold}22` : "none",
-          colorScheme: C.inputBg.includes("255") ? "light" : "dark",
-        }}
-      />
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// PARSE LOOKUP
-// ─────────────────────────────────────────────
+// Parse combination code (surname + last 2 digits)
 function parseLookup(raw) {
   const t = raw.trim();
   if (!t) return null;
@@ -142,28 +65,61 @@ function clientFilter(list, surname, phone) {
   const sLow = surname.toLowerCase();
   return list.filter((r) => {
     const fullName = (r.name || r.full_name || r.fullName || "").trim();
-    const parts    = fullName.split(/\s+/);
-    const nameMatch =
+    const parts = fullName.split(/\s+/);
+    
+    // Prioritize exact surname match (last word)
+    const lastWord = parts[parts.length - 1]?.toLowerCase() || "";
+    const exactSurnameMatch = lastWord === sLow;
+    
+    // Also accept partial matches but with higher priority for exact
+    const nameMatch = exactSurnameMatch || 
       parts.some((p) => p.toLowerCase().startsWith(sLow)) ||
       fullName.toLowerCase().includes(sLow);
+      
     const ph = String(r.phone || r.contact_number || r.mobile || r.phone_number || "")
       .replace(/\D/g, "");
     const phoneMatch = ph.length >= 2 && ph.slice(-2) === phone;
+    
     return nameMatch && phoneMatch;
+  }).sort((a, b) => {
+    // Sort exact matches to the top
+    const aName = (a.name || a.full_name || a.fullName || "").trim();
+    const bName = (b.name || b.full_name || b.fullName || "").trim();
+    const aParts = aName.split(/\s+/);
+    const bParts = bName.split(/\s+/);
+    const aLast = aParts[aParts.length - 1]?.toLowerCase() || "";
+    const bLast = bParts[bParts.length - 1]?.toLowerCase() || "";
+    
+    const aExact = aLast === sLow;
+    const bExact = bLast === sLow;
+    
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+    return 0;
   });
 }
 
-// ─────────────────────────────────────────────
-// THEME TOGGLE
-// ─────────────────────────────────────────────
+function StatusBadge({ status, C }) {
+  const cfg =
+    status === "pending"  ? { ...C.badgePending,  label: "Pending"   } :
+    status === "reserved" ? { ...C.badgeApproved, label: "Confirmed" } :
+    status === "rejected" ? { ...C.badgeRejected, label: "Cancelled" } :
+    { bg: "rgba(130,130,130,0.12)", color: "#888", label: status ?? "Unknown" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: cfg.bg, color: cfg.color, padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: F.body, border: `1px solid ${cfg.color}40` }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
+      {cfg.label}
+    </span>
+  );
+}
+
 function ThemeToggle() {
   const { isDark, toggle } = useTheme();
   return (
-    <button type="button" onClick={toggle}
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      style={{ display:"flex", alignItems:"center", padding:0, background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
-      <span style={{ position:"relative", width:46, height:25, borderRadius:13, background: isDark ? "#2C2A1E" : "#DDD6C0", border:`1.5px solid ${isDark ? "rgba(201,168,76,0.28)" : "rgba(160,120,40,0.22)"}`, display:"inline-flex", alignItems:"center", flexShrink:0, transition:"background 0.32s, border-color 0.32s", verticalAlign:"middle" }}>
-        <span style={{ position:"absolute", top:2, left: isDark ? 2 : "calc(100% - 23px)", width:19, height:19, borderRadius:"50%", background:"#FFFFFF", display:"flex", alignItems:"center", justifyContent:"center", transition:"left 0.30s cubic-bezier(.4,0,.2,1)", flexShrink:0 }}>
+    <button type="button" onClick={toggle} title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      style={{ display: "flex", alignItems: "center", padding: 0, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+      <span style={{ position: "relative", width: 46, height: 25, borderRadius: 13, background: isDark ? "#2C2A1E" : "#DDD6C0", border: `1.5px solid ${isDark ? "rgba(201,168,76,0.28)" : "rgba(160,120,40,0.22)"}`, display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.32s, border-color 0.32s", verticalAlign: "middle" }}>
+        <span style={{ position: "absolute", top: 2, left: isDark ? 2 : "calc(100% - 23px)", width: 19, height: 19, borderRadius: "50%", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", transition: "left 0.30s cubic-bezier(.4,0,.2,1)", flexShrink: 0 }}>
           <svg width="11" height="11" viewBox="0 0 20 20" fill="none">
             <path d="M10 1a9 9 0 1 0 9 9A9 9 0 0 0 10 1zm0 16V3a7 7 0 0 1 0 14z" fill={isDark ? "#1C1A10" : "#B8922A"} />
           </svg>
@@ -173,410 +129,20 @@ function ThemeToggle() {
   );
 }
 
-// ─────────────────────────────────────────────
-// NAVBAR
-// ─────────────────────────────────────────────
-function ManageBookingNav() {
+function NavBar() {
   const navigate = useNavigate();
   const { isDark } = useTheme();
   const C = getTokens(isDark);
   return (
-    <nav style={{ position:"fixed", top:0, left:0, right:0, zIndex:9000, height:64, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 clamp(16px,4vw,52px)", background:C.navBg, backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", borderBottom:`1px solid ${C.navBorder}`, boxSizing:"border-box", transition:"background 0.35s" }}>
+    <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000, height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 clamp(16px,4vw,52px)", background: C.navBg, backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: `1px solid ${C.navBorder}`, boxSizing: "border-box", transition: "background 0.35s" }}>
       <img src={bellevueLogo} alt="The Bellevue Manila" onClick={() => navigate("/")}
-        style={{ height:32, width:"auto", cursor:"pointer", display:"block", flexShrink:0, filter: isDark ? "none" : "brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(500%) hue-rotate(10deg)", transition:"filter 0.35s" }} />
+        style={{ height: 32, width: "auto", cursor: "pointer", display: "block", flexShrink: 0, filter: isDark ? "none" : "brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(500%) hue-rotate(10deg)", transition: "filter 0.35s" }} />
       <ThemeToggle />
     </nav>
   );
 }
 
-// ─────────────────────────────────────────────
-// STATUS BADGE
-// ─────────────────────────────────────────────
-function StatusBadge({ status, C }) {
-  const cfg =
-    status === "pending"  ? { ...C.badgePending,  label:"Pending"   } :
-    status === "reserved" ? { ...C.badgeApproved, label:"Confirmed" } :
-    status === "rejected" ? { ...C.badgeRejected, label:"Cancelled" } :
-    { bg:"rgba(130,130,130,0.12)", color:"#888", label: status ?? "Unknown" };
-  return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:cfg.bg, color:cfg.color, padding:"4px 12px", borderRadius:20, fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", fontFamily:F.body, border:`1px solid ${cfg.color}40` }}>
-      <span style={{ width:5, height:5, borderRadius:"50%", background:cfg.color, display:"inline-block" }} />
-      {cfg.label}
-    </span>
-  );
-}
-
-// ─────────────────────────────────────────────
-// DETAIL ROW
-// ─────────────────────────────────────────────
-function DetailRow({ label, value, C }) {
-  if (value === null || value === undefined || value === "" || value === "—") return null;
-  return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"9px 0", borderBottom:`1px solid ${C.detailBorder}` }}>
-      <span style={{ fontFamily:F.body, fontSize:11, fontWeight:600, letterSpacing:"0.12em", textTransform:"uppercase", color:C.detailLabel, minWidth:110, flexShrink:0 }}>{label}</span>
-      <span style={{ fontFamily:F.body, fontSize:13, color:C.detailValue, textAlign:"right", maxWidth:240, lineHeight:1.5 }}>{value}</span>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// EDIT MODAL  ← NEW
-// ─────────────────────────────────────────────
-function EditModal({ reservation, onClose, onSaved, C, isDark }) {
-  const [form, setForm] = useState({
-    name:             reservation.name         || "",
-    email:            reservation.email        || "",
-    phone:            reservation.phone        || reservation.contact_number || reservation.mobile || "",
-    event_date:       reservation.event_date   || reservation.eventDate || "",
-    event_time:       reservation.event_time   || reservation.eventTime || "",
-    guests_count:     reservation.guests_count || reservation.guests    || "",
-    special_requests: reservation.special_requests || "",
-  });
-  const [saving,  setSaving]  = useState(false);
-  const [errMsg,  setErrMsg]  = useState("");
-
-  const set = (key) => (val) => setForm((p) => ({ ...p, [key]: val }));
-
-  const handleSave = async () => {
-    if (!form.name.trim())       { setErrMsg("Name is required.");       return; }
-    if (!form.email.trim())      { setErrMsg("Email is required.");      return; }
-    if (!form.phone.trim())      { setErrMsg("Phone is required.");      return; }
-    if (!form.event_date)        { setErrMsg("Event date is required."); return; }
-    if (!form.event_time)        { setErrMsg("Event time is required."); return; }
-    if (!form.guests_count)      { setErrMsg("Guest count is required."); return; }
-
-    setErrMsg(""); setSaving(true);
-    const numId = Number(reservation.db_id ?? reservation.numeric_id ?? reservation.id);
-
-    try {
-      const res = await fetch(`${API_BASE}/reservations/${numId}`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body:    JSON.stringify({
-          name:             form.name.trim(),
-          email:            form.email.trim(),
-          phone:            form.phone.trim(),
-          event_date:       form.event_date,
-          event_time:       form.event_time,
-          guests_count:     Number(form.guests_count),
-          special_requests: form.special_requests.trim(),
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || `HTTP ${res.status}`);
-      }
-
-      const updated = await res.json();
-
-      // Merge updated fields back into the reservation object
-      const merged = {
-        ...reservation,
-        name:             form.name.trim(),
-        email:            form.email.trim(),
-        phone:            form.phone.trim(),
-        event_date:       form.event_date,
-        eventDate:        form.event_date,
-        event_time:       form.event_time,
-        eventTime:        form.event_time,
-        guests_count:     Number(form.guests_count),
-        guests:           Number(form.guests_count),
-        special_requests: form.special_requests.trim(),
-      };
-
-      onSaved(merged);
-    } catch (e) {
-      setErrMsg(e.message || "Failed to save. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:4500, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(8px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
-    >
-      <div style={{ background:C.cardBg, borderRadius:20, width:500, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.45)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, position:"relative", animation:"scaleIn 0.22s ease" }}>
-
-        {/* Header */}
-        <div style={{ background:`linear-gradient(110deg, ${C.heroBg1} 0%, ${C.heroBg2} 100%)`, padding:"20px 22px 18px", borderRadius:"20px 20px 0 0", position:"sticky", top:0, zIndex:1 }}>
-          <div style={{ position:"absolute", top:14, right:14, zIndex:20 }}>
-            <CloseBtn onClick={onClose} disabled={saving} />
-          </div>
-          <div style={{ paddingRight:48 }}>
-            <div style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.22em", color:"#C9A84C", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Edit Booking</div>
-            <div style={{ fontFamily:F.display, fontSize:18, fontWeight:600, color:"#F7F3EA" }}>Update Your Details</div>
-            <div style={{ fontFamily:F.mono, fontSize:11, color:"#C9A84C", letterSpacing:"0.10em", fontWeight:700, marginTop:4 }}>
-              REF #{reservation.id || reservation.reference_code || "—"}
-            </div>
-          </div>
-        </div>
-
-        {/* Form body */}
-        <div style={{ padding:"22px 24px 26px" }}>
-
-          {errMsg && (
-            <div style={{ display:"flex", alignItems:"flex-start", gap:8, background:"rgba(224,82,82,0.08)", border:"1px solid rgba(224,82,82,0.24)", borderRadius:10, padding:"10px 13px", marginBottom:16, fontSize:12, color:C.red, lineHeight:1.6 }}>
-              <span style={{ flexShrink:0 }}>⚠️</span>
-              <span>{errMsg}</span>
-            </div>
-          )}
-
-          {/* Section: Personal Info */}
-          <div style={{ fontSize:9, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:12, paddingBottom:6, borderBottom:`1px solid ${C.cardBorder}` }}>
-            Personal Information
-          </div>
-
-          <Field label="Full Name"     value={form.name}   onChange={set("name")}  C={C} required placeholder="e.g. Sarah Abane" />
-          <Field label="Email Address" value={form.email}  onChange={set("email")} C={C} required type="email" placeholder="e.g. sarah@email.com" />
-          <Field label="Phone Number"  value={form.phone}  onChange={set("phone")} C={C} required type="tel"   placeholder="e.g. 09171234567" />
-
-          {/* Section: Event Info */}
-          <div style={{ fontSize:9, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:12, marginTop:20, paddingBottom:6, borderBottom:`1px solid ${C.cardBorder}` }}>
-            Event Details
-          </div>
-
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <Field label="Event Date" value={form.event_date} onChange={set("event_date")} C={C} required type="date" />
-            <Field label="Event Time" value={form.event_time} onChange={set("event_time")} C={C} required type="time" />
-          </div>
-
-          <Field label="Number of Guests" value={String(form.guests_count)} onChange={set("guests_count")} C={C} required type="number" placeholder="e.g. 4" />
-
-          {/* Special requests — textarea */}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block", fontFamily:F.body, fontSize:10, letterSpacing:"0.16em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:5 }}>
-              Special Requests
-            </label>
-            <textarea
-              value={form.special_requests}
-              onChange={(e) => set("special_requests")(e.target.value)}
-              placeholder="Any dietary needs, accessibility requirements, etc."
-              rows={3}
-              style={{ width:"100%", boxSizing:"border-box", padding:"10px 13px", border:`1.5px solid ${C.inputBorder}`, borderRadius:9, background:C.inputBg, fontFamily:F.body, fontSize:13, color:C.textPrimary, outline:"none", resize:"vertical", transition:"border-color 0.2s", colorScheme: isDark ? "dark" : "light" }}
-              onFocus={(e)  => { e.currentTarget.style.borderColor = C.inputFocus; e.currentTarget.style.boxShadow = `0 0 0 3px ${C.gold}22`; }}
-              onBlur={(e)   => { e.currentTarget.style.borderColor = C.inputBorder; e.currentTarget.style.boxShadow = "none"; }}
-            />
-          </div>
-
-          {/* Note */}
-          <div style={{ background:C.goldFaint, border:`1px solid ${C.cardBorder}`, borderRadius:8, padding:"9px 12px", marginBottom:18, fontSize:11, color:C.textMuted, lineHeight:1.6 }}>
-            ℹ️ Venue, table, and seat cannot be changed here. Contact us directly for those changes.
-          </div>
-
-          {/* Actions */}
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={onClose} disabled={saving}
-              style={{ flex:1, padding:"11px", border:`1.5px solid ${C.cardBorder}`, borderRadius:10, background:"transparent", color:C.textMuted, fontFamily:F.body, fontSize:13, fontWeight:600, cursor:saving?"not-allowed":"pointer", transition:"all 0.2s" }}
-              onMouseEnter={(e)=>{ if(!saving){e.currentTarget.style.borderColor=C.gold; e.currentTarget.style.color=C.gold;} }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.borderColor=C.cardBorder; e.currentTarget.style.color=C.textMuted; }}>
-              Cancel
-            </button>
-            <button onClick={handleSave} disabled={saving}
-              style={{ flex:2, padding:"11px", border:"none", borderRadius:10, background:saving?"#888":C.gold, color: isDark?"#0E0D09":"#fff", fontFamily:F.body, fontSize:13, fontWeight:700, cursor:saving?"not-allowed":"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
-              onMouseEnter={(e)=>{ if(!saving) e.currentTarget.style.background=C.goldLight; }}
-              onMouseLeave={(e)=>{ if(!saving) e.currentTarget.style.background=C.gold; }}>
-              {saving
-                ? <><span style={{ display:"inline-block", width:13, height:13, border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} /> Saving…</>
-                : "✓ Save Changes"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// CANCEL MODAL
-// ─────────────────────────────────────────────
-function CancelModal({ reservation, onConfirm, onClose, loading, C }) {
-  const eventDate = reservation?.eventDate || reservation?.event_date || "—";
-  return (
-    <div
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.70)", zIndex:4000, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(6px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{ background:C.cardBg, borderRadius:18, padding:"28px 24px", width:400, maxWidth:"95vw", boxShadow:"0 32px 80px rgba(0,0,0,0.35)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, position:"relative", animation:"scaleIn 0.2s ease" }}>
-        <div style={{ position:"absolute", top:14, right:14 }}>
-          <CloseBtn onClick={onClose} disabled={loading} />
-        </div>
-        <div style={{ fontSize:28, marginBottom:12 }}>⚠️</div>
-        <div style={{ fontSize:10, letterSpacing:"0.22em", color:C.gold, fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Cancel Booking</div>
-        <div style={{ fontSize:18, fontWeight:700, color:C.textPrimary, marginBottom:12, fontFamily:F.display }}>Are you sure?</div>
-        <div style={{ background:C.goldFaint, border:`1px solid ${C.cardBorder}`, borderRadius:10, padding:"12px 14px", marginBottom:16 }}>
-          <div style={{ fontSize:14, fontWeight:600, color:C.textPrimary, marginBottom:3 }}>{reservation?.name}</div>
-          <div style={{ fontSize:12, color:C.textMuted }}>{reservation?.room || reservation?.venue} · {eventDate}</div>
-          <div style={{ fontSize:10, color:C.gold, fontWeight:700, marginTop:5, letterSpacing:"0.08em", fontFamily:F.mono }}>REF: {reservation?.id}</div>
-        </div>
-        <p style={{ fontSize:12, color:C.red, marginBottom:20, lineHeight:1.6, background:"rgba(224,82,82,0.06)", border:"1px solid rgba(224,82,82,0.20)", borderRadius:8, padding:"9px 12px" }}>
-          This action <strong>cannot be undone</strong>. Your seat/table will be released.
-        </p>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={onClose} disabled={loading}
-            style={{ flex:1, padding:"11px", border:`1.5px solid ${C.cardBorder}`, borderRadius:10, background:"transparent", color:C.textMuted, fontFamily:F.body, fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.2s" }}
-            onMouseEnter={(e)=>{ e.currentTarget.style.borderColor=C.gold; e.currentTarget.style.color=C.gold; }}
-            onMouseLeave={(e)=>{ e.currentTarget.style.borderColor=C.cardBorder; e.currentTarget.style.color=C.textMuted; }}>
-            Keep It
-          </button>
-          <button onClick={onConfirm} disabled={loading}
-            style={{ flex:1, padding:"11px", border:"none", borderRadius:10, background:loading?"#aaa":C.red, color:"#fff", fontFamily:F.body, fontSize:13, fontWeight:700, cursor:loading?"not-allowed":"pointer", transition:"background 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            {loading
-              ? <><span style={{ display:"inline-block", width:12, height:12, border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/> Cancelling…</>
-              : "Yes, Cancel"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// RESERVATION DETAIL MODAL  (Edit button added)
-// ─────────────────────────────────────────────
-function ReservationDetailModal({ reservation, onClose, onCancel, onEdit, C, isDark, fmtDate, fmtTime }) {
-  const isPending  = reservation.status === "pending";
-  const isApproved = reservation.status === "reserved";
-  const isRejected = reservation.status === "rejected";
-  const statusKey  = isApproved ? "approved" : isRejected ? "rejected" : "pending";
-
-  return (
-    <div
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.70)", zIndex:3500, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(8px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{ background:C.cardBg, borderRadius:20, width:500, maxWidth:"95vw", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.45)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, position:"relative", animation:"scaleIn 0.22s ease" }}>
-
-        {/* Header */}
-        <div style={{ background:`linear-gradient(110deg, ${C.heroBg1} 0%, ${C.heroBg2} 100%)`, padding:"20px 22px 18px", borderRadius:"20px 20px 0 0", position:"sticky", top:0, zIndex:1 }}>
-          <div style={{ position:"absolute", top:14, right:14, zIndex:20 }}>
-            <CloseBtn onClick={onClose} />
-          </div>
-          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", paddingRight:48 }}>
-            <div>
-              <div style={{ fontFamily:F.display, fontSize:18, fontWeight:600, color:"#F7F3EA", marginBottom:4 }}>{reservation.name}</div>
-              <div style={{ fontFamily:F.mono, fontSize:11, color:"#C9A84C", letterSpacing:"0.12em", fontWeight:700 }}>REF #{reservation.id || reservation.reference_code || "—"}</div>
-            </div>
-            <StatusBadge status={reservation.status} C={C} />
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding:"20px 22px 24px" }}>
-          <DetailRow label="Venue"      value={reservation.room || reservation.venue}                        C={C} />
-          <DetailRow label="Date"       value={fmtDate(reservation.eventDate || reservation.event_date)}     C={C} />
-          <DetailRow label="Time"       value={fmtTime(reservation.eventTime || reservation.event_time)}     C={C} />
-          <DetailRow label="Guests"     value={reservation.guests ? `${reservation.guests} pax` : null}      C={C} />
-          <DetailRow label="Seat/Table"
-            value={reservation.type === "whole"
-              ? `Table ${reservation.table || "—"} (${reservation.guests} seat${reservation.guests !== 1 ? "s" : ""})`
-              : reservation.seat ? `Table ${reservation.table || "—"}, Seat ${reservation.seat}` : null
-            } C={C} />
-          <DetailRow label="Type"  value={reservation.type === "whole" ? "Whole Table" : reservation.type === "seat" ? "Individual Seat" : reservation.type || null} C={C} />
-          <DetailRow label="Email" value={reservation.email}                                                 C={C} />
-          <DetailRow label="Phone" value={reservation.phone || reservation.contact_number || reservation.mobile} C={C} />
-          {reservation.special_requests && (
-            <DetailRow label="Requests" value={reservation.special_requests} C={C} />
-          )}
-
-          <div style={{ marginTop:14, padding:"10px 13px", borderRadius:8, background:C.statusNote[statusKey], border:`1px solid ${C.statusNoteBorder[statusKey]}`, fontSize:12, color:C.textMuted, lineHeight:1.6 }}>
-            {isPending  && <><strong style={{ color:C.textPrimary }}>Pending review.</strong> You may edit or cancel while not yet approved.</>}
-            {isApproved && <><strong style={{ color:C.textPrimary }}>Confirmed.</strong> Please arrive on time. Cancellation unavailable for confirmed bookings.</>}
-            {isRejected && <><strong style={{ color:C.textPrimary }}>Cancelled.</strong> This booking is no longer active.</>}
-          </div>
-
-          {/* Edit + Cancel buttons — only for pending */}
-          {isPending && (
-            <div style={{ display:"flex", gap:10, marginTop:14 }}>
-              {/* Edit button */}
-              <button
-                onClick={() => { onClose(); onEdit(reservation); }}
-                style={{ flex:1, padding:"11px", background:"transparent", border:`1.5px solid ${C.gold}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.gold, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-                onMouseEnter={(e)=>{ e.currentTarget.style.background=C.goldFaint; }}
-                onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; }}>
-                ✏️ Edit Details
-              </button>
-
-              {/* Cancel button */}
-              <button
-                onClick={() => { onClose(); onCancel(reservation); }}
-                style={{ flex:1, padding:"11px", background:"transparent", border:`1.5px solid ${C.red}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.red, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-                onMouseEnter={(e)=>{ e.currentTarget.style.background=C.red; e.currentTarget.style.color="#fff"; }}
-                onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.red; }}>
-                🗑 Cancel Booking
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// RESULTS MODAL
-// ─────────────────────────────────────────────
-function ResultsModal({ results, onClose, onSelectReservation, C, isDark, fmtDate, fmtTime }) {
-  return (
-    <div
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", zIndex:3000, display:"flex", alignItems:"center", justifyContent:"center", padding:20, backdropFilter:"blur(10px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{ background:C.cardBg, borderRadius:20, width:540, maxWidth:"95vw", maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 40px 100px rgba(0,0,0,0.45)", border:`1px solid ${C.cardBorder}`, fontFamily:F.body, animation:"scaleIn 0.22s ease", overflow:"hidden" }}>
-
-        <div style={{ background:`linear-gradient(110deg, ${C.heroBg1} 0%, ${C.heroBg2} 100%)`, padding:"18px 22px 16px", flexShrink:0, borderRadius:"20px 20px 0 0", position:"relative" }}>
-          <div style={{ position:"absolute", top:14, right:14, zIndex:20 }}>
-            <CloseBtn onClick={onClose} />
-          </div>
-          <div style={{ paddingRight:52 }}>
-            <div style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.22em", color:"#C9A84C", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Reservations Found</div>
-            <div style={{ fontFamily:F.display, fontSize:20, fontWeight:600, color:"#F7F3EA" }}>
-              {results.length} Booking{results.length !== 1 ? "s" : ""} Located
-            </div>
-          </div>
-        </div>
-
-        <div style={{ overflowY:"auto", padding:"16px 18px 20px", display:"flex", flexDirection:"column", gap:10 }}>
-          {results.map((r, idx) => (
-            <div
-              key={r.id || idx}
-              onClick={() => onSelectReservation(r)}
-              style={{ background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", borderRadius:12, border:`1px solid ${C.cardBorder}`, padding:"14px 18px", cursor:"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}
-              onMouseEnter={(e)=>{ e.currentTarget.style.borderColor="#C9A84C"; e.currentTarget.style.background= isDark ? "rgba(201,168,76,0.06)" : "rgba(160,120,40,0.05)"; e.currentTarget.style.transform="translateX(3px)"; }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.borderColor=C.cardBorder; e.currentTarget.style.background= isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"; e.currentTarget.style.transform="translateX(0)"; }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontFamily:F.display, fontSize:15, fontWeight:600, color:C.textPrimary, marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.name}</div>
-                <div style={{ fontFamily:F.mono, fontSize:10, color:C.gold, letterSpacing:"0.10em", fontWeight:700, marginBottom:3 }}>REF #{r.id || r.reference_code || "—"}</div>
-                <div style={{ fontFamily:F.body, fontSize:11, color:C.textMuted }}>
-                  {r.room || r.venue || "—"} &nbsp;·&nbsp; {fmtDate(r.eventDate || r.event_date)} &nbsp;·&nbsp; {fmtTime(r.eventTime || r.event_time)}
-                </div>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-                <StatusBadge status={r.status} C={C} />
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ padding:"0 18px 18px", flexShrink:0 }}>
-          <p style={{ fontFamily:F.body, fontSize:11, color:C.textMuted, textAlign:"center", margin:0 }}>
-            Tap any booking to view details or manage it.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────
-export default function ManageBooking() {
+export default function ForgotCode() {
   const navigate = useNavigate();
 
   const [isDark, setIsDark] = useState(() => {
@@ -591,148 +157,82 @@ export default function ManageBooking() {
 
   const C = getTokens(isDark);
 
-  const [lookup,              setLookup]              = useState("");
-  const [results,             setResults]             = useState(null);
-  const [searching,           setSearching]           = useState(false);
-  const [error,               setError]               = useState("");
-  const [cancelTarget,        setCancelTarget]        = useState(null);
-  const [cancelling,          setCancelling]          = useState(false);
-  const [editTarget,          setEditTarget]          = useState(null);   // ← NEW
-  const [toast,               setToast]               = useState(null);
-  const [focused,             setFocused]             = useState(false);
-  const [showResultsModal,    setShowResultsModal]    = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState(null);
+  const [combination, setCombination] = useState("");
+  const [searching, setSearching]   = useState(false);
+  const [error, setError]           = useState("");
+  const [results, setResults]       = useState(null);
+  const [focused, setFocused]       = useState(false);
 
-  const showToast = (msg, isSuccess = true) => {
-    setToast({ msg, isSuccess });
-    setTimeout(() => setToast(null), 3500);
+  const fmtDate = (d) => {
+    if (!d) return "—";
+    const p = new Date(d);
+    return isNaN(p) ? d : p.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
   };
-
   const fmtTime = (t) => {
-    if (!t) return null;
+    if (!t) return "—";
     const [h, m] = t.split(":");
     const hr = parseInt(h) || 0;
     const hr12 = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr;
     return `${hr12}:${m || "00"} ${hr < 12 ? "AM" : "PM"}`;
   };
-  const fmtDate = (d) => {
-    if (!d) return "—";
-    const p = new Date(d);
-    return isNaN(p) ? d : p.toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
-  };
-
-  const tryFetch = async (url) => {
-    try {
-      const res  = await fetch(url, { headers: { Accept: "application/json" } });
-      if (res.status === 404) return { ok: false, status: 404 };
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { return { ok: false }; }
-      return { ok: res.ok, status: res.status, data };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
-  };
 
   const handleSearch = async () => {
-    const trimmed = lookup.trim();
-    if (!trimmed) { setError("Please enter your lookup code."); return; }
+    const trimmed = combination.trim();
+    if (!trimmed) { setError("Please enter your combination code."); return; }
+    
     const parsed = parseLookup(trimmed);
     if (!parsed) { setError("Enter your surname + last 2 phone digits. Example: abane35"); return; }
 
     const { surname, phone } = parsed;
-    setError(""); setSearching(true); setResults(null); setShowResultsModal(false);
+    setError(""); setSearching(true); setResults(null);
 
-    const finishWithMatched = (matched) => {
-      setResults(matched);
-      if (matched.length > 0) {
-        setShowResultsModal(true);
-      } else {
-        setError("No reservations found. Double-check your rederenece code and try again.");
-      }
+    const tryFetch = async (url) => {
+      try {
+        const res  = await fetch(url, { headers: { Accept: "application/json" } });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { return { ok: false }; }
+        return { ok: res.ok, status: res.status, data };
+      } catch (e) { return { ok: false }; }
     };
 
     try {
       const s1 = await tryFetch(`${API_BASE}/reservations?per_page=500&page=1`);
       if (s1.data) {
         const matched = clientFilter(extractList(s1.data), surname, phone);
-        if (matched.length > 0) { finishWithMatched(matched); return; }
+        if (matched.length > 0) { setResults([matched[0]]); return; } // Only show the best match
       }
-      const s2 = await tryFetch(`${API_BASE}/reservations/search?surname=${encodeURIComponent(surname)}&phone_last2=${encodeURIComponent(phone)}`);
-      if (s2.ok) { const list = extractList(s2.data); if (list.length > 0) { finishWithMatched(list); return; } }
-      const s3 = await tryFetch(`${API_BASE}/reservations/search?last_name=${encodeURIComponent(surname)}&phone=${encodeURIComponent(phone)}`);
-      if (s3.ok) { const list = extractList(s3.data); if (list.length > 0) { finishWithMatched(list); return; } }
-      const s4 = await tryFetch(`${API_BASE}/reservations/lookup?code=${encodeURIComponent(surname + phone)}`);
-      if (s4.ok) { const list = extractList(s4.data); if (list.length > 0) { finishWithMatched(list); return; } }
-      const s5 = await tryFetch(`${API_BASE}/reservations`);
-      if (s5.data) {
-        const matched = clientFilter(extractList(s5.data), surname, phone);
-        if (matched.length > 0) { finishWithMatched(matched); return; }
+      const s2 = await tryFetch(`${API_BASE}/reservations`);
+      if (s2.data) {
+        const matched = clientFilter(extractList(s2.data), surname, phone);
+        if (matched.length > 0) { setResults([matched[0]]); return; } // Only show the best match
       }
-      setError("No reservations found. Double-check your reference code and try again.");
+      setError("No reservations found. Please double-check your surname and phone number.");
     } finally {
       setSearching(false);
     }
   };
 
-  // ── Cancel ──────────────────────────────────────────────────────────────
-  const handleCancel = async () => {
-    if (!cancelTarget) return;
-    setCancelling(true);
-    const numId = Number(cancelTarget.db_id ?? cancelTarget.numeric_id ?? cancelTarget.id);
-    try {
-      const res = await fetch(`${API_BASE}/reservations/${numId}/reject`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch {
-      try {
-        const stored = JSON.parse(localStorage.getItem("bellevue_reservations") || "[]");
-        localStorage.setItem("bellevue_reservations", JSON.stringify(
-          stored.map((r) => (r.id === cancelTarget.id || String(r.db_id) === String(numId))
-            ? { ...r, status: "rejected" } : r)
-        ));
-      } catch {}
-    }
-    setResults((prev) => prev?.map((r) => r.id === cancelTarget.id ? { ...r, status: "rejected" } : r) ?? prev);
-    setCancelTarget(null);
-    setCancelling(false);
-    showToast("Booking cancelled successfully.");
-  };
-
-  // ── Edit saved callback ──────────────────────────────────────────────────
-  const handleEditSaved = (updatedReservation) => {
-    // Update results list so the list modal reflects new data
-    setResults((prev) =>
-      prev?.map((r) => r.id === updatedReservation.id ? updatedReservation : r) ?? prev
-    );
-    setEditTarget(null);
-    // Re-open detail modal with updated data
-    setSelectedReservation(updatedReservation);
-    showToast("Details updated successfully! ✓");
-  };
-
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
-      <div style={{ minHeight:"100vh", fontFamily:F.body, position:"relative", overflow:"hidden" }}>
+      <div style={{ minHeight: "100vh", fontFamily: F.body, position: "relative", overflow: "hidden" }}>
 
         {/* Background */}
-        <div style={{ position:"fixed", inset:0, zIndex:0 }}>
-          <div style={{ position:"absolute", inset:0, backgroundImage:"url('/src/assets/bg-login.jpeg')", backgroundSize:"cover", backgroundPosition:"center", filter:"blur(3px) brightness(0.85)", transform:"scale(1.04)" }} />
-          <div style={{ position:"absolute", inset:0, background: isDark ? "rgba(14,13,9,0.45)" : "rgba(245,240,232,0.38)" }} />
+        <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
+          <div style={{ position: "absolute", inset: 0, backgroundImage: "url('/src/assets/bg-login.jpeg')", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(3px) brightness(0.85)", transform: "scale(1.04)" }} />
+          <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(14,13,9,0.45)" : "rgba(245,240,232,0.38)" }} />
         </div>
 
-        <ManageBookingNav />
+        <NavBar />
 
-        <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px clamp(16px,5vw,48px) 48px" }}>
+        <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px clamp(16px,5vw,48px) 48px" }}>
 
-          {/* Back button */}
-          <div style={{ position:"absolute", top:80, left:"clamp(16px,4vw,52px)" }}>
-            <button onClick={() => navigate("/")} title="Go back"
-              style={{ width:48, height:48, borderRadius:"50%", background:"rgba(201,168,76,0.12)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${C.gold}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", transition:"all 0.22s", padding:0 }}
-              onMouseEnter={(e)=>{ e.currentTarget.style.background="rgba(201,168,76,0.28)"; e.currentTarget.style.transform="scale(1.08)"; }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.background="rgba(201,168,76,0.12)"; e.currentTarget.style.transform="scale(1)"; }}>
+          {/* Back */}
+          <div style={{ position: "absolute", top: 80, left: "clamp(16px,4vw,52px)" }}>
+            <button onClick={() => navigate("/manage-booking")} title="Go back"
+              style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(201,168,76,0.12)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1.5px solid ${C.gold}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.22s", padding: 0 }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(201,168,76,0.28)"; e.currentTarget.style.transform = "scale(1.08)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(201,168,76,0.12)"; e.currentTarget.style.transform = "scale(1)"; }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
@@ -740,111 +240,134 @@ export default function ManageBooking() {
           </div>
 
           {/* Heading */}
-          <div style={{ textAlign:"center", marginBottom:32 }}>
-            <div style={{ display:"inline-flex", alignItems:"center", gap:8, marginBottom:12 }}>
-              <span style={{ display:"inline-block", width:28, height:1.5, background:C.gold }} />
-              <span style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.26em", color:C.gold, fontWeight:700, textTransform:"uppercase" }}>Manage Booking</span>
-              <span style={{ display:"inline-block", width:28, height:1.5, background:C.gold }} />
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ display: "inline-block", width: 28, height: 1.5, background: C.gold }} />
+              <span style={{ fontFamily: F.body, fontSize: 10, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Forgot Reference Code</span>
+              <span style={{ display: "inline-block", width: 28, height: 1.5, background: C.gold }} />
             </div>
-            <h1 style={{ fontFamily:F.display, fontSize:"clamp(26px,5vw,42px)", fontWeight:600, color:"#F7F3EA", lineHeight:1.15, margin:"0 0 10px", letterSpacing:"-0.01em", textShadow:"0 2px 20px rgba(0,0,0,0.35)" }}>
-              Forgot Your Reference Code
+            <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4.5vw,38px)", fontWeight: 600, color: "#F7F3EA", lineHeight: 1.15, margin: "0 0 10px", letterSpacing: "-0.01em", textShadow: "0 2px 20px rgba(0,0,0,0.35)" }}>
+              Recover Your Reference Code
             </h1>
-            <p style={{ fontFamily:F.body, fontSize:14, color:"rgba(247,243,234,0.65)", margin:0, lineHeight:1.6, maxWidth:560 }}>
-              Enter your combination code to access your reference code. (Surname + last 2 digit of phone number)
+            <p style={{ fontFamily: F.body, fontSize: 14, color: "rgba(247,243,234,0.65)", margin: 0, lineHeight: 1.6, maxWidth: 520 }}>
+              Enter your combination code (surname + last 2 phone digits) to recover your reference code.
             </p>
           </div>
 
-          {/* Search card */}
-          <div style={{ width:"100%", maxWidth:480, background: isDark ? "rgba(14,13,9,0.78)" : "rgba(255,251,244,0.88)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderRadius:20, border:`1px solid ${C.overlayCardBorder}`, padding:"28px 26px 26px", boxShadow:"0 24px 80px rgba(0,0,0,0.30)", transition:"background 0.35s" }}>
+          {/* Search Card */}
+          {!results && (
+            <div style={{ width: "100%", maxWidth: 460, background: isDark ? "rgba(14,13,9,0.78)" : "rgba(255,251,244,0.88)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 20, border: `1px solid ${isDark ? "rgba(201,168,76,0.18)" : "rgba(160,120,40,0.22)"}`, padding: "28px 26px 26px", boxShadow: "0 24px 80px rgba(0,0,0,0.30)", transition: "background 0.35s" }}>
 
-            <label style={{ display:"block", fontFamily:F.body, fontSize:10, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:6 }}>
-              Put here your combination code
-            </label>
-            
-            <input
-              value={lookup}
-              onChange={(e) => { setLookup(e.target.value); setError(""); }}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              onFocus={() => setFocused(true)}
-              placeholder="e.g. abane35"
-              onBlur={() => setFocused(false)}
-              autoComplete="off" spellCheck={false}
-              style={{ width:"100%", boxSizing:"border-box", padding:"14px 16px", border:`1.5px solid ${error ? C.red : focused ? C.inputFocus : C.inputBorder}`, borderRadius:12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily:F.mono, fontSize:18, fontWeight:700, letterSpacing:"0.06em", color:C.textPrimary, outline:"none", transition:"border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : error ? `0 0 0 3px ${C.red}14` : "none", colorScheme: isDark ? "dark" : "light", marginBottom:8 }}
-            />
+              <label style={{ display: "block", fontFamily: F.body, fontSize: 10, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                Combination Code <span style={{ color: C.red }}>*</span>
+              </label>
+              <input
+                value={combination}
+                onChange={(e) => { setCombination(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                placeholder="e.g. abane35"
+                autoComplete="off"
+                style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", border: `1.5px solid ${focused ? C.inputFocus : C.inputBorder}`, borderRadius: 12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily: F.mono, fontSize: 18, fontWeight: 700, color: C.textPrimary, outline: "none", transition: "border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : "none", colorScheme: isDark ? "dark" : "light", marginBottom: 14 }}
+              />
 
+              {error && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "rgba(224,82,82,0.08)", border: "1px solid rgba(224,82,82,0.24)", borderRadius: 10, padding: "10px 12px", marginBottom: 16, fontSize: 12, color: C.red, lineHeight: 1.6 }}>
+                  <span style={{ flexShrink: 0, fontSize: 14 }}>⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
 
-            {error && (
-              <div style={{ display:"flex", alignItems:"flex-start", gap:8, background:"rgba(224,82,82,0.08)", border:"1px solid rgba(224,82,82,0.24)", borderRadius:10, padding:"10px 12px", marginBottom:16, fontSize:12, color:C.red, lineHeight:1.6, animation:"fadeIn 0.2s ease" }}>
-                <span style={{ flexShrink:0, fontSize:14 }}>⚠️</span>
-                <span>{error}</span>
+              <button
+                onClick={handleSearch} disabled={searching}
+                style={{ width: "100%", marginTop: 10, padding: "14px", background: searching ? (isDark ? "#2A2018" : "#D4C9B0") : C.gold, border: "none", borderRadius: 12, fontFamily: F.body, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: searching ? C.textMuted : (isDark ? "#0E0D09" : "#FFFFFF"), cursor: searching ? "not-allowed" : "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                onMouseEnter={(e) => { if (!searching) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+                onMouseLeave={(e) => { if (!searching) { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "translateY(0)"; } }}>
+                {searching
+                  ? <><span style={{ display: "inline-block", width: 13, height: 13, border: `2px solid ${C.textMuted}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /> Searching…</>
+                  : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg> Find My Code</>
+                }
+              </button>
+
+              <p style={{ textAlign: "center", marginTop: 16, fontFamily: F.body, fontSize: 12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}>
+                Remember your code?{" "}
+                <button onClick={() => navigate("/manage-booking")}
+                  style={{ background: "none", border: "none", fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.gold, cursor: "pointer", padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}>
+                  Go back →
+                </button>
+              </p>
+            </div>
+          )}
+
+          {/* Results */}
+          {results && (
+            <div style={{ width: "100%", maxWidth: 560 }}>
+
+              <div style={{ textAlign: "center", marginBottom: 24 }}>
+                <p style={{ fontFamily: F.body, fontSize: 13, color: isDark ? "rgba(247,243,234,0.55)" : C.textMuted, margin: "0 0 8px" }}>
+                  {results.length === 1 
+                    ? <>Found <strong style={{ color: C.gold }}>1</strong> reservation matching your details.</>
+                    : <>Found <strong style={{ color: C.gold }}>{results.length}</strong> reservations matching your details.</>
+                  }
+                </p>
+                <button onClick={() => setResults(null)}
+                  style={{ background: "none", border: "none", fontFamily: F.body, fontSize: 12, color: C.gold, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>
+                  Search again
+                </button>
               </div>
-            )}
 
-            <button
-              onClick={handleSearch} disabled={searching}
-              style={{ width:"100%", padding:"14px", background: searching ? (isDark ? "#2A2018" : "#D4C9B0") : C.gold, border:"none", borderRadius:12, fontFamily:F.body, fontSize:13, fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color: searching ? C.textMuted : (isDark ? "#0E0D09" : "#FFFFFF"), cursor: searching ? "not-allowed" : "pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
-              onMouseEnter={(e) => { if (!searching) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${C.gold}40`; } }}
-              onMouseLeave={(e) => { if (!searching) { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
-              {searching
-                ? <><span style={{ display:"inline-block", width:13, height:13, border:`2px solid ${C.textMuted}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />Searching…</>
-                : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Submit</>
-              }
-            </button>
-          </div>
+              {results.map((r, idx) => {
+                const refCode = r.reference_code || r.id || "—";
+                const statusKey = r.status === "reserved" ? "approved" : r.status === "rejected" ? "rejected" : "pending";
+                return (
+                  <div key={r.id || idx} style={{ background: isDark ? "rgba(14,13,9,0.82)" : "rgba(255,251,244,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 18, border: `1px solid ${isDark ? "rgba(201,168,76,0.20)" : "rgba(160,120,40,0.22)"}`, padding: "22px 24px", marginBottom: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+
+                    {/* Header row */}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
+                      <div>
+                        <div style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>{r.name}</div>
+                        <div style={{ fontFamily: F.body, fontSize: 10, letterSpacing: "0.12em", color: C.textMuted, textTransform: "uppercase", marginBottom: 6 }}>
+                          {r.room || r.venue || "—"}
+                        </div>
+                        <StatusBadge status={r.status} C={C} />
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.18em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Reference Code</div>
+                        <div style={{ fontFamily: F.mono, fontSize: 22, fontWeight: 700, color: C.textPrimary, letterSpacing: "0.08em", background: C.goldFaint, padding: "6px 14px", borderRadius: 8, border: `1px solid ${isDark ? "rgba(201,168,76,0.25)" : "rgba(160,120,40,0.20)"}` }}>
+                          {refCode}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ height: 1, background: C.divider, marginBottom: 14 }} />
+
+                    {/* Details */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", marginBottom: 16 }}>
+                      {[
+                        ["Date", fmtDate(r.eventDate || r.event_date)],
+                        ["Time", fmtTime(r.eventTime || r.event_time)],
+                        ["Guests", r.guests ? `${r.guests} pax` : r.guests_count ? `${r.guests_count} pax` : "—"],
+                        ["Table / Seat", [r.table || r.table_number, r.seat || r.seat_number].filter(Boolean).join(" / ") || "—"],
+                      ].map(([label, val]) => (
+                        <div key={label}>
+                          <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold, fontWeight: 700, marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontFamily: F.body, fontSize: 13, color: C.textPrimary }}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                   
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Results modal */}
-        {showResultsModal && results && results.length > 0 && (
-          <ResultsModal
-            results={results}
-            onClose={() => setShowResultsModal(false)}
-            onSelectReservation={(r) => { setShowResultsModal(false); setSelectedReservation(r); }}
-            C={C} isDark={isDark} fmtDate={fmtDate} fmtTime={fmtTime}
-          />
-        )}
-
-        {/* Detail modal */}
-        {selectedReservation && !editTarget && (
-          <ReservationDetailModal
-            reservation={selectedReservation}
-            onClose={() => setSelectedReservation(null)}
-            onCancel={(r) => { setCancelTarget(r); }}
-            onEdit={(r) => { setEditTarget(r); }}
-            C={C} isDark={isDark} fmtDate={fmtDate} fmtTime={fmtTime}
-          />
-        )}
-
-        {/* Edit modal ← NEW */}
-        {editTarget && (
-          <EditModal
-            reservation={editTarget}
-            onClose={() => { setEditTarget(null); setSelectedReservation(editTarget); }}
-            onSaved={handleEditSaved}
-            C={C} isDark={isDark}
-          />
-        )}
-
-        {/* Cancel modal */}
-        {cancelTarget && (
-          <CancelModal
-            reservation={cancelTarget} loading={cancelling}
-            onConfirm={handleCancel} onClose={() => setCancelTarget(null)} C={C}
-          />
-        )}
-
-        {/* Toast */}
-        {toast && (
-          <div style={{ position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)", background: toast.isSuccess ? C.green : C.red, color:"#fff", fontFamily:F.body, fontSize:13, fontWeight:700, padding:"13px 24px", borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.28)", zIndex:9999, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8, animation:"slideUp 0.3s ease" }}>
-            {toast.isSuccess ? "✅" : "❌"} {toast.msg}
-          </div>
-        )}
-
         <style>{`
-          @keyframes slideUp  { from{opacity:0;transform:translateX(-50%) translateY(12px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
-          @keyframes spin     { to{transform:rotate(360deg)} }
-          @keyframes fadeUp   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-          @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
-          @keyframes scaleIn  { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+          @keyframes spin { to { transform: rotate(360deg) } }
         `}</style>
       </div>
     </ThemeContext.Provider>

@@ -383,6 +383,10 @@
                                 We regret to inform you that we are unable to accommodate your reservation at
                                 this time due to availability constraints. Please contact our reservations desk
                                 directly so we can assist you in finding a suitable alternative.
+                                @if(!empty($reservation->rejection_reason))
+                                <br><br>
+                                <strong>Reason:</strong> {{ $reservation->rejection_reason }}
+                                @endif
                             @endif
                         </p>
 
