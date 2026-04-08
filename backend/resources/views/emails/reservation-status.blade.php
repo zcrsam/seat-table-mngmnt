@@ -150,8 +150,13 @@
             <div class="content">
                 <div class="badge badge-{{ $displayStatus ?? $status }}">{{ $statusText }}</div>
 
-                <p class="reference-label">Reference Code</p>
-                <p class="reference-code">{{ $reservation->reference_code ?? $reservation->id ?? 'N/A' }}</p>
+                <!-- Header -->
+                <tr>
+                    <td align="center" style="background:#F7F3EA;border-bottom:1px solid #8C8C8C;padding:28px 32px 22px;">
+                        <p style="margin:0 0 10px;font-size:8px;letter-spacing:3px;color:#B8902A;font-weight:700;text-transform:uppercase;">THE BELLEVUE MANILA</p>
+                        <h1 style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.1em;color:#000000;">Reservation Update</h1>
+                    </td>
+                </tr>
 
                 <div class="divider"></div>
 
