@@ -120,13 +120,6 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, req
 // ─────────────────────────────────────────────
 // PARSE LOOKUP
 // ─────────────────────────────────────────────
-function parseLookup(raw) {
-  const t = raw.trim();
-  if (!t) return null;
-  const m = t.match(/^(.+?)(\d{2})$/);
-  if (m && m[1].length > 0) return { surname: m[1], phone: m[2] };
-  return null;
-}
 
 function extractList(data) {
   if (!data) return [];
@@ -136,21 +129,6 @@ function extractList(data) {
   if (Array.isArray(data.results))       return data.results;
   if (data.id || data.name)              return [data];
   return [];
-}
-
-function clientFilter(list, surname, phone) {
-  const sLow = surname.toLowerCase();
-  return list.filter((r) => {
-    const fullName = (r.name || r.full_name || r.fullName || "").trim();
-    const parts    = fullName.split(/\s+/);
-    const nameMatch =
-      parts.some((p) => p.toLowerCase().startsWith(sLow)) ||
-      fullName.toLowerCase().includes(sLow);
-    const ph = String(r.phone || r.contact_number || r.mobile || r.phone_number || "")
-      .replace(/\D/g, "");
-    const phoneMatch = ph.length >= 2 && ph.slice(-2) === phone;
-    return nameMatch && phoneMatch;
-  });
 }
 
 // ─────────────────────────────────────────────
@@ -193,10 +171,15 @@ function ManageBookingNav() {
 // STATUS BADGE
 // ─────────────────────────────────────────────
 function StatusBadge({ status, C }) {
+  const statusLower = (status || "").toLowerCase();
   const cfg =
-    status === "pending"  ? { ...C.badgePending,  label:"Pending"   } :
-    status === "reserved" ? { ...C.badgeApproved, label:"Confirmed" } :
-    status === "rejected" ? { ...C.badgeRejected, label:"Cancelled" } :
+    statusLower === "pending"  ? { ...C.badgePending,  label:"Pending"   } :
+    statusLower === "reserved" ? { ...C.badgeApproved, label:"Confirmed" } :
+    statusLower === "approved" ? { ...C.badgeApproved, label:"Confirmed" } :
+    statusLower === "confirmed" ? { ...C.badgeApproved, label:"Confirmed" } :
+    statusLower === "rejected" ? { ...C.badgeRejected, label:"Cancelled" } :
+    statusLower === "cancelled" ? { ...C.badgeRejected, label:"Cancelled" } :
+    statusLower === "canceled" ? { ...C.badgeRejected, label:"Cancelled" } :
     { bg:"rgba(130,130,130,0.12)", color:"#888", label: status ?? "Unknown" };
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:cfg.bg, color:cfg.color, padding:"4px 12px", borderRadius:20, fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", fontFamily:F.body, border:`1px solid ${cfg.color}40` }}>
@@ -437,10 +420,14 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C }) {
 // RESERVATION DETAIL MODAL  (Edit button added)
 // ─────────────────────────────────────────────
 function ReservationDetailModal({ reservation, onClose, onCancel, onEdit, C, isDark, fmtDate, fmtTime }) {
-  const isPending  = reservation.status === "pending";
-  const isApproved = reservation.status === "reserved";
-  const isRejected = reservation.status === "rejected";
+  const status = (reservation.status || "").toLowerCase();
+  const isPending  = status === "pending";
+  const isApproved = status === "reserved" || status === "approved" || status === "confirmed";
+  const isRejected = status === "rejected" || status === "cancelled" || status === "canceled";
   const statusKey  = isApproved ? "approved" : isRejected ? "rejected" : "pending";
+  
+  // Debug: Log the status values
+  console.log('Reservation status:', reservation.status, 'isPending:', isPending, 'status:', status);
 
   return (
     <div
@@ -636,11 +623,8 @@ export default function ManageBooking() {
 
   const handleSearch = async () => {
     const trimmed = lookup.trim();
-    if (!trimmed) { setError("Please enter your lookup code."); return; }
-    const parsed = parseLookup(trimmed);
-    if (!parsed) { setError("Enter your surname + last 2 phone digits. Example: abane35"); return; }
+    if (!trimmed) { setError("Please enter your reference code."); return; }
 
-    const { surname, phone } = parsed;
     setError(""); setSearching(true); setResults(null); setShowResultsModal(false);
 
     const finishWithMatched = (matched) => {
@@ -648,27 +632,33 @@ export default function ManageBooking() {
       if (matched.length > 0) {
         setShowResultsModal(true);
       } else {
-        setError("No reservations found. Double-check your rederenece code and try again.");
+        setError("No reservations found. Double-check your reference code and try again.");
       }
     };
 
     try {
-      const s1 = await tryFetch(`${API_BASE}/reservations?per_page=500&page=1`);
-      if (s1.data) {
-        const matched = clientFilter(extractList(s1.data), surname, phone);
-        if (matched.length > 0) { finishWithMatched(matched); return; }
+      // Try to find by exact reference code (for codes like "2026-6355")
+      const refSearch = await tryFetch(`${API_BASE}/reservations?reference_code=${encodeURIComponent(trimmed)}`);
+      if (refSearch.ok) {
+        const refList = extractList(refSearch.data);
+        // Filter for exact reference code match
+        const exactMatches = refList.filter(r => 
+          (r.reference_code === trimmed) || 
+          (r.id === trimmed) ||
+          (String(r.id) === trimmed)
+        );
+        if (exactMatches.length > 0) { finishWithMatched(exactMatches); return; }
       }
-      const s2 = await tryFetch(`${API_BASE}/reservations/search?surname=${encodeURIComponent(surname)}&phone_last2=${encodeURIComponent(phone)}`);
-      if (s2.ok) { const list = extractList(s2.data); if (list.length > 0) { finishWithMatched(list); return; } }
-      const s3 = await tryFetch(`${API_BASE}/reservations/search?last_name=${encodeURIComponent(surname)}&phone=${encodeURIComponent(phone)}`);
-      if (s3.ok) { const list = extractList(s3.data); if (list.length > 0) { finishWithMatched(list); return; } }
-      const s4 = await tryFetch(`${API_BASE}/reservations/lookup?code=${encodeURIComponent(surname + phone)}`);
-      if (s4.ok) { const list = extractList(s4.data); if (list.length > 0) { finishWithMatched(list); return; } }
-      const s5 = await tryFetch(`${API_BASE}/reservations`);
-      if (s5.data) {
-        const matched = clientFilter(extractList(s5.data), surname, phone);
-        if (matched.length > 0) { finishWithMatched(matched); return; }
+
+      // Also try searching by ID if it's numeric
+      if (/^\d+$/.test(trimmed)) {
+        const idSearch = await tryFetch(`${API_BASE}/reservations/${trimmed}`);
+        if (idSearch.ok) {
+          const reservation = idSearch.data;
+          if (reservation) { finishWithMatched([reservation]); return; }
+        }
       }
+
       setError("No reservations found. Double-check your reference code and try again.");
     } finally {
       setSearching(false);
@@ -768,6 +758,7 @@ export default function ManageBooking() {
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
+              placeholder="e.g., 2026-6355"
               autoComplete="off" spellCheck={false}
               style={{ width:"100%", boxSizing:"border-box", padding:"14px 16px", border:`1.5px solid ${error ? C.red : focused ? C.inputFocus : C.inputBorder}`, borderRadius:12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily:F.mono, fontSize:18, fontWeight:700, letterSpacing:"0.06em", color:C.textPrimary, outline:"none", transition:"border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : error ? `0 0 0 3px ${C.red}14` : "none", colorScheme: isDark ? "dark" : "light", marginBottom:8 }}
             />
