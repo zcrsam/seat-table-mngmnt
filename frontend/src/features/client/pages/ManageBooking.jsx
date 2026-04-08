@@ -120,7 +120,6 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, req
 // ─────────────────────────────────────────────
 // PARSE LOOKUP
 // ─────────────────────────────────────────────
-
 function extractList(data) {
   if (!data) return [];
   if (Array.isArray(data))               return data;
@@ -173,13 +172,13 @@ function ManageBookingNav() {
 function StatusBadge({ status, C }) {
   const statusLower = (status || "").toLowerCase();
   const cfg =
-    statusLower === "pending"  ? { ...C.badgePending,  label:"Pending"   } :
-    statusLower === "reserved" ? { ...C.badgeApproved, label:"Confirmed" } :
-    statusLower === "approved" ? { ...C.badgeApproved, label:"Confirmed" } :
+    statusLower === "pending"   ? { ...C.badgePending,  label:"Pending"   } :
+    statusLower === "reserved"  ? { ...C.badgeApproved, label:"Confirmed" } :
+    statusLower === "approved"  ? { ...C.badgeApproved, label:"Confirmed" } :
     statusLower === "confirmed" ? { ...C.badgeApproved, label:"Confirmed" } :
-    statusLower === "rejected" ? { ...C.badgeRejected, label:"Cancelled" } :
+    statusLower === "rejected"  ? { ...C.badgeRejected, label:"Cancelled" } :
     statusLower === "cancelled" ? { ...C.badgeRejected, label:"Cancelled" } :
-    statusLower === "canceled" ? { ...C.badgeRejected, label:"Cancelled" } :
+    statusLower === "canceled"  ? { ...C.badgeRejected, label:"Cancelled" } :
     { bg:"rgba(130,130,130,0.12)", color:"#888", label: status ?? "Unknown" };
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:cfg.bg, color:cfg.color, padding:"4px 12px", borderRadius:20, fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", fontFamily:F.body, border:`1px solid ${cfg.color}40` }}>
@@ -203,9 +202,12 @@ function DetailRow({ label, value, C }) {
 }
 
 // ─────────────────────────────────────────────
-// EDIT MODAL  ← NEW
+// EDIT MODAL
 // ─────────────────────────────────────────────
 function EditModal({ reservation, onClose, onSaved, C, isDark }) {
+  const status = (reservation.status || "").toLowerCase();
+  const isApproved = status === "reserved" || status === "approved" || status === "confirmed";
+
   const [form, setForm] = useState({
     name:             reservation.name         || "",
     email:            reservation.email        || "",
@@ -221,11 +223,11 @@ function EditModal({ reservation, onClose, onSaved, C, isDark }) {
   const set = (key) => (val) => setForm((p) => ({ ...p, [key]: val }));
 
   const handleSave = async () => {
-    if (!form.name.trim())       { setErrMsg("Name is required.");       return; }
-    if (!form.email.trim())      { setErrMsg("Email is required.");      return; }
-    if (!form.phone.trim())      { setErrMsg("Phone is required.");      return; }
-    if (!form.event_date)        { setErrMsg("Event date is required."); return; }
-    if (!form.event_time)        { setErrMsg("Event time is required."); return; }
+    if (!form.name.trim())       { setErrMsg("Name is required.");        return; }
+    if (!form.email.trim())      { setErrMsg("Email is required.");       return; }
+    if (!form.phone.trim())      { setErrMsg("Phone is required.");       return; }
+    if (!form.event_date)        { setErrMsg("Event date is required.");  return; }
+    if (!form.event_time)        { setErrMsg("Event time is required.");  return; }
     if (!form.guests_count)      { setErrMsg("Guest count is required."); return; }
 
     setErrMsg(""); setSaving(true);
@@ -251,9 +253,8 @@ function EditModal({ reservation, onClose, onSaved, C, isDark }) {
         throw new Error(data?.message || `HTTP ${res.status}`);
       }
 
-      const updated = await res.json();
+      await res.json();
 
-      // Merge updated fields back into the reservation object
       const merged = {
         ...reservation,
         name:             form.name.trim(),
@@ -291,11 +292,24 @@ function EditModal({ reservation, onClose, onSaved, C, isDark }) {
           <div style={{ paddingRight:48 }}>
             <div style={{ fontFamily:F.body, fontSize:10, letterSpacing:"0.22em", color:"#C9A84C", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Edit Booking</div>
             <div style={{ fontFamily:F.display, fontSize:18, fontWeight:600, color:"#F7F3EA" }}>Update Your Details</div>
-            <div style={{ fontFamily:F.mono, fontSize:11, color:"#C9A84C", letterSpacing:"0.10em", fontWeight:700, marginTop:4 }}>
-              REF #{reservation.id || reservation.reference_code || "—"}
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
+              <div style={{ fontFamily:F.mono, fontSize:11, color:"#C9A84C", letterSpacing:"0.10em", fontWeight:700 }}>
+                REF #{reservation.id || reservation.reference_code || "—"}
+              </div>
+              <StatusBadge status={reservation.status} C={C} />
             </div>
           </div>
         </div>
+
+        {/* Approved-status notice banner */}
+        {isApproved && (
+          <div style={{ margin:"16px 24px 0", padding:"10px 14px", background:"rgba(15,186,129,0.08)", border:"1px solid rgba(15,186,129,0.24)", borderRadius:10, display:"flex", alignItems:"flex-start", gap:8, fontSize:12, color:"#0FBA81", lineHeight:1.6 }}>
+            <span style={{ flexShrink:0 }}>✅</span>
+            <span>
+              <strong>Confirmed booking.</strong> You may still update personal details and special requests. Date, time, or guest count changes may require staff review.
+            </span>
+          </div>
+        )}
 
         {/* Form body */}
         <div style={{ padding:"22px 24px 26px" }}>
@@ -417,17 +431,21 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C }) {
 }
 
 // ─────────────────────────────────────────────
-// RESERVATION DETAIL MODAL  (Edit button added)
+// RESERVATION DETAIL MODAL
+// Edit  → pending + approved
+// Cancel → pending only
 // ─────────────────────────────────────────────
 function ReservationDetailModal({ reservation, onClose, onCancel, onEdit, C, isDark, fmtDate, fmtTime }) {
-  const status = (reservation.status || "").toLowerCase();
+  const status     = (reservation.status || "").toLowerCase();
   const isPending  = status === "pending";
   const isApproved = status === "reserved" || status === "approved" || status === "confirmed";
   const isRejected = status === "rejected" || status === "cancelled" || status === "canceled";
   const statusKey  = isApproved ? "approved" : isRejected ? "rejected" : "pending";
-  
-  // Debug: Log the status values
-  console.log('Reservation status:', reservation.status, 'isPending:', isPending, 'status:', status);
+
+  // Whether the Edit button should appear
+  const canEdit   = isPending || isApproved;
+  // Whether the Cancel button should appear (pending only)
+  const canCancel = isPending;
 
   return (
     <div
@@ -468,32 +486,60 @@ function ReservationDetailModal({ reservation, onClose, onCancel, onEdit, C, isD
             <DetailRow label="Requests" value={reservation.special_requests} C={C} />
           )}
 
+          {/* Status note */}
           <div style={{ marginTop:14, padding:"10px 13px", borderRadius:8, background:C.statusNote[statusKey], border:`1px solid ${C.statusNoteBorder[statusKey]}`, fontSize:12, color:C.textMuted, lineHeight:1.6 }}>
-            {isPending  && <><strong style={{ color:C.textPrimary }}>Pending review.</strong> You may edit or cancel while not yet approved.</>}
-            {isApproved && <><strong style={{ color:C.textPrimary }}>Confirmed.</strong> Please arrive on time. Cancellation unavailable for confirmed bookings.</>}
+            {isPending  && <><strong style={{ color:C.textPrimary }}>Pending review.</strong> You may edit details or cancel while not yet approved.</>}
+            {isApproved && <><strong style={{ color:C.textPrimary }}>Confirmed.</strong> You may still update your personal details or special requests.</>}
             {isRejected && <><strong style={{ color:C.textPrimary }}>Cancelled.</strong> This booking is no longer active.</>}
           </div>
 
-          {/* Edit + Cancel buttons — only for pending */}
-          {isPending && (
+          {/* ── Action buttons ── */}
+          {(canEdit || canCancel) && (
             <div style={{ display:"flex", gap:10, marginTop:14 }}>
-              {/* Edit button */}
-              <button
-                onClick={() => { onClose(); onEdit(reservation); }}
-                style={{ flex:1, padding:"11px", background:"transparent", border:`1.5px solid ${C.gold}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.gold, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-                onMouseEnter={(e)=>{ e.currentTarget.style.background=C.goldFaint; }}
-                onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; }}>
-                ✏️ Edit Details
-              </button>
 
-              {/* Cancel button */}
-              <button
-                onClick={() => { onClose(); onCancel(reservation); }}
-                style={{ flex:1, padding:"11px", background:"transparent", border:`1.5px solid ${C.red}`, borderRadius:10, fontFamily:F.body, fontSize:12, fontWeight:700, color:C.red, cursor:"pointer", letterSpacing:"0.06em", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-                onMouseEnter={(e)=>{ e.currentTarget.style.background=C.red; e.currentTarget.style.color="#fff"; }}
-                onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.red; }}>
-                🗑 Cancel Booking
-              </button>
+              {/* Edit button — pending OR approved */}
+              {canEdit && (
+                <button
+                  onClick={() => { onClose(); onEdit(reservation); }}
+                  style={{
+                    flex: canCancel ? 1 : 2,          // full-width when Cancel not shown
+                    padding:"11px",
+                    background:"transparent",
+                    border:`1.5px solid ${C.gold}`,
+                    borderRadius:10,
+                    fontFamily:F.body, fontSize:12, fontWeight:700,
+                    color:C.gold, cursor:"pointer",
+                    letterSpacing:"0.06em",
+                    transition:"all 0.2s",
+                    display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  }}
+                  onMouseEnter={(e)=>{ e.currentTarget.style.background=C.goldFaint; }}
+                  onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; }}>
+                  ✏️ Edit Details
+                </button>
+              )}
+
+              {/* Cancel button — pending only */}
+              {canCancel && (
+                <button
+                  onClick={() => { onClose(); onCancel(reservation); }}
+                  style={{
+                    flex:1,
+                    padding:"11px",
+                    background:"transparent",
+                    border:`1.5px solid ${C.red}`,
+                    borderRadius:10,
+                    fontFamily:F.body, fontSize:12, fontWeight:700,
+                    color:C.red, cursor:"pointer",
+                    letterSpacing:"0.06em",
+                    transition:"all 0.2s",
+                    display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  }}
+                  onMouseEnter={(e)=>{ e.currentTarget.style.background=C.red; e.currentTarget.style.color="#fff"; }}
+                  onMouseLeave={(e)=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.red; }}>
+                  🗑 Cancel Booking
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -584,7 +630,7 @@ export default function ManageBooking() {
   const [error,               setError]               = useState("");
   const [cancelTarget,        setCancelTarget]        = useState(null);
   const [cancelling,          setCancelling]          = useState(false);
-  const [editTarget,          setEditTarget]          = useState(null);   // ← NEW
+  const [editTarget,          setEditTarget]          = useState(null);
   const [toast,               setToast]               = useState(null);
   const [focused,             setFocused]             = useState(false);
   const [showResultsModal,    setShowResultsModal]    = useState(false);
@@ -637,20 +683,17 @@ export default function ManageBooking() {
     };
 
     try {
-      // Try to find by exact reference code (for codes like "2026-6355")
       const refSearch = await tryFetch(`${API_BASE}/reservations?reference_code=${encodeURIComponent(trimmed)}`);
       if (refSearch.ok) {
         const refList = extractList(refSearch.data);
-        // Filter for exact reference code match
-        const exactMatches = refList.filter(r => 
-          (r.reference_code === trimmed) || 
+        const exactMatches = refList.filter(r =>
+          (r.reference_code === trimmed) ||
           (r.id === trimmed) ||
           (String(r.id) === trimmed)
         );
         if (exactMatches.length > 0) { finishWithMatched(exactMatches); return; }
       }
 
-      // Also try searching by ID if it's numeric
       if (/^\d+$/.test(trimmed)) {
         const idSearch = await tryFetch(`${API_BASE}/reservations/${trimmed}`);
         if (idSearch.ok) {
@@ -693,12 +736,10 @@ export default function ManageBooking() {
 
   // ── Edit saved callback ──────────────────────────────────────────────────
   const handleEditSaved = (updatedReservation) => {
-    // Update results list so the list modal reflects new data
     setResults((prev) =>
       prev?.map((r) => r.id === updatedReservation.id ? updatedReservation : r) ?? prev
     );
     setEditTarget(null);
-    // Re-open detail modal with updated data
     setSelectedReservation(updatedReservation);
     showToast("Details updated successfully! ✓");
   };
@@ -750,7 +791,6 @@ export default function ManageBooking() {
             <label style={{ display:"block", fontFamily:F.body, fontSize:10, letterSpacing:"0.20em", color:C.gold, fontWeight:700, textTransform:"uppercase", marginBottom:6 }}>
               Reference Code
             </label>
-            
 
             <input
               value={lookup}
@@ -762,7 +802,6 @@ export default function ManageBooking() {
               autoComplete="off" spellCheck={false}
               style={{ width:"100%", boxSizing:"border-box", padding:"14px 16px", border:`1.5px solid ${error ? C.red : focused ? C.inputFocus : C.inputBorder}`, borderRadius:12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily:F.mono, fontSize:18, fontWeight:700, letterSpacing:"0.06em", color:C.textPrimary, outline:"none", transition:"border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : error ? `0 0 0 3px ${C.red}14` : "none", colorScheme: isDark ? "dark" : "light", marginBottom:8 }}
             />
-
 
             {error && (
               <div style={{ display:"flex", alignItems:"flex-start", gap:8, background:"rgba(224,82,82,0.08)", border:"1px solid rgba(224,82,82,0.24)", borderRadius:10, padding:"10px 12px", marginBottom:16, fontSize:12, color:C.red, lineHeight:1.6, animation:"fadeIn 0.2s ease" }}>
@@ -786,9 +825,9 @@ export default function ManageBooking() {
               <span style={{ fontFamily:F.body, fontSize:12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}>Need to make a booking? </span>
               <button onClick={() => navigate("/venues")}
                 style={{ background:"none", border:"none", fontFamily:F.body, fontSize:12, fontWeight:700, color:C.gold, cursor:"pointer", padding:0, letterSpacing:"0.04em", textDecoration:"underline", textUnderlineOffset:3 }}>
-                View All Venues → 
+                View All Venues →
               </button>
-              <span style={{ fontFamily:F.body, fontSize:12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}><br />  Forgot your reference code? </span>
+              <span style={{ fontFamily:F.body, fontSize:12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}><br />Forgot your reference code? </span>
               <button onClick={() => navigate("/forgotcode")}
                 style={{ background:"none", border:"none", fontFamily:F.body, fontSize:12, fontWeight:700, color:C.red, cursor:"pointer", padding:0, letterSpacing:"0.04em", textDecoration:"underline", textUnderlineOffset:3 }}>
                 Click here →
@@ -818,7 +857,7 @@ export default function ManageBooking() {
           />
         )}
 
-        {/* Edit modal ← NEW */}
+        {/* Edit modal */}
         {editTarget && (
           <EditModal
             reservation={editTarget}
@@ -840,7 +879,7 @@ export default function ManageBooking() {
         {toast && (
           <div style={{ position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)", background: toast.isSuccess ? C.green : C.red, color:"#fff", fontFamily:F.body, fontSize:13, fontWeight:700, padding:"13px 24px", borderRadius:14, boxShadow:"0 8px 32px rgba(0,0,0,0.28)", zIndex:9999, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8, animation:"slideUp 0.3s ease" }}>
             {toast.isSuccess ? "✅" : "❌"} {toast.msg}
-          </div>
+        </div>
         )}
 
         <style>{`

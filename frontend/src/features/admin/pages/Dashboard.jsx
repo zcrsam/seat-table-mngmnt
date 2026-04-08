@@ -47,14 +47,32 @@ function getNumericId(res) {
 }
 
 async function callAPI(method, numericId, payload) {
+  console.log(`Calling API: ${method} with ID: ${numericId}, payload:`, payload);
+  
+  // Try directAPI first since it has the correct endpoints
   try {
-    if (typeof reservationAPI[method] === "function") {
-      return await reservationAPI[method](numericId, payload);
+    console.log(`Trying directAPI.${method}...`);
+    const result = await directAPI[method](numericId, payload);
+    console.log(`directAPI.${method} succeeded:`, result);
+    return result;
+  } catch (directError) {
+    console.warn(`directAPI.${method} failed:`, directError);
+    
+    // Fall back to reservationAPI
+    try {
+      if (typeof reservationAPI[method] === "function") {
+        console.log(`Trying reservationAPI.${method}...`);
+        const result = await reservationAPI[method](numericId, payload);
+        console.log(`reservationAPI.${method} succeeded:`, result);
+        return result;
+      }
+    } catch (reservationError) {
+      console.warn(`reservationAPI.${method} failed:`, reservationError);
+      throw reservationError;
     }
-  } catch (err) {
-    if (!err.message?.includes("not a function")) throw err;
+    
+    throw directError;
   }
-  return await directAPI[method](numericId, payload);
 }
 
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
@@ -747,13 +765,21 @@ function Dashboard({ onLogout }) {
       showToast("A rejection reason is required.", "#E05252");
       return;
     }
-    try { await callAPI("reject", numericId, rejectionReason); } catch (error) {
-      showToast(`Failed to reject: ${error?.response?.data?.message || error?.message || "Unknown error"}`, "#E05252"); return;
+    try {
+      await callAPI("reject", numericId, rejectionReason);
+    } catch (error) {
+      console.error('Reject error details:', error);
+      const errorMessage = error?.response?.data?.message || 
+                          error?.data?.message || 
+                          error?.message || 
+                          "Unknown error";
+      showToast(`Failed to reject: ${errorMessage}`, "#E05252");
+      return;
     }
     setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected", rejectionReason } : r));
     setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)), rejected: prev.rejected + 1 }));
     syncSeatToStorage(res, "rejected");
-    showToast("Reservation rejected — seats freed (green).", "#E05252");
+    showToast("Reservation rejected - seats freed (green).", "#E05252");
   };
 
   const handleDelete = async (id) => {
