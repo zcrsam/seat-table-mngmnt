@@ -13,6 +13,7 @@ import hanakazuImg from "../../../assets/hanakazu.jpeg";
 import hanakazuImg2 from "../../../assets/hanakazu2.jpeg";
 import hanakazuImg3 from "../../../assets/hanakazu3.jpeg";
 import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
+import bellevueLogo from "../../../assets/bellevue-logo.png";
 
 // ─────────────────────────────────────────────
 // THEME CONTEXT
@@ -153,6 +154,21 @@ function useScrollReveal(threshold = 0.15) {
     return () => obs.disconnect();
   }, [threshold]);
   return [ref, vis];
+}
+
+// ─────────────────────────────────────────────
+// UTILITY COMPONENTS
+// ─────────────────────────────────────────────
+function GoldLine({ width = 32 }) {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  return <span style={{ display: "inline-block", width, height: 1, background: C.gold, verticalAlign: "middle" }} />;
+}
+
+function Divider({ mb = 0, mt = 0 }) {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  return <div style={{ height: 1, background: C.borderLight, margin: `${mt}px 0 ${mb}px` }} />;
 }
 
 // ─────────────────────────────────────────────
@@ -656,6 +672,7 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
 
   const restaurant = RESTAURANTS[activeRestaurant];
   const imgs = restaurant?.imgs ?? [qsinaImg, qsinaImg2, qsinaImg3];
+  const totalRestaurants = RESTAURANTS.length;
 
   useEffect(() => {
     if (!initialRestaurantId) return;

@@ -68,5 +68,6 @@ Route::prefix('reservations')->group(function () {
     Route::post('/', [ClientReservationController::class, 'store']);
     Route::get('/{id}', [ClientReservationController::class, 'show']);
     Route::put('/{id}', [ClientReservationController::class, 'update']);
+    Route::patch('/{id}/reject', [ClientReservationController::class, 'reject']);
     Route::delete('/{id}', [ClientReservationController::class, 'destroy']);
 });

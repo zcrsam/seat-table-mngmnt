@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reservation Status – The Bellevue Manila</title>
-<<<<<<< HEAD
-=======
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -185,7 +183,6 @@
 
         .footer strong { color: #C9A84C; }
     </style>
->>>>>>> 6ecab27 (Implement rejection reason for reservations and update email notifications)
 </head>
 <body style="margin:0;padding:40px 20px;background:#F5F1EB;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
 
@@ -206,7 +203,6 @@
                 <tr>
                     <td align="center" style="padding:36px 48px 32px;">
 
-<<<<<<< HEAD
                         <!-- Status Badge -->
                         @if($status === 'pending')
                         <div style="display:inline-block;padding:10px 40px;border-radius:20px;font-size:15px;font-weight:700;letter-spacing:0.1em;background:#FFE0AA;border:2px solid #FFB900;color:#000000;margin-bottom:28px;">
@@ -220,45 +216,6 @@
                         <div style="display:inline-block;padding:10px 40px;border-radius:20px;font-size:15px;font-weight:700;letter-spacing:0.1em;background:rgba(224,82,82,0.13);border:2px solid #E05252;color:#7A1E1E;margin-bottom:28px;">
                             Status: {{ $statusText }}
                         </div>
-=======
-            <span class="status-badge status-{{ $displayStatus ?? $status }}">{{ $statusText }}</span>
-
-            <p class="greeting">Hello, {{ $reservation->name ?? 'Valued Guest' }}</p>
-
-            {{-- Reference code --}}
-            <div class="ref-box">
-                <div class="ref-label">Reference Code</div>
-                <div class="ref-code">{{ $reservation->reference_code ?? $reservation->id ?? 'N/A' }}</div>
-            </div>
-
-            {{-- Reservation details --}}
-            <div class="details-table">
-
-                <div class="detail-row">
-                    <span class="detail-label">Name</span>
-                    <span class="detail-value">{{ $reservation->name ?? '—' }}</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">Email</span>
-                    <span class="detail-value">{{ $reservation->email ?? '—' }}</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">Venue</span>
-                    <span class="detail-value">
-                        {{ $reservation->room ?? ($reservation->venue->name ?? ($reservation->venue ?? '—')) }}
-                    </span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">Event Date</span>
-                    <span class="detail-value">
-                        @if(!empty($reservation->event_date))
-                            {{ \Carbon\Carbon::parse($reservation->event_date)->format('F j, Y') }}
-                        @else
-                            —
->>>>>>> 6ecab27 (Implement rejection reason for reservations and update email notifications)
                         @endif
 
                         <!-- Reference Code -->
@@ -284,9 +241,9 @@
                                 We regret to inform you that we are unable to accommodate your reservation at
                                 this time due to availability constraints. Please contact our reservations desk
                                 directly so we can assist you in finding a suitable alternative.
-                                @if(!empty($reservation->rejection_reason))
+                                @if(!empty($rejectionReason))
                                 <br><br>
-                                <strong>Reason:</strong> {{ $reservation->rejection_reason }}
+                                <strong>Reason:</strong> {{ $rejectionReason }}
                                 @endif
                             @endif
                         </p>
@@ -340,7 +297,6 @@
                     </td>
                 </tr>
 
-<<<<<<< HEAD
                 <!-- Footer -->
                 <tr>
                     <td align="center" style="background:#F7F3EA;border-top:1px solid #D8D4CC;padding:18px 24px;">
@@ -355,38 +311,6 @@
         </td>
     </tr>
 </table>
-=======
-                @if($status === 'rejected' && !empty($rejectionReason))
-                <div class="detail-row">
-                    <span class="detail-label">Rejection Reason</span>
-                    <span class="detail-value">{{ $rejectionReason }}</span>
-                </div>
-                @endif
-
-            </div>
-
-            {{-- Status-specific message --}}
-            <div class="status-message message-{{ $displayStatus ?? $status }}">
-                @if($status === 'pending')
-                    Your reservation has been received and is currently <strong>pending review</strong>.
-                    Our team will process your request shortly and you will receive another email
-                    once a decision has been made. Thank you for your patience.
-                @elseif($status === 'approved' || $status === 'reserved')
-                    🎉 Great news! Your reservation has been <strong>approved and confirmed</strong>.
-                    Please arrive at least 15 minutes before your scheduled time. We look forward
-                    to welcoming you to The Bellevue Manila.
-                @elseif($status === 'rejected')
-                    We regret to inform you that we are unable to accommodate your reservation at
-                    this time.
-                    @if(!empty($rejectionReason))
-                        Reason: <strong>{{ $rejectionReason }}</strong>
-                    @else
-                        Please contact our reservations desk directly so we can assist you in
-                        finding a suitable alternative.
-                    @endif
-                @endif
-            </div>
->>>>>>> 6ecab27 (Implement rejection reason for reservations and update email notifications)
 
 </body>
 </html>

@@ -1,4 +1,3 @@
-// API configuration and base service
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 class ApiService {
@@ -19,16 +18,54 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || `HTTP error! status: ${response.status}`);
+        let errorData = {};
+        try {
+          const text = await response.text();
+          console.log(`[API] Error response (${response.status}):`, text);
+          try {
+            errorData = JSON.parse(text);
+          } catch {
+            errorData = { message: text || `HTTP ${response.status}` };
+          }
+        } catch {
+          errorData = { message: `HTTP ${response.status}` };
+        }
+
+        const error = new Error(
+          errorData.message ||
+          errorData.error ||
+          `HTTP error! status: ${response.status}`
+        );
+        error.status = response.status;
+        error.data = errorData;
+        error.response = { status: response.status, data: errorData };
+        throw error;
       }
 
-      return await response.json();
+      // Handle empty body (204 No Content, or some PATCH/DELETE responses)
+      if (response.status === 204) return {};
+      const text = await response.text();
+      if (!text || !text.trim()) return {};
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        console.warn('[API] Response was not JSON:', text);
+        return { raw: text };
+      }
+
     } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
+      // Re-throw errors we already processed above
+      if (error.status) throw error;
+      // Network-level errors (no connection, CORS, etc.)
+      console.error('[API] Network error:', error);
+      const networkError = new Error('Network error — could not reach the server.');
+      networkError.status = 0;
+      networkError.data = {};
+      networkError.response = { status: 0, data: {} };
+      throw networkError;
     }
   }
 
