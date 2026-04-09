@@ -52,9 +52,6 @@ async function callAPI(method, numericId, payload) {
       return await reservationAPI[method](numericId, payload);
     }
   } catch (error) {
-<<<<<<< Updated upstream
-    console.warn(`reservationAPI.${method} failed, falling back to direct API`, error);
-=======
     // If reservationAPI fails, fall through to directAPI
   }
   try {
@@ -62,7 +59,6 @@ async function callAPI(method, numericId, payload) {
   } catch (error) {
     console.error(`API call failed for ${method}:`, error);
     throw error;
->>>>>>> Stashed changes
   }
 }
 
