@@ -117,6 +117,30 @@
             text-transform: uppercase;
             border: 1px solid rgba(201,168,76,0.3);
         }
+
+        .actions {
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .download-btn {
+            appearance: none;
+            border: 1px solid #1B2A4A;
+            background: #1B2A4A;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .download-btn:hover {
+            background: #0F1E38;
+            border-color: #0F1E38;
+        }
         
         .footer {
             background: #F7F3EA;
@@ -166,6 +190,10 @@
             </div>
             
             <div class="status">Pending Approval</div>
+
+            <div class="actions">
+                <button class="download-btn" id="downloadBtn" type="button">Download Details</button>
+            </div>
         </div>
         
         <div class="footer">
@@ -197,9 +225,35 @@
             // Update page title
             document.title = `Reservation ${details.ref} - Bellevue Manila`;
         }
+
+        function downloadDetails() {
+            const details = getUrlParams();
+            const text = [
+                "THE BELLEVUE MANILA",
+                "Reservation Confirmation",
+                "",
+                `Reference Code: ${details.ref}`,
+                `Table: ${details.table}`,
+                `Date: ${details.date}`,
+                `Venue: ${details.venue}`,
+                "Status: Pending Approval",
+            ].join("\n");
+
+            const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `reservation-${details.ref || "details"}.txt`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
         
         // Initialize page when loaded
-        document.addEventListener('DOMContentLoaded', updatePage);
+        document.addEventListener('DOMContentLoaded', function () {
+            updatePage();
+            var btn = document.getElementById('downloadBtn');
+            if (btn) btn.addEventListener('click', downloadDetails);
+        });
         
         // Also update if URL changes (for single-page apps)
         window.addEventListener('popstate', updatePage);

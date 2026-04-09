@@ -28,9 +28,9 @@ function Toast({ msg, color, onDismiss }) {
 const MIN_REASON_LENGTH = 5;
 
 function DetailModal({ res, onClose, onApprove, onReject }) {
-  const [confirm, setConfirm]                     = useState(null);
+  const [confirm, setConfirm] = useState(null);
   const [rejectionReasonInput, setRejectionReasonInput] = useState("");
-  const [reasonError, setReasonError]             = useState("");
+  const rejectionReason = res.rejectionReason || res.rejection_reason || "";
 
   const rejectionReason = res.rejectionReason || res.rejection_reason || "";
   const isWhole = res.type === "whole";
@@ -76,88 +76,41 @@ function DetailModal({ res, onClose, onApprove, onReject }) {
     return (
       <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:300 }}>
         <div style={{ background:"#FFFFFF", border:"1px solid rgba(201,168,76,0.3)", borderRadius:12, padding:"36px 40px", width:420, maxWidth:"90vw", textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
-
-          <div style={{ width:52, height:52, borderRadius:"50%", background:`${isApprove ? "#4CAF79" : "#E05252"}22`, border:`2px solid ${isApprove ? "#4CAF79" : "#E05252"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 16px", color:isApprove ? "#4CAF79" : "#E05252" }}>
-            {isApprove ? "✓" : "✕"}
-          </div>
-
-          <div style={{ fontFamily:"Montserrat, sans-serif", fontSize:22, color:"#1B2A4A", fontWeight:"bold", marginBottom:8 }}>
-            {isApprove ? "Confirm Reservation?" : "Reject Reservation?"}
-          </div>
-          <div style={{ fontFamily:"Montserrat, sans-serif", fontSize:12, color:"#666666", lineHeight:1.6, marginBottom:18 }}>
-            {isApprove
-              ? `This will mark the table as Reserved and notify ${res.name}.`
-              : `This will release the seat back to Available and notify ${res.name}.`}
-          </div>
-
+          <div style={{ width:52, height:52, borderRadius:"50%", background:`${isApprove?"#4CAF79":"#E05252"}22`, border:`2px solid ${isApprove?"#4CAF79":"#E05252"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 16px", color:isApprove?"#4CAF79":"#E05252" }}>{isApprove?"✓":"✕"}</div>
+          <div style={{ fontFamily:"Montserrat, sans-serif", fontSize:22, color:"#1B2A4A", fontWeight:"bold", marginBottom:8 }}>{isApprove?"Confirm Reservation?":"Reject Reservation?"}</div>
+          <div style={{ fontFamily:"Montserrat, sans-serif", fontSize:12, color:"#666666", lineHeight:1.6, marginBottom:18 }}>{isApprove?`This will mark table as Reserved and notify ${res.name}.`:`This will release seat back to Available and notify ${res.name}.`}</div>
           {!isApprove && (
             <div style={{ textAlign:"left", marginBottom:18 }}>
-              <div style={{ fontFamily:"Montserrat, sans-serif", fontSize:10, letterSpacing:1.5, color:"#6C757D", fontWeight:700, marginBottom:8, textTransform:"uppercase" }}>
-                Reason for rejection
-              </div>
+              <div style={{ fontFamily:"Montserrat, sans-serif", fontSize:10, letterSpacing:1.5, color:"#6C757D", fontWeight:700, marginBottom:8, textTransform:"uppercase" }}>Reason for rejection</div>
               <textarea
                 value={rejectionReasonInput}
-                onChange={handleReasonChange}
+                onChange={(e) => setRejectionReasonInput(e.target.value)}
                 rows={4}
-                placeholder="Describe why this reservation is being rejected…"
-                style={{
-                  width:"100%", resize:"vertical", padding:"12px 14px",
-                  borderRadius:8,
-                  border:`1px solid ${reasonError ? "#E05252" : "#D1D5DB"}`,
-                  fontFamily:"Montserrat, sans-serif", fontSize:12,
-                  color:"#1B2A4A", outline:"none", boxSizing:"border-box",
-                  transition:"border-color 0.15s",
-                }}
-                onFocus={e  => { if (!reasonError) e.currentTarget.style.borderColor = "#C9A84C"; }}
-                onBlur={e   => { e.currentTarget.style.borderColor = reasonError ? "#E05252" : "#D1D5DB"; }}
+                placeholder="Describe why this reservation is being rejected"
+                style={{ width:"100%", resize:"vertical", padding:"12px 14px", borderRadius:8, border:"1px solid #D1D5DB", fontFamily:"Montserrat, sans-serif", fontSize:12, color:"#1B2A4A", outline:"none", boxSizing:"border-box" }}
               />
-
-              {/* Character counter / error */}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:5 }}>
-                {reasonError
-                  ? <span style={{ fontFamily:"Montserrat, sans-serif", fontSize:10, color:"#E05252" }}>{reasonError}</span>
-                  : <span style={{ fontFamily:"Montserrat, sans-serif", fontSize:10, color:"#9CA3AF" }}>
-                      {reasonIsValid
-                        ? "✓ Looks good"
-                        : `${charsRemaining} more character${charsRemaining !== 1 ? "s" : ""} required`}
-                    </span>
-                }
-                <span style={{ fontFamily:"Montserrat, sans-serif", fontSize:10, color: reasonIsValid ? "#9CA3AF" : "#C9A84C" }}>
-                  {reasonTrimmed.length}/{MIN_REASON_LENGTH} min
-                </span>
-              </div>
             </div>
           )}
-
           <div style={{ display:"flex", gap:10 }}>
+            <button style={{ flex:1, padding:"12px 0", border:"1.5px solid #CCCCCC", background:"transparent", color:"#666666", borderRadius:6, fontFamily:"Montserrat, sans-serif", fontWeight:700, fontSize:11, letterSpacing:2, cursor:"pointer" }} onClick={()=>setConfirm(null)}>CANCEL</button>
             <button
-              style={{ flex:1, padding:"12px 0", border:"1.5px solid #CCCCCC", background:"transparent", color:"#666666", borderRadius:6, fontFamily:"Montserrat, sans-serif", fontWeight:700, fontSize:11, letterSpacing:2, cursor:"pointer" }}
-              onClick={() => { setConfirm(null); setReasonError(""); }}
-            >
-              CANCEL
-            </button>
-            <button
-              style={{
-                flex:1, padding:"12px 0", border:"none",
-                background: isApprove
-                  ? "#4CAF79"
-                  : reasonIsValid ? "#E05252" : "#F0A0A0",
-                color:"#fff", borderRadius:6,
-                fontFamily:"Montserrat, sans-serif", fontWeight:700,
-                fontSize:11, letterSpacing:2,
-                cursor: isApprove || reasonIsValid ? "pointer" : "not-allowed",
-                transition:"background 0.2s",
-              }}
-              onClick={() => {
+              style={{ flex:1, padding:"12px 0", border:"none", background:isApprove?"#4CAF79":"#E05252", color:"#fff", borderRadius:6, fontFamily:"Montserrat, sans-serif", fontWeight:700, fontSize:11, letterSpacing:2, cursor:"pointer" }}
+              onClick={()=>{
                 if (isApprove) {
                   onApprove(res.id);
                   onClose();
                   return;
                 }
-                handleRejectConfirm();
+
+                const reason = rejectionReasonInput.trim();
+                if (!reason) return;
+
+                onReject(res.id, reason);
+                onClose();
               }}
+              disabled={!isApprove && !rejectionReasonInput.trim()}
             >
-              {isApprove ? "APPROVE" : "REJECT"}
+              {isApprove?"APPROVE":"REJECT"}
             </button>
           </div>
 

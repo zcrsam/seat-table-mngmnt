@@ -4,8 +4,6 @@ namespace App\Services;
 
 use App\Models\Reservation;
 use App\Models\Seat;
-use App\Models\Venue;
-use Illuminate\Support\Str;
 
 class ReservationService
 {
@@ -73,15 +71,12 @@ class ReservationService
      */
     private function assignSeatsToReservation(Reservation $reservation, array $seatIds): void
     {
-        $seats = Seat::whereIn('id', $seatIds)
+        Seat::whereIn('id', $seatIds)
             ->where('status', 'available')
-            ->get();
-
-        foreach ($seats as $seat) {
-            $seat->status = 'reserved';
-            $seat->reservation_id = $reservation->id;
-            $seat->save();
-        }
+            ->update([
+                'status' => 'reserved',
+                'reservation_id' => $reservation->id,
+            ]);
     }
 
     /**

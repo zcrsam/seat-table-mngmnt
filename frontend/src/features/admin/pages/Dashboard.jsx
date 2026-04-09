@@ -47,53 +47,12 @@ function getNumericId(res) {
 }
 
 async function callAPI(method, numericId, payload) {
-  console.log(`Calling API: ${method} with ID: ${numericId}, payload:`, payload);
-  
-  if (method === 'reject') {
-    if (typeof reservationAPI[method] === "function") {
-      console.log(`Using reservationAPI.${method} (only option for reject)...`);
-      try {
-        const result = await reservationAPI[method](numericId, payload);
-        console.log(`reservationAPI.${method} succeeded:`, result);
-        return result;
-      } catch (error) {
-        console.error(`reservationAPI.${method} failed:`, error);
-        throw error;
-      }
-    } else {
-      throw new Error(`reject method not available in reservationAPI`);
-    }
-  }
-  
   try {
     if (typeof reservationAPI[method] === "function") {
-      console.log(`Trying reservationAPI.${method}...`);
-      const result = await reservationAPI[method](numericId, payload);
-      console.log(`reservationAPI.${method} succeeded:`, result);
-      return result;
-    }
-  } catch (reservationError) {
-    console.warn(`reservationAPI.${method} failed:`, reservationError);
-    try {
-      console.log(`Trying directAPI.${method}...`);
-      const result = await directAPI[method](numericId, payload);
-      console.log(`directAPI.${method} succeeded:`, result);
-      return result;
-    } catch (directError) {
-      console.warn(`directAPI.${method} failed:`, directError);
-      throw directError;
+      return await reservationAPI[method](numericId, payload);
     }
   }
-  
-  try {
-    console.log(`Trying directAPI.${method} (fallback)...`);
-    const result = await directAPI[method](numericId, payload);
-    console.log(`directAPI.${method} succeeded:`, result);
-    return result;
-  } catch (directError) {
-    console.warn(`directAPI.${method} failed:`, directError);
-    throw directError;
-  }
+  return await directAPI[method](numericId, payload);
 }
 
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
@@ -832,16 +791,8 @@ function Dashboard({ onLogout }) {
       showToast("A rejection reason is required.", "#E05252");
       return;
     }
-    try {
-      await callAPI("reject", numericId, rejectionReason);
-    } catch (error) {
-      console.error('Reject error details:', error);
-      const errorMessage = error?.response?.data?.message || 
-                          error?.data?.message || 
-                          error?.message || 
-                          "Unknown error";
-      showToast(`Failed to reject: ${errorMessage}`, "#E05252");
-      return;
+    try { await callAPI("reject", numericId, rejectionReason); } catch (error) {
+      showToast(`Failed to reject: ${error?.response?.data?.message || error?.message || "Unknown error"}`, "#E05252"); return;
     }
     setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected", rejectionReason } : r));
     setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)), rejected: prev.rejected + 1 }));
