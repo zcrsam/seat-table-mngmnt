@@ -9,40 +9,80 @@ const useTheme = () => useContext(ThemeContext);
 function getTokens(isDark) {
   return isDark
     ? {
-        gold: "#C9A84C", goldLight: "#E2C96A", goldFaint: "rgba(201,168,76,0.10)",
-        pageBg: "#0E0D09", cardBg: "#1A1812", cardBorder: "rgba(201,168,76,0.16)",
-        inputBg: "rgba(255,255,255,0.06)", inputBorder: "rgba(201,168,76,0.22)", inputFocus: "#C9A84C",
-        textPrimary: "#F7F3EA", textMuted: "#8A8070",
-        navBg: "rgba(14,13,9,0.85)", navBorder: "rgba(201,168,76,0.15)",
-        red: "#E05252", green: "#0FBA81",
-        divider: "rgba(201,168,76,0.12)",
-        badgePending:  { bg: "rgba(244,158,12,0.15)",  color: "#F49E0C" },
-        badgeApproved: { bg: "rgba(15,186,129,0.15)",  color: "#0FBA81" },
-        badgeRejected: { bg: "rgba(224,82,82,0.15)",   color: "#E05252" },
+        gold: "#C4A35A",
+        goldLight: "#D9BC7A",
+        goldDim: "#8C7240",
+        goldFaint: "rgba(196,163,90,0.08)",
+        goldFaintest: "rgba(196,163,90,0.04)",
+        pageBg: "#0A0908",
+        surfaceBase: "#111009",
+        surfaceRaised: "#161410",
+        surfaceInput: "rgba(255,255,255,0.04)",
+        borderFaint: "rgba(255,255,255,0.04)",
+        borderDefault: "rgba(255,255,255,0.08)",
+        borderStrong: "rgba(255,255,255,0.12)",
+        borderAccent: "rgba(196,163,90,0.30)",
+        textPrimary: "#EDE8DF",
+        textSecondary: "#8A8278",
+        textTertiary: "rgba(237,232,223,0.32)",
+        textOnAccent: "#0A0908",
+        red: "#B85C5C",
+        redFaint: "rgba(184,92,92,0.08)",
+        redBorder: "rgba(184,92,92,0.20)",
+        green: "#4A9E7E",
+        greenFaint: "rgba(74,158,126,0.08)",
+        greenBorder: "rgba(74,158,126,0.20)",
+        badgePending:  { bg: "rgba(196,163,90,0.10)",  color: "#C4A35A",  dot: "#C4A35A"   },
+        badgeApproved: { bg: "rgba(74,158,126,0.10)",  color: "#4A9E7E",  dot: "#4A9E7E"   },
+        badgeRejected: { bg: "rgba(184,92,92,0.10)",   color: "#B85C5C",  dot: "#B85C5C"   },
+        navBg: "rgba(10,9,8,0.95)",
+        navBorder: "rgba(196,163,90,0.12)",
+        divider: "rgba(255,255,255,0.05)",
+        inputFocusShadow: "0 0 0 3px rgba(196,163,90,0.12)",
       }
     : {
-        gold: "#A07828", goldLight: "#C9A84C", goldFaint: "rgba(160,120,40,0.10)",
-        pageBg: "#F5F0E8", cardBg: "#FFFFFF", cardBorder: "rgba(160,120,40,0.18)",
-        inputBg: "rgba(255,255,255,0.90)", inputBorder: "rgba(160,120,40,0.28)", inputFocus: "#9A7A2E",
-        textPrimary: "#1A1612", textMuted: "#5A5040",
-        navBg: "rgba(245,240,232,0.90)", navBorder: "rgba(160,120,40,0.18)",
-        red: "#C0392B", green: "#0FBA81",
-        divider: "rgba(160,120,40,0.14)",
-        badgePending:  { bg: "rgba(244,158,12,0.15)",  color: "#B8860B" },
-        badgeApproved: { bg: "rgba(15,186,129,0.15)",  color: "#0FBA81" },
-        badgeRejected: { bg: "rgba(224,82,82,0.15)",   color: "#C0392B" },
+        gold: "#8C6B2A",
+        goldLight: "#A07D38",
+        goldDim: "#6B5020",
+        goldFaint: "rgba(140,107,42,0.07)",
+        goldFaintest: "rgba(140,107,42,0.04)",
+        pageBg: "#F7F4EE",
+        surfaceBase: "#FFFFFF",
+        surfaceRaised: "#FAF8F4",
+        surfaceInput: "#FFFFFF",
+        borderFaint: "rgba(0,0,0,0.04)",
+        borderDefault: "rgba(0,0,0,0.08)",
+        borderStrong: "rgba(0,0,0,0.13)",
+        borderAccent: "rgba(140,107,42,0.28)",
+        textPrimary: "#18140E",
+        textSecondary: "#7A7060",
+        textTertiary: "rgba(24,20,14,0.35)",
+        textOnAccent: "#FFFFFF",
+        red: "#A03838",
+        redFaint: "rgba(160,56,56,0.07)",
+        redBorder: "rgba(160,56,56,0.18)",
+        green: "#2E7A5A",
+        greenFaint: "rgba(46,122,90,0.07)",
+        greenBorder: "rgba(46,122,90,0.18)",
+        badgePending:  { bg: "rgba(140,107,42,0.09)",  color: "#8C6B2A",  dot: "#8C6B2A"  },
+        badgeApproved: { bg: "rgba(46,122,90,0.09)",   color: "#2E7A5A",  dot: "#2E7A5A"  },
+        badgeRejected: { bg: "rgba(160,56,56,0.09)",   color: "#A03838",  dot: "#A03838"  },
+        navBg: "rgba(247,244,238,0.96)",
+        navBorder: "rgba(140,107,42,0.14)",
+        divider: "rgba(0,0,0,0.05)",
+        inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
       };
 }
 
 const F = {
-  display: "Georgia, 'Times New Roman', serif",
+  display: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
-  mono: "'JetBrains Mono', 'Fira Mono', 'Courier New', monospace",
+  mono: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+  label: "'Inter', 'Helvetica Neue', Arial, sans-serif",
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-// Parse combination code (surname + last 2 digits)
 function parseLookup(raw) {
   const t = raw.trim();
   if (!t) return null;
@@ -66,33 +106,23 @@ function clientFilter(list, surname, phone) {
   return list.filter((r) => {
     const fullName = (r.name || r.full_name || r.fullName || "").trim();
     const parts = fullName.split(/\s+/);
-    
-    // Prioritize exact surname match (last word)
     const lastWord = parts[parts.length - 1]?.toLowerCase() || "";
     const exactSurnameMatch = lastWord === sLow;
-    
-    // Also accept partial matches but with higher priority for exact
-    const nameMatch = exactSurnameMatch || 
+    const nameMatch = exactSurnameMatch ||
       parts.some((p) => p.toLowerCase().startsWith(sLow)) ||
       fullName.toLowerCase().includes(sLow);
-      
-    const ph = String(r.phone || r.contact_number || r.mobile || r.phone_number || "")
-      .replace(/\D/g, "");
+    const ph = String(r.phone || r.contact_number || r.mobile || r.phone_number || "").replace(/\D/g, "");
     const phoneMatch = ph.length >= 2 && ph.slice(-2) === phone;
-    
     return nameMatch && phoneMatch;
   }).sort((a, b) => {
-    // Sort exact matches to the top
     const aName = (a.name || a.full_name || a.fullName || "").trim();
     const bName = (b.name || b.full_name || b.fullName || "").trim();
     const aParts = aName.split(/\s+/);
     const bParts = bName.split(/\s+/);
     const aLast = aParts[aParts.length - 1]?.toLowerCase() || "";
     const bLast = bParts[bParts.length - 1]?.toLowerCase() || "";
-    
     const aExact = aLast === sLow;
     const bExact = bLast === sLow;
-    
     if (aExact && !bExact) return -1;
     if (!aExact && bExact) return 1;
     return 0;
@@ -104,10 +134,17 @@ function StatusBadge({ status, C }) {
     status === "pending"  ? { ...C.badgePending,  label: "Pending"   } :
     status === "reserved" ? { ...C.badgeApproved, label: "Confirmed" } :
     status === "rejected" ? { ...C.badgeRejected, label: "Cancelled" } :
-    { bg: "rgba(130,130,130,0.12)", color: "#888", label: status ?? "Unknown" };
+    { bg: "rgba(130,130,130,0.10)", color: "#888", label: status ?? "Unknown" };
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: cfg.bg, color: cfg.color, padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: F.body, border: `1px solid ${cfg.color}40` }}>
-      <span style={{ width: 5, height: 5, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: cfg.bg, color: cfg.color,
+      padding: "4px 10px 4px 8px", borderRadius: 4,
+      fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+      textTransform: "uppercase", fontFamily: F.label,
+      border: `1px solid ${cfg.color}24`,
+    }}>
+      <span style={{ width: 4, height: 4, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
       {cfg.label}
     </span>
   );
@@ -115,15 +152,41 @@ function StatusBadge({ status, C }) {
 
 function ThemeToggle() {
   const { isDark, toggle } = useTheme();
+  const C = getTokens(isDark);
   return (
-    <button type="button" onClick={toggle} title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      style={{ display: "flex", alignItems: "center", padding: 0, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
-      <span style={{ position: "relative", width: 46, height: 25, borderRadius: 13, background: isDark ? "#2C2A1E" : "#DDD6C0", border: `1.5px solid ${isDark ? "rgba(201,168,76,0.28)" : "rgba(160,120,40,0.22)"}`, display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.32s, border-color 0.32s", verticalAlign: "middle" }}>
-        <span style={{ position: "absolute", top: 2, left: isDark ? 2 : "calc(100% - 23px)", width: 19, height: 19, borderRadius: "50%", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", transition: "left 0.30s cubic-bezier(.4,0,.2,1)", flexShrink: 0 }}>
-          <svg width="11" height="11" viewBox="0 0 20 20" fill="none">
-            <path d="M10 1a9 9 0 1 0 9 9A9 9 0 0 0 10 1zm0 16V3a7 7 0 0 1 0 14z" fill={isDark ? "#1C1A10" : "#B8922A"} />
-          </svg>
-        </span>
+    <button type="button" onClick={toggle}
+      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "6px 12px 6px 8px",
+        background: "transparent",
+        border: `1px solid ${C.borderDefault}`,
+        borderRadius: 20,
+        cursor: "pointer", flexShrink: 0,
+        transition: "all 0.22s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
+    >
+      <span style={{
+        position: "relative", width: 28, height: 16, borderRadius: 8,
+        background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.08)",
+        display: "inline-flex", alignItems: "center", flexShrink: 0,
+        transition: "background 0.28s",
+      }}>
+        <span style={{
+          position: "absolute",
+          left: isDark ? 2 : "calc(100% - 14px)",
+          width: 12, height: 12, borderRadius: "50%",
+          background: isDark ? "#C4A35A" : "#8C6B2A",
+          transition: "left 0.24s cubic-bezier(.4,0,.2,1)",
+        }} />
+      </span>
+      <span style={{
+        fontFamily: F.label, fontSize: 11, fontWeight: 500, letterSpacing: "0.03em",
+        color: C.textSecondary,
+      }}>
+        {isDark ? "Dark" : "Light"}
       </span>
     </button>
   );
@@ -134,9 +197,23 @@ function NavBar() {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
   return (
-    <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000, height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 clamp(16px,4vw,52px)", background: C.navBg, backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", borderBottom: `1px solid ${C.navBorder}`, boxSizing: "border-box", transition: "background 0.35s" }}>
+    <nav style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000,
+      height: 64, display: "flex", alignItems: "center",
+      justifyContent: "space-between", padding: "0 clamp(20px,5vw,64px)",
+      background: C.navBg, backdropFilter: "blur(24px)",
+      WebkitBackdropFilter: "blur(24px)",
+      borderBottom: `1px solid ${C.navBorder}`,
+      boxSizing: "border-box", transition: "background 0.30s",
+    }}>
       <img src={bellevueLogo} alt="The Bellevue Manila" onClick={() => navigate("/")}
-        style={{ height: 32, width: "auto", cursor: "pointer", display: "block", flexShrink: 0, filter: isDark ? "none" : "brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(500%) hue-rotate(10deg)", transition: "filter 0.35s" }} />
+        style={{
+          height: 26, width: "auto", cursor: "pointer", display: "block", flexShrink: 0,
+          filter: isDark
+            ? "brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)"
+            : "brightness(0) saturate(100%)",
+          transition: "filter 0.30s",
+        }} />
       <ThemeToggle />
     </nav>
   );
@@ -179,13 +256,10 @@ export default function ForgotCode() {
   const handleSearch = async () => {
     const trimmed = combination.trim();
     if (!trimmed) { setError("Please enter your combination code."); return; }
-    
     const parsed = parseLookup(trimmed);
     if (!parsed) { setError("Enter your surname + last 2 phone digits. Example: abane35"); return; }
-
     const { surname, phone } = parsed;
     setError(""); setSearching(true); setResults(null);
-
     const tryFetch = async (url) => {
       try {
         const res  = await fetch(url, { headers: { Accept: "application/json" } });
@@ -195,17 +269,16 @@ export default function ForgotCode() {
         return { ok: res.ok, status: res.status, data };
       } catch (e) { return { ok: false }; }
     };
-
     try {
       const s1 = await tryFetch(`${API_BASE}/reservations?per_page=500&page=1`);
       if (s1.data) {
         const matched = clientFilter(extractList(s1.data), surname, phone);
-        if (matched.length > 0) { setResults([matched[0]]); return; } // Only show the best match
+        if (matched.length > 0) { setResults([matched[0]]); return; }
       }
       const s2 = await tryFetch(`${API_BASE}/reservations`);
       if (s2.data) {
         const matched = clientFilter(extractList(s2.data), surname, phone);
-        if (matched.length > 0) { setResults([matched[0]]); return; } // Only show the best match
+        if (matched.length > 0) { setResults([matched[0]]); return; }
       }
       setError("No reservations found. Please double-check your surname and phone number.");
     } finally {
@@ -215,160 +288,402 @@ export default function ForgotCode() {
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
-      <div style={{ minHeight: "100vh", fontFamily: F.body, position: "relative", overflow: "hidden" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @keyframes spin   { to { transform: rotate(360deg) } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
 
-        {/* Background */}
+      <div style={{
+        minHeight: "100vh", fontFamily: F.body,
+        background: C.pageBg,
+        position: "relative",
+        transition: "background 0.30s",
+      }}>
+
+        {/* Background image */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
-          <div style={{ position: "absolute", inset: 0, backgroundImage: "url('/src/assets/bg-login.jpeg')", backgroundSize: "cover", backgroundPosition: "center", filter: "blur(3px) brightness(0.85)", transform: "scale(1.04)" }} />
-          <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(14,13,9,0.45)" : "rgba(245,240,232,0.38)" }} />
+          <div style={{
+            position: "absolute", inset: 0,
+            backgroundImage: "url('/src/assets/bg-login.jpeg')",
+            backgroundSize: "cover", backgroundPosition: "center",
+            filter: isDark
+              ? "blur(6px) brightness(0.35)"
+              : "blur(6px) brightness(0.45) saturate(0.4)",
+            transform: "scale(1.05)",
+            transition: "filter 0.40s",
+          }} />
+          <div style={{
+            position: "absolute", inset: 0,
+            background: isDark
+              ? "rgba(12,11,10,0.75)"
+              : "rgba(237,233,224,0.65)",
+            transition: "background 0.40s",
+          }} />
         </div>
 
         <NavBar />
 
-        <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px clamp(16px,5vw,48px) 48px" }}>
+        <div style={{
+          position: "relative", zIndex: 1,
+          minHeight: "100vh",
+          display: "flex",
+          paddingTop: 64,
+        }}>
 
-          {/* Back */}
-          <div style={{ position: "absolute", top: 80, left: "clamp(16px,4vw,52px)" }}>
-            <button onClick={() => navigate("/manage-booking")} title="Go back"
-              style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(201,168,76,0.12)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1.5px solid ${C.gold}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.22s", padding: 0 }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(201,168,76,0.28)"; e.currentTarget.style.transform = "scale(1.08)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(201,168,76,0.12)"; e.currentTarget.style.transform = "scale(1)"; }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-          </div>
+          {/* Main content */}
+          <div style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "clamp(40px,6vh,80px) clamp(20px,6vw,80px)",
+            minHeight: "calc(100vh - 64px)",
+          }}>
 
-          {/* Heading */}
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ display: "inline-block", width: 28, height: 1.5, background: C.gold }} />
-              <span style={{ fontFamily: F.body, fontSize: 10, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Forgot Reference Code</span>
-              <span style={{ display: "inline-block", width: 28, height: 1.5, background: C.gold }} />
+            {/* Back button */}
+            <div style={{ position: "absolute", top: 80, left: "clamp(16px,4vw,40px)" }}>
+              <button onClick={() => navigate("/manage-booking")} title="Go back"
+                style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "transparent",
+                  border: `1px solid ${C.borderDefault}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", transition: "all 0.18s", padding: 0,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
             </div>
-            <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4.5vw,38px)", fontWeight: 600, color: "#F7F3EA", lineHeight: 1.15, margin: "0 0 10px", letterSpacing: "-0.01em", textShadow: "0 2px 20px rgba(0,0,0,0.35)" }}>
-              Recover Your Reference Code
-            </h1>
-            <p style={{ fontFamily: F.body, fontSize: 14, color: "rgba(247,243,234,0.65)", margin: 0, lineHeight: 1.6, maxWidth: 520 }}>
-              Enter your combination code (surname + last 2 phone digits) to recover your reference code.
-            </p>
-          </div>
 
-          {/* Search Card */}
-          {!results && (
-            <div style={{ width: "100%", maxWidth: 460, background: isDark ? "rgba(14,13,9,0.78)" : "rgba(255,251,244,0.88)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 20, border: `1px solid ${isDark ? "rgba(201,168,76,0.18)" : "rgba(160,120,40,0.22)"}`, padding: "28px 26px 26px", boxShadow: "0 24px 80px rgba(0,0,0,0.30)", transition: "background 0.35s" }}>
+            <div style={{ width: "100%", maxWidth: 420 }}>
 
-              <label style={{ display: "block", fontFamily: F.body, fontSize: 10, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
-                Combination Code <span style={{ color: C.red }}>*</span>
-              </label>
-              <input
-                value={combination}
-                onChange={(e) => { setCombination(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                placeholder="e.g. abane35"
-                autoComplete="off"
-                style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", border: `1.5px solid ${focused ? C.inputFocus : C.inputBorder}`, borderRadius: 12, background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.80)", fontFamily: F.mono, fontSize: 18, fontWeight: 700, color: C.textPrimary, outline: "none", transition: "border-color 0.2s, box-shadow 0.2s", boxShadow: focused ? `0 0 0 3px ${C.gold}22` : "none", colorScheme: isDark ? "dark" : "light", marginBottom: 14 }}
-              />
-
-              {error && (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "rgba(224,82,82,0.08)", border: "1px solid rgba(224,82,82,0.24)", borderRadius: 10, padding: "10px 12px", marginBottom: 16, fontSize: 12, color: C.red, lineHeight: 1.6 }}>
-                  <span style={{ flexShrink: 0, fontSize: 14 }}>⚠️</span>
-                  <span>{error}</span>
+              {/* Header — only shown when no results */}
+              {!results && (
+                <div style={{ marginBottom: 40, animation: "fadeUp 0.32s ease" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
+                    <span style={{
+                      fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em",
+                      color: C.gold, fontWeight: 700, textTransform: "uppercase",
+                    }}>
+                      Guest Services
+                    </span>
+                  </div>
+                  <h1 style={{
+                    fontFamily: F.display, fontSize: "clamp(30px,5vw,44px)", fontWeight: 400,
+                    color: C.textPrimary, lineHeight: 1.12, margin: "0 0 12px", letterSpacing: "0.01em",
+                  }}>
+                    Recover Your<br />Reference Code
+                  </h1>
+                  <p style={{
+                    fontFamily: F.body, fontSize: 13.5, color: C.textSecondary,
+                    margin: 0, lineHeight: 1.70,
+                  }}>
+                    Enter your combination code to locate your booking reference.
+                  </p>
                 </div>
               )}
 
-              <button
-                onClick={handleSearch} disabled={searching}
-                style={{ width: "100%", marginTop: 10, padding: "14px", background: searching ? (isDark ? "#2A2018" : "#D4C9B0") : C.gold, border: "none", borderRadius: 12, fontFamily: F.body, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: searching ? C.textMuted : (isDark ? "#0E0D09" : "#FFFFFF"), cursor: searching ? "not-allowed" : "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                onMouseEnter={(e) => { if (!searching) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-                onMouseLeave={(e) => { if (!searching) { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "translateY(0)"; } }}>
-                {searching
-                  ? <><span style={{ display: "inline-block", width: 13, height: 13, border: `2px solid ${C.textMuted}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /> Searching…</>
-                  : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg> Find My Code</>
-                }
-              </button>
-
-              <p style={{ textAlign: "center", marginTop: 16, fontFamily: F.body, fontSize: 12, color: isDark ? "rgba(247,243,234,0.45)" : C.textMuted }}>
-                Remember your code?{" "}
-                <button onClick={() => navigate("/manage-booking")}
-                  style={{ background: "none", border: "none", fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.gold, cursor: "pointer", padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}>
-                  Go back →
-                </button>
-              </p>
-            </div>
-          )}
-
-          {/* Results */}
-          {results && (
-            <div style={{ width: "100%", maxWidth: 560 }}>
-
-              <div style={{ textAlign: "center", marginBottom: 24 }}>
-                <p style={{ fontFamily: F.body, fontSize: 13, color: isDark ? "rgba(247,243,234,0.55)" : C.textMuted, margin: "0 0 8px" }}>
-                  {results.length === 1 
-                    ? <>Found <strong style={{ color: C.gold }}>1</strong> reservation matching your details.</>
-                    : <>Found <strong style={{ color: C.gold }}>{results.length}</strong> reservations matching your details.</>
-                  }
-                </p>
-                <button onClick={() => setResults(null)}
-                  style={{ background: "none", border: "none", fontFamily: F.body, fontSize: 12, color: C.gold, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>
-                  Search again
-                </button>
-              </div>
-
-              {results.map((r, idx) => {
-                const refCode = r.reference_code || r.id || "—";
-                const statusKey = r.status === "reserved" ? "approved" : r.status === "rejected" ? "rejected" : "pending";
-                return (
-                  <div key={r.id || idx} style={{ background: isDark ? "rgba(14,13,9,0.82)" : "rgba(255,251,244,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 18, border: `1px solid ${isDark ? "rgba(201,168,76,0.20)" : "rgba(160,120,40,0.22)"}`, padding: "22px 24px", marginBottom: 16, boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-
-                    {/* Header row */}
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
-                      <div>
-                        <div style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>{r.name}</div>
-                        <div style={{ fontFamily: F.body, fontSize: 10, letterSpacing: "0.12em", color: C.textMuted, textTransform: "uppercase", marginBottom: 6 }}>
-                          {r.room || r.venue || "—"}
-                        </div>
-                        <StatusBadge status={r.status} C={C} />
+              {/* Search form */}
+              {!results && (
+                <div style={{ animation: "fadeUp 0.36s ease" }}>
+                  {/* How it works */}
+                  <div style={{
+                    padding: "12px 14px", borderRadius: 8, marginBottom: 20,
+                    background: C.goldFaint, border: `1px solid ${C.borderAccent}`,
+                    display: "flex", gap: 12, alignItems: "flex-start",
+                  }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 6, background: C.goldFaintest,
+                      border: `1px solid ${C.borderAccent}`, display: "flex",
+                      alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.gold, marginBottom: 3 }}>
+                        How it works
                       </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.18em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Reference Code</div>
-                        <div style={{ fontFamily: F.mono, fontSize: 22, fontWeight: 700, color: C.textPrimary, letterSpacing: "0.08em", background: C.goldFaint, padding: "6px 14px", borderRadius: 8, border: `1px solid ${isDark ? "rgba(201,168,76,0.25)" : "rgba(160,120,40,0.20)"}` }}>
-                          {refCode}
-                        </div>
+                      <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}>
+                        Combine your surname with the last 2 digits of your phone number.<br />
+                        <span style={{ color: C.textPrimary, fontWeight: 500 }}>Example: "abane35"</span>
                       </div>
                     </div>
-
-                    {/* Divider */}
-                    <div style={{ height: 1, background: C.divider, marginBottom: 14 }} />
-
-                    {/* Details */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", marginBottom: 16 }}>
-                      {[
-                        ["Date", fmtDate(r.eventDate || r.event_date)],
-                        ["Time", fmtTime(r.eventTime || r.event_time)],
-                        ["Guests", r.guests ? `${r.guests} pax` : r.guests_count ? `${r.guests_count} pax` : "—"],
-                        ["Table / Seat", [r.table || r.table_number, r.seat || r.seat_number].filter(Boolean).join(" / ") || "—"],
-                      ].map(([label, val]) => (
-                        <div key={label}>
-                          <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold, fontWeight: 700, marginBottom: 2 }}>{label}</div>
-                          <div style={{ fontFamily: F.body, fontSize: 13, color: C.textPrimary }}>{val}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                   
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
-        <style>{`
-          @keyframes spin { to { transform: rotate(360deg) } }
-        `}</style>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em",
+                      color: focused ? C.gold : C.textSecondary,
+                      fontWeight: 700, textTransform: "uppercase", marginBottom: 8,
+                      transition: "color 0.18s",
+                    }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                      </svg>
+                      Combination Code <span style={{ color: C.red, marginLeft: 2 }}>*</span>
+                    </label>
+                    <input
+                      value={combination}
+                      onChange={(e) => { setCombination(e.target.value); setError(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                      onFocus={() => setFocused(true)}
+                      onBlur={() => setFocused(false)}
+                      placeholder="e.g. abane35"
+                      autoComplete="off"
+                      style={{
+                        width: "100%", boxSizing: "border-box", padding: "14px 18px",
+                        border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+                        borderRadius: 10,
+                        background: C.surfaceInput,
+                        fontFamily: F.mono, fontSize: 17, fontWeight: 500, letterSpacing: "0.06em",
+                        color: C.textPrimary, outline: "none",
+                        transition: "border-color 0.18s, box-shadow 0.18s",
+                        boxShadow: focused ? C.inputFocusShadow : "none",
+                        colorScheme: isDark ? "dark" : "light",
+                      }}
+                    />
+                  </div>
+
+                  {error && (
+                    <div style={{
+                      padding: "10px 14px", borderRadius: 8, marginBottom: 14,
+                      background: C.redFaint, borderLeft: `3px solid ${C.red}`,
+                      fontSize: 12.5, color: C.red, lineHeight: 1.60,
+                      display: "flex", alignItems: "center", gap: 8,
+                    }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleSearch} disabled={searching}
+                    style={{
+                      width: "100%", padding: "14px",
+                      background: searching
+                        ? (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)")
+                        : C.gold,
+                      border: `1px solid ${searching ? C.borderDefault : "transparent"}`,
+                      borderRadius: 10,
+                      fontFamily: F.label, fontSize: 10, fontWeight: 700,
+                      letterSpacing: "0.18em", textTransform: "uppercase",
+                      color: searching ? C.textSecondary : C.textOnAccent,
+                      cursor: searching ? "not-allowed" : "pointer", transition: "all 0.20s",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                      marginBottom: 0,
+                    }}
+                    onMouseEnter={(e) => { if (!searching) e.currentTarget.style.background = C.goldLight; }}
+                    onMouseLeave={(e) => { if (!searching) e.currentTarget.style.background = C.gold; }}
+                  >
+                    {searching
+                      ? <>
+                          <span style={{ display: "inline-block", width: 13, height: 13, border: `1.5px solid ${C.textSecondary}40`, borderTopColor: C.textSecondary, borderRadius: "50%", animation: "spin 0.65s linear infinite" }} />
+                          Searching…
+                        </>
+                      : <>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          </svg>
+                          Find My Code
+                        </>
+                    }
+                  </button>
+
+                  <div style={{
+                    marginTop: 24, paddingTop: 22,
+                    borderTop: `1px solid ${C.divider}`,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <span style={{ fontFamily: F.body, fontSize: 12.5, color: C.textSecondary }}>
+                      Remember your code?
+                    </span>
+                    <button onClick={() => navigate("/manage-booking")}
+                      style={{
+                        background: "none", border: "none", fontFamily: F.label, fontSize: 11,
+                        fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+                        color: C.gold, cursor: "pointer", padding: 0,
+                        display: "flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      Manage Booking
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Results */}
+              {results && (
+                <div style={{ animation: "fadeUp 0.28s ease" }}>
+
+                  {/* Result header */}
+                  <div style={{ marginBottom: 28 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: C.greenFaint, border: `1px solid ${C.greenBorder}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span style={{
+                        fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em",
+                        color: C.green, fontWeight: 700, textTransform: "uppercase",
+                      }}>
+                        Booking Located
+                      </span>
+                    </div>
+                    <h2 style={{
+                      fontFamily: F.display, fontSize: "clamp(24px,4vw,34px)", fontWeight: 400,
+                      color: C.textPrimary, lineHeight: 1.15, margin: "0 0 6px",
+                    }}>
+                      Here is Your Code
+                    </h2>
+                    <p style={{ fontFamily: F.body, fontSize: 12.5, color: C.textSecondary, margin: 0 }}>
+                      {results.length === 1
+                        ? "Found 1 reservation matching your details."
+                        : `Found ${results.length} reservations matching your details.`
+                      }
+                    </p>
+                  </div>
+
+                  {results.map((r, idx) => {
+                    const refCode = r.reference_code || r.id || "—";
+                    return (
+                      <div key={r.id || idx} style={{
+                        background: C.surfaceBase,
+                        borderRadius: 14, border: `1px solid ${C.borderDefault}`,
+                        overflow: "hidden", marginBottom: 14,
+                      }}>
+
+                        {/* Gold accent top bar */}
+                        <div style={{
+                          height: "2px",
+                          background: `linear-gradient(90deg, transparent 0%, ${C.gold}80 30%, ${C.gold}80 70%, transparent 100%)`,
+                        }} />
+
+                        <div style={{ padding: "20px 22px" }}>
+                          {/* Reference code — the hero element */}
+                          <div style={{
+                            display: "flex", alignItems: "flex-start",
+                            justifyContent: "space-between", gap: 16, marginBottom: 18,
+                          }}>
+                            <div>
+                              <div style={{
+                                fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em",
+                                color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 6,
+                              }}>
+                                Reference Code
+                              </div>
+                              <div style={{
+                                fontFamily: F.mono, fontSize: 28, fontWeight: 500,
+                                color: C.textPrimary, letterSpacing: "0.06em",
+                                lineHeight: 1,
+                              }}>
+                                {refCode}
+                              </div>
+                            </div>
+                            <StatusBadge status={r.status} C={C} />
+                          </div>
+
+                          {/* Divider */}
+                          <div style={{ height: "1px", background: C.divider, marginBottom: 16 }} />
+
+                          {/* Guest & booking info */}
+                          <div style={{ marginBottom: 14 }}>
+                            <div style={{ fontSize: 15, fontWeight: 600, color: C.textPrimary, marginBottom: 2 }}>
+                              {r.name}
+                            </div>
+                            <div style={{ fontSize: 12.5, color: C.textSecondary }}>
+                              {r.room || r.venue || "—"}
+                            </div>
+                          </div>
+
+                          {/* Detail grid */}
+                          <div style={{
+                            display: "grid", gridTemplateColumns: "1fr 1fr",
+                            gap: "12px 20px",
+                          }}>
+                            {[
+                              ["Date", fmtDate(r.eventDate || r.event_date)],
+                              ["Time", fmtTime(r.eventTime || r.event_time)],
+                              ["Guests", r.guests ? `${r.guests} pax` : r.guests_count ? `${r.guests_count} pax` : "—"],
+                              ["Table / Seat", [r.table || r.table_number, r.seat || r.seat_number].filter(Boolean).join(" / ") || "—"],
+                            ].map(([label, val]) => (
+                              <div key={label}>
+                                <div style={{
+                                  fontFamily: F.label, fontSize: 9, letterSpacing: "0.14em",
+                                  textTransform: "uppercase", color: C.textTertiary,
+                                  fontWeight: 700, marginBottom: 3,
+                                }}>
+                                  {label}
+                                </div>
+                                <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.textPrimary }}>
+                                  {val}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                    <button onClick={() => setResults(null)}
+                      style={{
+                        flex: 1, padding: "11px 16px",
+                        background: "transparent",
+                        border: `1px solid ${C.borderDefault}`,
+                        borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700,
+                        letterSpacing: "0.10em", textTransform: "uppercase",
+                        color: C.textSecondary, cursor: "pointer", transition: "all 0.18s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
+                    >
+                      Search Again
+                    </button>
+                    <button onClick={() => navigate("/manage-booking")}
+                      style={{
+                        flex: 1, padding: "11px 16px",
+                        background: C.gold, border: "none",
+                        borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700,
+                        letterSpacing: "0.10em", textTransform: "uppercase",
+                        color: C.textOnAccent, cursor: "pointer", transition: "all 0.18s",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Manage Booking
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </ThemeContext.Provider>
   );
