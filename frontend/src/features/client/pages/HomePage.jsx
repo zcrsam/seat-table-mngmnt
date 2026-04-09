@@ -54,36 +54,79 @@ function getTokens(isDark) {
         navBg:             "rgba(14,13,9,0.92)",
         navBorder:         "rgba(201,168,76,0.15)",
         navText:           "rgba(245,239,224,0.70)",
+        heroCopy:          "#F5EFE0",
+        heroCopySub:       "rgba(245,239,224,0.55)",
+        heroEmphasis:      "#C9A84C",
+        heroOverlay1:      "rgba(6,5,3,0.70)",
+        heroBrowseBg:      "transparent",
+        sectionLabelColor: "rgba(201,168,76,0.75)",
+        sectionLabelLine:  "rgba(201,168,76,0.18)",
+        viewAllColor:      "rgba(245,239,224,0.55)",
+        viewAllBorder:     "rgba(201,168,76,0.30)",
+        scrollCueColor:    "#C9A84C",
+        btnPrimaryText:    "#0E0D09",
+        wingCardBg:        "rgba(10,9,6,0.62)",
+        wingCardBgHov:     "rgba(201,168,76,0.05)",
+        wingCardBorder:    "rgba(201,168,76,0.13)",
+        wingCardBorderHov: "rgba(201,168,76,0.58)",
+        wingCardFooterBg:  "rgba(10,9,6,0.80)",
+        wingCardFooterText:"#F7F3EA",
+        wingCardSubText:   "#8A8070",
+        badgeOverlay:      "rgba(0,0,0,0.45)",
+        badgeText:         "#C9A84C",
+        wingArrowHovText:  "#0E0D09",
+        diningOverlay:     "linear-gradient(to top,rgba(14,13,9,0.80) 0%,transparent 55%)",
       }
     : {
-        gold:        "#A07828",
-        goldLight:   "#C9A84C",
-        goldDark:    "#7A5A18",
-        goldFaint:   "rgba(160,120,40,0.10)",
-        pageBg:      "#F5F0E8",
-        darkCard:    "#FFFFFF",
-        darkMid:     "#EDE7D9",
-        textPrimary: "#1A1612",
-        textSub:     "rgba(26,22,18,0.60)",
-        textMuted:   "#5A5040",
-        textFaint:   "#8A7A60",
-        textDeep:    "#9A8A70",
-        border:      "rgba(160,120,40,0.22)",
-        borderLight: "rgba(160,120,40,0.14)",
-        cardBg:      "rgba(255,255,255,0.82)",
-        cardFooterBg:"rgba(160,120,40,0.06)",
-        widgetBg:    "rgba(255,252,245,0.94)",
-        fieldBg:     "rgba(0,0,0,0.04)",
-        nlBg:        "#EDE7D9",
-        footerBg:    "#F5F0E8",
-        diningBg:    "#F5F0E8",
-        heroOverlay: "rgba(20,15,5,0.62)",
-        badgeBg:     "rgba(255,255,255,0.72)",
-        scrollCueOp: 0.38,
+        gold:              "#A07828",
+        goldLight:         "#C9A84C",
+        goldDark:          "#7A5A18",
+        goldFaint:         "rgba(160,120,40,0.10)",
+        pageBg:            "#F5F0E8",
+        darkCard:          "#FFFFFF",
+        darkMid:           "#EDE7D9",
+        textPrimary:       "#1A1612",
+        textSub:           "rgba(26,22,18,0.60)",
+        textMuted:         "#5A5040",
+        textFaint:         "#8A7A60",
+        textDeep:          "#9A8A70",
+        border:            "rgba(160,120,40,0.22)",
+        borderLight:       "rgba(160,120,40,0.14)",
+        cardBg:            "rgba(255,255,255,0.82)",
+        cardFooterBg:      "rgba(160,120,40,0.06)",
+        widgetBg:          "rgba(255,252,245,0.94)",
+        fieldBg:           "rgba(0,0,0,0.04)",
+        nlBg:              "#EDE7D9",
+        footerBg:          "#F5F0E8",
+        diningBg:          "#F5F0E8",
+        badgeBg:           "rgba(255,255,255,0.72)",
+        scrollCueOp:       0.38,
         footerLinkDefault: "#7A6A50",
         navBg:             "rgba(245,240,232,0.96)",
         navBorder:         "rgba(160,120,40,0.18)",
         navText:           "rgba(26,22,18,0.65)",
+        heroCopy:          "#1A1208",
+        heroCopySub:       "rgba(26,18,8,0.65)",
+        heroEmphasis:      "#A07828",
+        heroOverlay1:      "rgba(245,240,228,0.82)",
+        heroBrowseBg:      "transparent",
+        sectionLabelColor: "#A07828",
+        sectionLabelLine:  "rgba(160,120,40,0.30)",
+        viewAllColor:      "rgba(26,18,8,0.55)",
+        viewAllBorder:     "rgba(160,120,40,0.40)",
+        scrollCueColor:    "#A07828",
+        btnPrimaryText:    "#FFFFFF",
+        wingCardBg:        "rgba(255,255,255,0.90)",
+        wingCardBgHov:     "rgba(160,120,40,0.04)",
+        wingCardBorder:    "rgba(160,120,40,0.20)",
+        wingCardBorderHov: "rgba(201,168,76,0.58)",
+        wingCardFooterBg:  "#FFFFFF",
+        wingCardFooterText:"#1A1612",
+        wingCardSubText:   "#5A5040",
+        badgeOverlay:      "rgba(0,0,0,0.45)",
+        badgeText:         "#C9A84C",
+        wingArrowHovText:  "#FFFFFF",
+        diningOverlay:     "linear-gradient(to top,rgba(14,13,9,0.80) 0%,transparent 55%)",
       };
 }
 
@@ -92,7 +135,6 @@ const F = {
   body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
 };
 
-// nav height constant — used everywhere to avoid overlap
 const NAV_H = 64;
 
 // ─────────────────────────────────────────────
@@ -172,70 +214,43 @@ function Divider({ mb = 0, mt = 0 }) {
 }
 
 // ─────────────────────────────────────────────
-// THEME TOGGLE — "DARK ◐ LIGHT" pill matching screenshot
+// THEME TOGGLE
 // ─────────────────────────────────────────────
 function ThemeToggle() {
   const { isDark, toggle } = useTheme();
   const C = getTokens(isDark);
-
   return (
-    <button
-      type="button"
-      onClick={toggle}
+    <button type="button" onClick={toggle}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0,
-        padding: 0,
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        flexShrink: 0,
-      }}
-    >
-      {/* Pill track */}
-      <span style={{
-        position: "relative",
-        width: 46,
-        height: 25,
-        borderRadius: 13,
-        background: isDark ? "#2C2A1E" : "#DDD6C0",
-        border: `1.5px solid ${isDark ? "rgba(201,168,76,0.28)" : "rgba(160,120,40,0.22)"}`,
-        display: "inline-flex",
-        alignItems: "center",
-        flexShrink: 0,
-        transition: "background 0.32s, border-color 0.32s",
-        verticalAlign: "middle",
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "6px 10px 6px 6px",
+        background: "transparent",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"}`,
+        borderRadius: 20,
+        cursor: "pointer", flexShrink: 0,
+        transition: "all 0.22s",
       }}>
-        {/* Sliding thumb */}
+      <span style={{
+        position: "relative", width: 34, height: 18, borderRadius: 10,
+        background: isDark ? "rgba(201,168,76,0.25)" : "rgba(0,0,0,0.10)",
+        display: "inline-flex", alignItems: "center", flexShrink: 0,
+        transition: "background 0.28s",
+      }}>
         <span style={{
           position: "absolute",
-          top: 2,
-          left: isDark ? 2 : "calc(100% - 23px)",
-          width: 19,
-          height: 19,
-          borderRadius: "50%",
-          background: "#FFFFFF",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "left 0.30s cubic-bezier(.4,0,.2,1)",
-          flexShrink: 0,
-        }}>
-          {/* Half-circle moon icon — same as screenshot */}
-          <svg width="11" height="11" viewBox="0 0 20 20" fill="none">
-            <path d="M10 1a9 9 0 1 0 9 9A9 9 0 0 0 10 1zm0 16V3a7 7 0 0 1 0 14z"
-              fill={isDark ? "#1C1A10" : "#B8922A"} />
-          </svg>
-        </span>
+          left: isDark ? 2 : "calc(100% - 16px)",
+          width: 14, height: 14, borderRadius: "50%",
+          background: isDark ? C.gold : "#8C6E2A",
+          transition: "left 0.24s cubic-bezier(.4,0,.2,1)",
+        }} />
       </span>
     </button>
   );
 }
 
 // ─────────────────────────────────────────────
-// TOP NAV — fixed, no bottom border, logo + links + toggle + manage booking
+// TOP NAV
 // ─────────────────────────────────────────────
 function TopNav({ onManageBooking }) {
   const { isDark } = useTheme();
@@ -261,6 +276,7 @@ function TopNav({ onManageBooking }) {
   return (
     <>
       <style>{`
+        nav { outline: none; border: none; }
         @media (max-width: 640px) {
           .hp-nav-desktop { display: none !important; }
           .hp-nav-burger  { display: flex !important; }
@@ -271,7 +287,6 @@ function TopNav({ onManageBooking }) {
         }
       `}</style>
 
-      {/* ── Main nav bar ── */}
       <nav style={{
         position: "fixed",
         top: 0, left: 0, right: 0,
@@ -284,12 +299,10 @@ function TopNav({ onManageBooking }) {
         background: C.navBg,
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        /* FIX: no border-bottom → removes the white line */
         borderBottom: "none",
         boxSizing: "border-box",
         transition: "background 0.35s",
       }}>
-        {/* Logo */}
         <img
           src={bellevueLogo}
           alt="The Bellevue Manila"
@@ -301,7 +314,6 @@ function TopNav({ onManageBooking }) {
           }}
         />
 
-        {/* Desktop controls */}
         <div className="hp-nav-desktop" style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
           <button type="button" style={navLinkBase} onClick={() => navigate("/venues")}
             onMouseEnter={e => e.currentTarget.style.color = C.gold}
@@ -317,12 +329,9 @@ function TopNav({ onManageBooking }) {
           </button>
 
           <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
-
-          {/* Modern DARK ◐ LIGHT toggle */}
           <ThemeToggle />
         </div>
 
-        {/* Mobile hamburger */}
         <button
           className="hp-nav-burger"
           type="button"
@@ -348,7 +357,6 @@ function TopNav({ onManageBooking }) {
         </button>
       </nav>
 
-      {/* Mobile slide-down drawer */}
       {mobileMenuOpen && (
         <div
           className="hp-nav-drawer"
@@ -407,7 +415,7 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
   return (
     <section style={{
       position: "relative",
-      /* FIX: paddingTop = nav height so hero content starts below nav */
+      marginTop: -NAV_H,        /* pull up behind the fixed nav — no gap */
       paddingTop: NAV_H,
       minHeight: "100vh",
       display: "flex",
@@ -418,14 +426,15 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
       <img src={heroBanner} alt="" style={{
         position: "absolute", inset: 0, width: "100%", height: "100%",
         objectFit: "cover",
-        filter: `blur(5px) brightness(${isDark ? 0.22 : 0.28})`,
+        filter: `blur(5px) brightness(${isDark ? 0.22 : 0.55})`,
         transform: "scale(1.06)", pointerEvents: "none",
+        transition: "filter 0.5s",
       }} />
-      <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(6,5,3,0.70)" : "rgba(20,15,5,0.64)" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 26%, rgba(201,168,76,0.10) 0%, transparent 68%)" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 120% 100% at 50% 50%, transparent 38%, rgba(0,0,0,0.50) 100%)" }} />
+      <div style={{ position: "absolute", inset: 0, background: C.heroOverlay1, transition: "background 0.5s" }} />
+      {isDark && <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 26%, rgba(201,168,76,0.10) 0%, transparent 68%)" }} />}
+      {isDark && <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 120% 100% at 50% 50%, transparent 38%, rgba(0,0,0,0.50) 100%)" }} />}
 
-      {/* Hero copy — FIX: tight padding on mobile, no excessive top space */}
+      {/* Hero copy */}
       <div style={{
         position: "relative", flex: "0 0 auto",
         display: "flex", flexDirection: "column",
@@ -436,20 +445,23 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
           ...fade(0.10),
           fontFamily: F.display,
           fontSize: "clamp(28px,5.2vw,65px)",
-          fontWeight: 600, color: "#F5EFE0",
+          fontWeight: 600, color: C.heroCopy,
           lineHeight: 1.06, letterSpacing: "-0.025em",
           margin: "0 0 16px",
+          transition: "color 0.35s",
+          marginTop: "80px",
         }}>
           Reserve Your
           <br />
-          <em style={{ color: "#C9A84C", fontStyle: "italic" }}>Perfect Setting.</em>
+          <em style={{ color: C.heroEmphasis, fontStyle: "italic", transition: "color 0.35s", marginTop: "8px", display: "inline-block" }}>Perfect Setting.</em>
         </h1>
 
         <p style={{
           ...fade(0.19),
           fontFamily: F.body, fontSize: "clamp(13px,1.4vw,16px)",
-          color: "rgba(245,239,224,0.55)", lineHeight: 1.85,
+          color: C.heroCopySub, lineHeight: 1.85,
           maxWidth: 440, margin: "0 auto 24px", fontWeight: 400,
+          transition: "color 0.35s",
         }}>
           Choose from premium venues and dining across three wings,
           then pick your seat and get confirmed in minutes.
@@ -461,17 +473,16 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
         position: "relative", flex: "1 0 auto",
         padding: "0 clamp(16px,4vw,40px) clamp(24px,5vw,56px)",
       }}>
-        {/* Section label */}
         <div style={{
           ...fade(0.37),
           maxWidth: 1160, margin: "0 auto 18px",
           display: "flex", alignItems: "center", gap: 14,
         }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(201,168,76,0.14)" }} />
-          <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.30em", textTransform: "uppercase", color: "rgba(201,168,76,0.62)" }}>
+          <div style={{ flex: 1, height: 1, background: C.sectionLabelLine }} />
+          <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.30em", textTransform: "uppercase", color: C.sectionLabelColor }}>
             Select a Wing to Reserve
           </span>
-          <div style={{ flex: 1, height: 1, background: "rgba(201,168,76,0.14)" }} />
+          <div style={{ flex: 1, height: 1, background: C.sectionLabelLine }} />
         </div>
 
         {/* Manage Booking Button */}
@@ -488,9 +499,9 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
               fontWeight: 700,
               letterSpacing: "0.14em",
               textTransform: "uppercase",
-              color: isDark ? "#0E0D09" : "#FFFFFF",
+              color: C.btnPrimaryText,
               cursor: "pointer",
-              transition: "background 0.2s",
+              transition: "background 0.2s, color 0.35s",
               boxShadow: "0 4px 12px rgba(201,168,76,0.25)",
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = C.goldLight}
@@ -500,7 +511,7 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
           </button>
         </div>
 
-        {/* Cards — 1 col mobile, 3 col desktop */}
+        {/* Cards */}
         <div style={{
           ...fade(0.43),
           maxWidth: 1160, margin: "0 auto",
@@ -518,13 +529,12 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
                 cursor: "pointer",
                 borderRadius: 10,
                 overflow: "hidden",
-                /* FIX: theme-aware card background */
-                background: isDark ? "rgba(10,9,6,0.62)" : "rgba(255,255,255,0.90)",
+                background: hovCard === cat.id ? C.wingCardBgHov : C.wingCardBg,
                 backdropFilter: "blur(8px)",
                 WebkitBackdropFilter: "blur(8px)",
                 border: hovCard === cat.id
-                  ? "1px solid rgba(201,168,76,0.58)"
-                  : `1px solid ${isDark ? "rgba(201,168,76,0.13)" : "rgba(160,120,40,0.20)"}`,
+                  ? `1px solid ${C.wingCardBorderHov}`
+                  : `1px solid ${C.wingCardBorder}`,
                 boxShadow: hovCard === cat.id
                   ? "0 20px 56px rgba(0,0,0,0.55)"
                   : "0 4px 22px rgba(0,0,0,0.22)",
@@ -547,31 +557,27 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
                 <div style={{
                   position: "absolute", top: 12, left: 12,
                   padding: "3px 10px",
-                  background: "rgba(0,0,0,0.45)",
+                  background: C.badgeOverlay,
                   backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
                   border: "1px solid rgba(201,168,76,0.22)", borderRadius: 20,
                 }}>
-                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: "#C9A84C" }}>{cat.label}</span>
+                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: C.badgeText }}>{cat.label}</span>
                 </div>
               </div>
 
-              {/* Card footer — FIX: theme-aware text colors */}
+              {/* Card footer */}
               <div style={{
                 padding: "13px 15px 15px",
-                borderTop: `1px solid ${isDark ? "rgba(201,168,76,0.09)" : "rgba(160,120,40,0.10)"}`,
+                borderTop: `1px solid ${C.borderLight}`,
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: hovCard === cat.id
-                  ? (isDark ? "rgba(201,168,76,0.05)" : "rgba(160,120,40,0.04)")
-                  : "transparent",
+                background: hovCard === cat.id ? C.wingCardBgHov : C.wingCardFooterBg,
                 transition: "background 0.22s",
               }}>
                 <div>
-                  {/* FIX: C.textPrimary — dark on white (light), cream on dark */}
-                  <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: C.textPrimary, marginBottom: 3, transition: "color 0.35s" }}>
+                  <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: C.wingCardFooterText, marginBottom: 3, transition: "color 0.35s" }}>
                     {cat.label}
                   </div>
-                  {/* FIX: C.textMuted */}
-                  <div style={{ fontFamily: F.body, fontSize: 11, color: C.textMuted, transition: "color 0.35s" }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: C.wingCardSubText, transition: "color 0.35s" }}>
                     {cat.subtitle}
                   </div>
                 </div>
@@ -584,7 +590,7 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
                 }}>
                   <span style={{
                     fontSize: 12,
-                    color: hovCard === cat.id ? (isDark ? "#0E0D09" : "#FFFFFF") : C.gold,
+                    color: hovCard === cat.id ? C.wingArrowHovText : C.gold,
                     display: "inline-block",
                     transform: hovCard === cat.id ? "translateX(1px)" : "translateX(0)",
                     transition: "transform 0.2s, color 0.22s",
@@ -598,60 +604,29 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
         {/* View All */}
         <div style={{ ...fade(0.50), maxWidth: 1160, margin: "14px auto 0", display: "flex", justifyContent: "flex-end" }}>
           <button type="button" onClick={() => onNavigateToVenues()}
-            style={{ padding: "7px 18px", border: "1px solid rgba(201,168,76,0.26)", background: "transparent", color: "rgba(245,239,224,0.46)", fontFamily: F.body, fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", borderRadius: 3, transition: "all 0.2s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.color = "#C9A84C"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(201,168,76,0.26)"; e.currentTarget.style.color = "rgba(245,239,224,0.46)"; }}>
+            style={{
+              padding: "7px 18px",
+              border: `1px solid ${C.viewAllBorder}`,
+              background: "transparent",
+              color: C.viewAllColor,
+              fontFamily: F.body, fontSize: 11, fontWeight: 600, letterSpacing: "0.12em",
+              textTransform: "uppercase", cursor: "pointer", borderRadius: 3, transition: "all 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.viewAllBorder; e.currentTarget.style.color = C.viewAllColor; }}>
             View All Venues →
           </button>
         </div>
       </div>
 
       {/* Scroll cue */}
-      <div style={{ position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: loaded ? 0.28 : 0, transition: "opacity 1.2s 1.2s", pointerEvents: "none" }}>
-        <span style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: "#C9A84C" }}>Scroll</span>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <div style={{ position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: loaded ? C.scrollCueOp : 0, transition: "opacity 1.2s 1.2s", pointerEvents: "none" }}>
+        <span style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: C.scrollCueColor }}>Scroll</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.scrollCueColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
         </svg>
       </div>
     </section>
-  );
-}
-
-function WingCard({ cat, onNavigateToVenues }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <div
-      onClick={() => onNavigateToVenues(cat.section)}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        cursor: "pointer", borderRadius: 10, overflow: "hidden",
-        border: hov ? "1px solid rgba(201,168,76,0.58)" : "1px solid rgba(201,168,76,0.13)",
-        boxShadow: hov ? "0 20px 56px rgba(0,0,0,0.55)" : "0 4px 22px rgba(0,0,0,0.32)",
-        transform: hov ? "translateY(-7px)" : "translateY(0)",
-        transition: "transform 0.30s cubic-bezier(.22,.68,0,1.2), box-shadow 0.30s, border-color 0.22s",
-        background: "rgba(10,9,6,0.52)",
-        backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-      }}>
-      <div style={{ height: "clamp(155px,15vw,205px)", overflow: "hidden", position: "relative" }}>
-        <img src={cat.img} alt={cat.label} loading="lazy"
-          style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s ease", transform: hov ? "scale(1.07)" : "scale(1.01)" }}
-        />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.62) 0%, transparent 52%)", opacity: hov ? 1 : 0.52, transition: "opacity 0.28s" }} />
-        <div style={{ position: "absolute", top: 13, left: 13, padding: "4px 10px", background: "rgba(0,0,0,0.42)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid rgba(201,168,76,0.22)", borderRadius: 20 }}>
-          <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: "#C9A84C" }}>{cat.label}</span>
-        </div>
-      </div>
-      <div style={{ padding: "15px 18px 17px", borderTop: "1px solid rgba(201,168,76,0.09)", display: "flex", alignItems: "center", justifyContent: "space-between", background: hov ? "rgba(201,168,76,0.05)" : "transparent", transition: "background 0.22s" }}>
-        <div>
-          <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: "#F5EFE0", marginBottom: 3 }}>{cat.label}</div>
-          <div style={{ fontFamily: F.body, fontSize: 12, color: "rgba(138,128,112,0.85)" }}>{cat.subtitle}</div>
-        </div>
-        <div style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, border: `1px solid ${hov ? "#C9A84C" : "rgba(201,168,76,0.24)"}`, display: "flex", alignItems: "center", justifyContent: "center", background: hov ? "#C9A84C" : "transparent", transition: "all 0.22s" }}>
-          <span style={{ fontSize: 13, color: hov ? "#0E0D09" : "#C9A84C", display: "inline-block", transform: hov ? "translateX(1px)" : "translateX(0)", transition: "transform 0.2s" }}>→</span>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -760,7 +735,6 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
       ref={ref}
       style={{
         background: C.diningBg,
-        /* FIX: sufficient top padding so content never overlaps nav */
         padding: "clamp(52px,8vw,110px) clamp(16px,4vw,40px) clamp(64px,9vw,120px)",
         overflow: "hidden",
         transition: "background 0.35s ease",
@@ -769,7 +743,6 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
       }}
     >
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        {/* Responsive grid — stacks on mobile */}
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
@@ -783,7 +756,7 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
               {imgs.map((src, i) => (
                 <img key={src} src={src} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: activeImg === i ? 1 : 0, transition: "opacity 0.55s ease" }} />
               ))}
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(14,13,9,0.80) 0%,transparent 55%)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", inset: 0, background: C.diningOverlay, pointerEvents: "none" }} />
               <div style={{ position: "absolute", bottom: 110, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 6 }}>
                 {imgs.map((_, i) => (
                   <button key={i} type="button" onClick={() => setActiveImg(i)} style={{ width: 6, height: 6, borderRadius: "50%", border: "none", background: i === activeImg ? C.gold : "rgba(255,255,255,0.35)", cursor: "pointer", padding: 0, transition: "background 0.2s" }} />
@@ -792,7 +765,15 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
             </div>
 
             {/* Floating booking widget */}
-            <div style={{ position: "absolute", bottom: -28, left: 20, right: 20, background: C.widgetBg, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 22px", boxShadow: isDark ? "0 20px 60px rgba(0,0,0,0.55)" : "0 20px 60px rgba(0,0,0,0.14)", transition: "background 0.35s, border-color 0.35s" }}>
+            <div style={{
+              position: "absolute", bottom: -28, left: 20, right: 20,
+              background: C.widgetBg,
+              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+              border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: "20px 22px",
+              boxShadow: isDark ? "0 20px 60px rgba(0,0,0,0.55)" : "0 20px 60px rgba(0,0,0,0.14)",
+              transition: "background 0.35s, border-color 0.35s",
+            }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                 <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.goldFaint, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ color: C.gold, fontSize: 13 }}>⌖</span>
@@ -805,7 +786,14 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
               </div>
               <GuestPicker value={guests} onChange={setGuests} style={{ marginBottom: 12 }} />
               <button type="button" onClick={() => onNavigate("venue")}
-                style={{ width: "100%", padding: "11px", background: C.gold, border: "none", borderRadius: 4, fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isDark ? "#0E0D09" : "#FFFFFF", cursor: "pointer", transition: "background 0.2s" }}
+                style={{
+                  width: "100%", padding: "11px",
+                  background: C.gold, border: "none", borderRadius: 4,
+                  fontFamily: F.body, fontSize: 12, fontWeight: 700,
+                  letterSpacing: "0.16em", textTransform: "uppercase",
+                  color: C.btnPrimaryText,
+                  cursor: "pointer", transition: "background 0.2s, color 0.35s",
+                }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = C.goldLight)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = C.gold)}>
                 SUBMIT
@@ -839,9 +827,15 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                 const active = highlightedLabel ? d.label === highlightedLabel : false;
                 return (
                   <button key={d.label} type="button" onClick={() => selectDiningTime(d)}
-                    style={{ padding: "6px 13px", borderRadius: 3, background: active ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"), border: `1px solid ${active ? C.gold : C.border}`, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", position: "relative", zIndex: 10006, transition: "background 0.2s, border-color 0.2s" }}>
-                    <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: active ? (isDark ? "#0E0D09" : "#FFFFFF") : C.gold }}>{d.label}</div>
-                    {d.hours && <div style={{ fontFamily: F.body, fontSize: 11, color: active ? (isDark ? "rgba(14,13,9,0.55)" : "rgba(255,255,255,0.7)") : C.textMuted, marginTop: 2 }}>{d.hours}</div>}
+                    style={{
+                      padding: "6px 13px", borderRadius: 3,
+                      background: active ? C.gold : C.fieldBg,
+                      border: `1px solid ${active ? C.gold : C.border}`,
+                      cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start",
+                      position: "relative", zIndex: 10006, transition: "background 0.2s, border-color 0.2s",
+                    }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: active ? C.btnPrimaryText : C.gold, transition: "color 0.2s" }}>{d.label}</div>
+                    {d.hours && <div style={{ fontFamily: F.body, fontSize: 11, color: active ? (isDark ? "rgba(14,13,9,0.55)" : "rgba(255,255,255,0.7)") : C.textMuted, marginTop: 2, transition: "color 0.2s" }}>{d.hours}</div>}
                   </button>
                 );
               })}
@@ -870,7 +864,17 @@ function FieldInput({ type, value, onChange }) {
   const C = getTokens(isDark);
   return (
     <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ width: "100%", padding: "9px 12px", background: C.fieldBg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.textPrimary, fontFamily: F.body, fontSize: 13, outline: "none", boxSizing: "border-box", colorScheme: isDark ? "dark" : "light", transition: "background 0.3s, border-color 0.3s, color 0.3s" }} />
+      style={{
+        width: "100%", padding: "9px 12px",
+        background: C.fieldBg,
+        border: `1px solid ${C.border}`,
+        borderRadius: 4,
+        color: C.textPrimary,
+        fontFamily: F.body, fontSize: 13,
+        outline: "none", boxSizing: "border-box",
+        colorScheme: isDark ? "dark" : "light",
+        transition: "background 0.3s, border-color 0.3s, color 0.3s",
+      }} />
   );
 }
 
@@ -885,7 +889,7 @@ function GuestPicker({ value, onChange, min = 1, max = 20, style }) {
         <div style={{ fontFamily: F.body, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textSub, textAlign: "center" }}>Guests</div>
         <input type="text" inputMode="numeric" pattern="[0-9]*" value={String(value)}
           onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g,""); const next = raw===""?min:Number(raw); if(!Number.isFinite(next))return; onChange(clamp(Math.round(next))); }}
-          style={{ width: "100%", height: 27, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", border: `1px solid ${C.border}`, borderRadius: 5, color: C.textPrimary, fontFamily: F.body, fontSize: 13, textAlign: "center", outline: "none", transition: "background 0.3s, color 0.3s" }} />
+          style={{ width: "100%", height: 27, background: C.fieldBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.textPrimary, fontFamily: F.body, fontSize: 13, textAlign: "center", outline: "none", transition: "background 0.3s, color 0.3s" }} />
       </div>
       <button type="button" onClick={() => onChange(clamp(value+1))} disabled={value>=max} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: value>=max ? C.textMuted : C.gold, fontSize: 17, cursor: value>=max ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: value>=max ? 0.5 : 1 }}>+</button>
     </div>
@@ -915,14 +919,33 @@ function NewsletterSection() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-end" }}>
           <div style={{ display: "flex", overflow: "hidden", borderRadius: 3, border: `1px solid ${C.border}` }}>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" style={{ padding: "12px 18px", background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", border: "none", color: C.textPrimary, fontFamily: F.body, fontSize: 13, outline: "none", width: "clamp(180px,22vw,250px)", transition: "background 0.3s, color 0.3s" }} />
-            <button type="button" onClick={() => { if (!email) return; setSent(true); setTimeout(() => { setSent(false); setEmail(""); }, 2500); }} style={{ padding: "12px 16px", background: sent ? C.gold : (isDark ? "#0E0D09" : "#1A1612"), border: "none", cursor: "pointer", color: sent ? (isDark ? "#0E0D09" : "#FFFFFF") : C.gold, transition: "all 0.25s", fontFamily: F.body, fontSize: 15 }}>
+            <input
+              type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              style={{
+                padding: "12px 18px",
+                background: C.fieldBg,
+                border: "none",
+                color: C.textPrimary,
+                fontFamily: F.body, fontSize: 13, outline: "none",
+                width: "clamp(180px,22vw,250px)",
+                transition: "background 0.3s, color 0.3s",
+              }} />
+            <button type="button" onClick={() => { if (!email) return; setSent(true); setTimeout(() => { setSent(false); setEmail(""); }, 2500); }}
+              style={{
+                padding: "12px 16px",
+                background: sent ? C.gold : C.fieldBg,
+                border: "none", cursor: "pointer",
+                color: sent ? C.btnPrimaryText : C.gold,
+                transition: "all 0.25s", fontFamily: F.body, fontSize: 15,
+              }}>
               {sent ? "✓" : "→"}
             </button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {[["f","Facebook","https://www.facebook.com/thebellevuemanila/"],["t","X","https://x.com/bellevuemanila"],["i","Instagram","https://www.instagram.com/bellevuemanila/"],["y","YouTube","https://www.youtube.com/channel/UC01W6kRH_R-T0ok6RDT3aGg"]].map(([icon,label,href]) => (
-              <a key={label} href={href} target="_blank" rel="noreferrer" title={label} style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: F.body, fontSize: 13, fontWeight: 700, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+              <a key={label} href={href} target="_blank" rel="noreferrer" title={label}
+                style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: F.body, fontSize: 13, fontWeight: 700, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted; }}>
                 {icon}
@@ -953,9 +976,8 @@ function Footer({ onNavigate, onManageBooking }) {
             <p style={{ fontFamily: F.body, fontSize: 13, color: C.textFaint, lineHeight: 1.85, margin: "0 0 14px", transition: "color 0.35s" }}>
               Luxury event spaces and seamless reservations in the heart of Alabang.
             </p>
-            {/* FIX: gold bg, border-radius 0 */}
             <button type="button" onClick={onManageBooking}
-              style={{ padding: "8px 15px", background: C.gold, border: "none", borderRadius: 0, fontFamily: F.body, fontSize: 11, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: isDark ? "#0E0D09" : "#FFFFFF", cursor: "pointer", transition: "background 0.2s" }}
+              style={{ padding: "8px 15px", background: C.gold, border: "none", borderRadius: 0, fontFamily: F.body, fontSize: 11, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.btnPrimaryText, cursor: "pointer", transition: "background 0.2s, color 0.35s" }}
               onMouseEnter={e => e.currentTarget.style.background = C.goldLight}
               onMouseLeave={e => e.currentTarget.style.background = C.gold}>
               Manage My Booking →
@@ -1039,7 +1061,6 @@ export default function HomePage() {
   const goToVenues = (section) => { if (section) navigate(`/venues?section=${section}`); else navigate("/venues"); };
   const goToManageBooking = () => navigate("/manage-booking");
 
-  // Scroll restoration
   useEffect(() => {
     const headerH = NAV_H; const markerY = headerH + 8;
     const inView = (id) => { const el = document.getElementById(id); if (!el) return false; const r = el.getBoundingClientRect(); return r.top <= markerY && r.bottom > markerY; };
@@ -1065,24 +1086,13 @@ export default function HomePage() {
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
-      {/* paddingTop: 72px accounts for the fixed Navbar */}
-      <div style={{ background: C.pageBg, minHeight: "100vh", paddingTop: 72, transition: "background 0.35s ease" }}>
-
-        {/* Fixed nav — no bottom border */}
+      <div style={{ background: C.pageBg, minHeight: "100vh", transition: "background 0.35s ease" }}>
         <TopNav onManageBooking={goToManageBooking} />
-
-        {/* 1: Hero + Wing Cards */}
         <HeroBrowseSection onNavigateToVenues={goToVenues} onManageBooking={goToManageBooking} />
-
-        {/* 2: Dining */}
         <div id="home-dining">
           <DiningSection onNavigate={handleNavigate} initialRestaurantId={diningRestaurantId} />
         </div>
-
-        {/* 3: Newsletter */}
         <NewsletterSection />
-
-        {/* 4: Footer */}
         <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
       </div>
     </ThemeContext.Provider>

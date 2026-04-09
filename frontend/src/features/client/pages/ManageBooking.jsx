@@ -17,6 +17,10 @@ function getTokens(isDark) {
         cardBorderHover: "rgba(201,168,76,0.30)",
         inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.10)", inputFocus: "#C9A84C",
         textPrimary: "#F2EDE4", textMuted: "#7A7060", textSubtle: "rgba(242,237,228,0.45)",
+        // hero text tokens
+        heroEyebrow:  "rgba(201,168,76,0.80)",   // "MANAGE BOOKING" label — warm gold, clearly visible
+        heroHeading:  "#F2EDE4",                  // "Manage Your Reservation" — cream white
+        heroSubtext:  "rgba(242,237,228,0.60)",   // subtitle paragraph
         navBg: "rgba(10,9,8,0.90)", navBorder: "rgba(255,255,255,0.06)",
         heroBg: "#0A0908", headerGradient: "linear-gradient(160deg,#111010 0%,#161410 100%)",
         labelColor: "rgba(201,168,76,0.70)", divider: "rgba(255,255,255,0.06)",
@@ -38,6 +42,10 @@ function getTokens(isDark) {
         cardBorderHover: "rgba(154,120,40,0.30)",
         inputBg: "#FFFFFF", inputBorder: "rgba(0,0,0,0.10)", inputFocus: "#9A7828",
         textPrimary: "#1A1612", textMuted: "#6B6050", textSubtle: "rgba(26,22,18,0.40)",
+        // hero text tokens — dark on light background
+        heroEyebrow:  "#1A1612",                  // "MANAGE BOOKING" — near-black, clearly readable
+        heroHeading:  "#1A1612",                  // "Manage Your Reservation" — near-black
+        heroSubtext:  "rgba(26,22,18,0.65)",      // subtitle paragraph — dark with slight transparency
         navBg: "rgba(243,239,230,0.92)", navBorder: "rgba(0,0,0,0.07)",
         heroBg: "#1A1612", headerGradient: "linear-gradient(160deg,#111010 0%,#1E1A14 100%)",
         labelColor: "rgba(154,120,40,0.75)", divider: "rgba(0,0,0,0.06)",
@@ -56,9 +64,10 @@ function getTokens(isDark) {
 }
 
 const F = {
-  display: "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+  display: "Georgia, 'Times New Roman', serif",
   body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
-  mono: "'JetBrains Mono', 'Fira Mono', 'Courier New', monospace",
+  mono: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+  label: "'Inter', 'Helvetica Neue', Arial, sans-serif",
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -235,7 +244,7 @@ function ManageBookingNav() {
       justifyContent: "space-between", padding: "0 clamp(16px,4vw,52px)",
       background: C.navBg, backdropFilter: "blur(16px)",
       WebkitBackdropFilter: "blur(16px)",
-      borderBottom: `1px solid ${C.navBorder}`,
+      borderBottom: "none",
       boxSizing: "border-box", transition: "background 0.30s",
     }}>
       <img
@@ -608,12 +617,10 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C, error }) {
   return (
     <ModalShell onClose={onClose} disabled={loading} C={C} maxWidth={420} zIndex={4000}>
       <div style={{ padding: "28px 24px 26px" }}>
-        {/* Close */}
         <div style={{ position: "absolute", top: 16, right: 16 }}>
           <CloseBtn onClick={onClose} disabled={loading} C={C} />
         </div>
 
-        {/* Heading */}
         <div style={{ marginBottom: 20 }}>
           <div style={{
             width: 40, height: 40, borderRadius: 8,
@@ -637,7 +644,6 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C, error }) {
           </div>
         </div>
 
-        {/* Booking summary */}
         <div style={{
           padding: "14px 16px", borderRadius: 8, marginBottom: 16,
           background: C.goldFaint, border: `1px solid ${C.divider}`,
@@ -653,7 +659,6 @@ function CancelModal({ reservation, onConfirm, onClose, loading, C, error }) {
           </div>
         </div>
 
-        {/* Warning */}
         <div style={{
           padding: "11px 14px", borderRadius: 8, marginBottom: 20,
           background: C.statusNote.rejected, border: `1px solid ${C.statusNoteBorder.rejected}`,
@@ -765,7 +770,6 @@ function ReservationDetailModal({ reservation, onClose, onCancel, onEdit, C, isD
         <DetailRow label="Phone"    value={reservation.phone || reservation.contact_number || reservation.mobile} C={C} />
         <DetailRow label="Requests" value={reservation.special_requests} C={C} />
 
-        {/* Status note */}
         <div style={{
           marginTop: 16, padding: "11px 14px", borderRadius: 8,
           background: C.statusNote[statusKey],
@@ -1135,22 +1139,56 @@ export default function ManageBooking() {
             </button>
           </div>
 
-          {/* Heading */}
+          {/* ── Heading ── */}
           <div style={{ textAlign: "center", marginBottom: 36 }}>
+
+            {/* "MANAGE BOOKING" eyebrow — theme-aware dark/light color */}
             <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <span style={{ display: "inline-block", width: 24, height: 1, background: "rgba(201,168,76,0.50)" }} />
-              <span style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.26em", color: "rgba(201,168,76,0.75)", fontWeight: 600, textTransform: "uppercase" }}>
+              <span style={{
+                display: "inline-block", width: 24, height: 1,
+                background: C.gold, opacity: 0.5,
+              }} />
+              <span style={{
+                fontFamily: F.body,
+                fontSize: 9,
+                letterSpacing: "0.26em",
+                color: C.heroEyebrow,          /* ← theme-aware: dark in light mode, gold in dark */
+                fontWeight: 700,
+                textTransform: "uppercase",
+                transition: "color 0.35s",
+              }}>
                 Manage Booking
               </span>
-              <span style={{ display: "inline-block", width: 24, height: 1, background: "rgba(201,168,76,0.50)" }} />
+              <span style={{
+                display: "inline-block", width: 24, height: 1,
+                background: C.gold, opacity: 0.5,
+              }} />
             </div>
+
+            {/* "Manage Your Reservation" — Georgia serif, theme-aware */}
             <h1 style={{
-              fontFamily: F.display, fontSize: "clamp(28px,5vw,44px)", fontWeight: 400,
-              color: "#F2EDE4", lineHeight: 1.15, margin: "0 0 12px", letterSpacing: "0.01em",
+              fontFamily: F.display,           /* ← Georgia serif */
+              fontSize: "clamp(28px,5vw,44px)",
+              fontWeight: 400,
+              color: C.heroHeading,            /* ← theme-aware: dark in light mode, cream in dark */
+              lineHeight: 1.15,
+              margin: "0 0 12px",
+              letterSpacing: "0.01em",
+              transition: "color 0.35s",
             }}>
               Manage Your Reservation
             </h1>
-            <p style={{ fontFamily: F.body, fontSize: 13, color: "rgba(242,237,228,0.55)", margin: 0, lineHeight: 1.7, maxWidth: 500 }}>
+
+            {/* Subtitle paragraph — theme-aware */}
+            <p style={{
+              fontFamily: F.body,
+              fontSize: 13,
+              color: C.heroSubtext,            /* ← theme-aware: was C.textSecondary which didn't exist */
+              margin: 0,
+              lineHeight: 1.7,
+              maxWidth: 500,
+              transition: "color 0.35s",
+            }}>
               Enter your reference code to locate, modify, or cancel your booking.
             </p>
           </div>
@@ -1334,9 +1372,13 @@ export default function ManageBooking() {
         )}
 
         <style>{`
-          @keyframes slideUp  { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-          @keyframes spin     { to { transform: rotate(360deg); } }
-          @keyframes modalIn  { from { opacity: 0; transform: scale(0.97) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+          @import url('https://fonts.googleapis.com/css2?family=Georgia&family=Inter:wght@400;500;600;700&display=swap');
+          @keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes fadeUp   { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+          @keyframes modalIn  { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+          @keyframes slideUp  { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+          nav { outline: none; border: none; }
         `}</style>
       </div>
     </ThemeContext.Provider>
