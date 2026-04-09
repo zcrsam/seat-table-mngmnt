@@ -51,8 +51,6 @@ async function callAPI(method, numericId, payload) {
     if (typeof reservationAPI[method] === "function") {
       return await reservationAPI[method](numericId, payload);
     }
-  } catch (err) {
-    if (!err.message?.includes("not a function")) throw err;
   }
   return await directAPI[method](numericId, payload);
 }
@@ -69,7 +67,6 @@ import {
   dispatchSeatMapUpdate,
 } from "../../../utils/seatMapPersistence.js";
 
-// ─── Persisted custom rooms key ───────────────────────────────────────────────
 const CUSTOM_ROOMS_KEY = "bellevue_custom_rooms";
 
 const BASE_ROOM_CATEGORIES = {
@@ -92,11 +89,10 @@ const BASE_ROOM_CATEGORIES = {
   },
 };
 
-// Load saved custom rooms and merge into categories
 function loadRoomCategories() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUSTOM_ROOMS_KEY) || "{}");
-    const merged = JSON.parse(JSON.stringify(BASE_ROOM_CATEGORIES)); // deep clone
+    const merged = JSON.parse(JSON.stringify(BASE_ROOM_CATEGORIES));
     for (const [wing, rooms] of Object.entries(saved)) {
       if (merged["All Venues"][wing]) {
         for (const [room, subs] of Object.entries(rooms)) {
@@ -129,11 +125,68 @@ function sortReservations(a, b) {
 
 const RESERVATIONS_KEY = "bellevue_reservations";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX: normaliseRow now maps EVERY field alias the backend might return
+// so that guest-edited values (name, email, phone, event_date, event_time,
+// guests) are always visible in the admin dashboard after the next poll.
+// ─────────────────────────────────────────────────────────────────────────────
 function normaliseRow(r) {
+  // Resolve the guest count from whichever field the backend uses
+  const guests =
+    r.guests_count  ??
+    r.guests        ??
+    r.pax           ??
+    r.number_of_guests ?? null;
+
+  // Resolve phone from any alias
+  const phone =
+    r.phone          ??
+    r.contact_number ??
+    r.mobile         ??
+    r.phone_number   ?? "";
+
+  // Resolve event date — prefer snake_case API field, fall back to camelCase
+  const eventDate =
+    r.event_date ??
+    r.eventDate  ??
+    r.date       ?? "";
+
+  // Resolve event time
+  const eventTime =
+    r.event_time ??
+    r.eventTime  ??
+    r.time       ?? "";
+
   return {
+    // Spread all raw fields first so nothing is lost
     ...r,
+
+    // ── Identity ──────────────────────────────────────────────────────────
+    // db_id must be a real integer for approve/reject/delete endpoints
     db_id: Number(r.db_id ?? r.id),
+    // id is the human-readable reference code shown in the UI
     id:    r.reference_code ?? String(r.id),
+
+    // ── Guest-editable fields — normalised to the Dashboard's expected names
+    name:    r.name  ?? "",
+    email:   r.email ?? "",
+    phone,
+    // Keep all aliases in sync so DetailModal, table rows, and search all work
+    contact_number: phone,
+    mobile:         phone,
+
+    // Event date/time
+    eventDate,
+    event_date: eventDate,
+    eventTime,
+    event_time: eventTime,
+
+    // Guest count
+    guests: guests !== null ? Number(guests) : null,
+    guests_count: guests !== null ? Number(guests) : null,
+
+    // Special requests
+    special_requests: r.special_requests ?? "",
   };
 }
 
@@ -177,7 +230,6 @@ function AddRoomModal({ wings, onAdd, onClose }) {
         <div style={{ fontSize: 10, letterSpacing: 2, color: "#C9A84C", fontWeight: 700, marginBottom: 6 }}>SEAT MAP · VENUE MANAGEMENT</div>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#1B2A4A", marginBottom: 24 }}>Add New Room</div>
 
-        {/* Wing selector */}
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "#6B7280", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Wing</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -198,7 +250,6 @@ function AddRoomModal({ wings, onAdd, onClose }) {
           </div>
         </div>
 
-        {/* Room name */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "#6B7280", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Room / Venue Name</label>
           <input
@@ -223,7 +274,6 @@ function AddRoomModal({ wings, onAdd, onClose }) {
           <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 5 }}>This room will appear in the <strong style={{ color: "#6B7280" }}>{wing}</strong> sidebar.</div>
         </div>
 
-        {/* Actions */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{
             padding: "9px 20px", border: "1.5px solid #E1E4E8", borderRadius: 8,
@@ -298,12 +348,10 @@ function Dashboard({ onLogout }) {
   const [selectedRows,   setSelectedRows]   = useState(new Set());
   const [tableEditMode,  setTableEditMode]  = useState(false);
 
-  // ── Room categories (includes custom rooms persisted in localStorage) ──────
   const [ROOM_CATEGORIES, setROOM_CATEGORIES] = useState(() => loadRoomCategories());
 
-  // ── Add/Delete Room modal state ───────────────────────────────────────────
   const [showAddRoomModal,    setShowAddRoomModal]    = useState(false);
-  const [deleteRoomTarget,    setDeleteRoomTarget]    = useState(null); // { wing, room }
+  const [deleteRoomTarget,    setDeleteRoomTarget]    = useState(null);
   const [roomSidebarEditMode, setRoomSidebarEditMode] = useState(false);
 
   const echoRef    = useRef(null);
@@ -339,6 +387,8 @@ function Dashboard({ onLogout }) {
         reservationAPI.getStats(),
       ]);
       const raw = reservationsResponse.data || [];
+
+      // FIX: normaliseRow now maps all field aliases so edits are visible
       const reservationsData = raw.map(normaliseRow).sort(sortReservations);
       setReservations(reservationsData);
       setStats(statsData);
@@ -451,6 +501,7 @@ function Dashboard({ onLogout }) {
           const st = e?.reservation?.status?.toLowerCase();
           if (st === 'approved' || st === 'reserved') showToast('Reservation approved!', '#10B981');
           else if (st === 'rejected') showToast('Reservation rejected', '#EF4444');
+          else showToast('Reservation updated', '#C9A84C');
         }
         if (label === 'ReservationDeleted') showToast('Reservation cancelled', '#F59E0B');
         if (label === 'SeatReserved')       showToast(`Seat ${e?.seat_number} reserved!`, '#3B82F6');
@@ -517,7 +568,6 @@ function Dashboard({ onLogout }) {
   useEffect(() => { localStorage.setItem("admin_active_nav", activeNav); }, [activeNav]);
   useEffect(() => { localStorage.setItem("admin_sidebar_open", JSON.stringify(sidebarOpen)); }, [sidebarOpen]);
 
-  // ── Save custom rooms to localStorage whenever ROOM_CATEGORIES changes ────
   useEffect(() => {
     try {
       const custom = {};
@@ -535,7 +585,6 @@ function Dashboard({ onLogout }) {
     } catch {}
   }, [ROOM_CATEGORIES]);
 
-  // ── Add Room handler ──────────────────────────────────────────────────────
   const handleAddRoom = (wing, roomName) => {
     setROOM_CATEGORIES(prev => {
       const next = JSON.parse(JSON.stringify(prev));
@@ -545,7 +594,6 @@ function Dashboard({ onLogout }) {
       }
       return next;
     });
-    // Initialize empty seat map for the new room
     setSeatMapData(prev => ({
       ...prev,
       [wing]: {
@@ -558,9 +606,7 @@ function Dashboard({ onLogout }) {
     showToast(`Room "${roomName}" added to ${wing}`, "#4CAF79");
   };
 
-  // ── Delete Room handler ───────────────────────────────────────────────────
   const handleDeleteRoom = (wing, room) => {
-    // Check if it's a base room (can't delete built-in rooms)
     const baseRooms = BASE_ROOM_CATEGORIES["All Venues"][wing] || {};
     if (baseRooms[room] !== undefined) {
       showToast("Built-in rooms cannot be deleted.", "#E05252");
@@ -581,7 +627,6 @@ function Dashboard({ onLogout }) {
       }
       return next;
     });
-    // Clear seat map from localStorage
     try {
       const key = `seatmap:${wing}:${room}`;
       localStorage.removeItem(key);
@@ -589,7 +634,6 @@ function Dashboard({ onLogout }) {
       localStorage.removeItem(`seatmap_zones:${wing}:${room}`);
       localStorage.removeItem(`seatmap_standalone:${wing}:${room}`);
     } catch {}
-    // Switch to first available room in wing if the deleted one was selected
     if (selectedWing === wing && selectedRoom === room) {
       const remainingRooms = Object.keys(ROOM_CATEGORIES["All Venues"][wing] || {}).filter(r => r !== room);
       if (remainingRooms.length > 0) setSelectedRoom(remainingRooms[0]);
@@ -753,7 +797,7 @@ function Dashboard({ onLogout }) {
     setReservations(rs => rs.map(r => r.id === id ? { ...r, status: "rejected", rejectionReason } : r));
     setStats(prev => ({ ...prev, pending: Math.max(0, prev.pending - (res.status === "pending" ? 1 : 0)), rejected: prev.rejected + 1 }));
     syncSeatToStorage(res, "rejected");
-    showToast("Reservation rejected — seats freed (green).", "#E05252");
+    showToast("Reservation rejected - seats freed (green).", "#E05252");
   };
 
   const handleDelete = async (id) => {
@@ -827,6 +871,7 @@ function Dashboard({ onLogout }) {
     }
     const mQ = !search
       || String(r.name  || "").toLowerCase().includes(search.toLowerCase())
+      || String(r.email || "").toLowerCase().includes(search.toLowerCase())
       || String(r.id    || "").toLowerCase().includes(search.toLowerCase())
       || String(r.db_id || "").includes(search);
     return mS && mR && mQ;
@@ -845,7 +890,6 @@ function Dashboard({ onLogout }) {
     return [1, "...", current - 1, current, current + 1, "...", total];
   };
 
-  // ── Rooms list for current wing (merged from categories + seatMapData) ────
   const currentWingRooms = Object.keys(ROOM_CATEGORIES["All Venues"][selectedWing] || {});
   const isBaseRoom = (wing, room) => !!(BASE_ROOM_CATEGORIES["All Venues"][wing]?.[room] !== undefined);
 
@@ -884,7 +928,7 @@ function Dashboard({ onLogout }) {
                     <div style={{ fontSize: window.innerWidth <= 768 ? 20 : 24, color: "#333333", fontWeight: "bold" }}>Reservation Dashboard</div>
                   </div>
                 </div>
-                <input style={{ padding: "9px 14px", background: "#F8F9FA", border: "1px solid #E1E4E8", borderRadius: 6, color: "#333333", fontFamily: "Montserrat, sans-serif", fontSize: 12, width: window.innerWidth <= 768 ? "100%" : 220, outline: "none" }} placeholder="Search name or ref code..." value={search} onChange={e => setSearch(e.target.value)} />
+                <input style={{ padding: "9px 14px", background: "#F8F9FA", border: "1px solid #E1E4E8", borderRadius: 6, color: "#333333", fontFamily: "Montserrat, sans-serif", fontSize: 12, width: window.innerWidth <= 768 ? "100%" : 220, outline: "none" }} placeholder="Search name, email or ref code..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: window.innerWidth <= 768 ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: window.innerWidth <= 768 ? 12 : 16, marginBottom: 28 }}>
@@ -995,7 +1039,12 @@ function Dashboard({ onLogout }) {
                         ) : (
                           <>
                             <td style={{ padding: "14px 16px", color: "#C9A84C", fontSize: 11, letterSpacing: 1, verticalAlign: "middle" }}>{r.id}</td>
-                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}><div style={{ color: "#333", fontWeight: 600, fontSize: 12 }}>{r.name}</div><div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>{r.email}</div></td>
+                            <td style={{ padding: "14px 16px", verticalAlign: "middle" }}>
+                              {/* FIX: Show name prominently; below show email AND phone so admins see edited contact info */}
+                              <div style={{ color: "#333", fontWeight: 600, fontSize: 12 }}>{r.name}</div>
+                              <div style={{ color: "#6C757D", fontSize: 10, marginTop: 2 }}>{r.email}</div>
+                              {r.phone && <div style={{ color: "#9CA3AF", fontSize: 10, marginTop: 1 }}>{r.phone}</div>}
+                            </td>
                             <td style={{ padding: "14px 16px", verticalAlign: "middle" }}><div style={{ color: "#333", fontSize: 12 }}>{r.room}</div></td>
                             <td style={{ padding: "14px 16px", fontSize: 12, color: "#333", verticalAlign: "middle" }}>
                               <div style={{ color: "#333", fontWeight: 500 }}>{r.eventDate}</div>
@@ -1063,7 +1112,6 @@ function Dashboard({ onLogout }) {
                 </button>
               </div>
 
-              {/* Wing tabs */}
               <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
                 {wings.map(wing => (
                   <button key={wing} onClick={() => {
@@ -1077,7 +1125,6 @@ function Dashboard({ onLogout }) {
                 ))}
               </div>
 
-              {/* Status counts */}
               {(() => {
                 const counts = getRoomStatusCounts(currentRoomData);
                 return (
@@ -1094,18 +1141,13 @@ function Dashboard({ onLogout }) {
 
               <div style={{ display: "flex", gap: window.innerWidth <= 768 ? 16 : 24, flexDirection: window.innerWidth <= 768 ? "column" : "row" }}>
 
-                {/* ── Room Sidebar ──────────────────────────────────────────── */}
                 <div style={{ minWidth: window.innerWidth <= 768 ? "100%" : 220, flexShrink: 0 }}>
-
-                  {/* Sidebar header with edit/add controls */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: 12, letterSpacing: 1.5, color: "#6B7280", fontWeight: 600, textTransform: "uppercase" }}>
                       Rooms in {selectedWing}
                     </div>
-                    
                   </div>
 
-                  {/* Room list */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {currentWingRooms.map(room => {
                       const roomData = currentWingData[room] || { seats: [], tableStatus: "available" };
@@ -1140,7 +1182,6 @@ function Dashboard({ onLogout }) {
                             </div>
                           </div>
 
-                          {/* Delete button (only in edit mode, only for custom rooms) */}
                           {roomSidebarEditMode && isCustom && (
                             <button
                               onClick={e => { e.stopPropagation(); setDeleteRoomTarget({ wing: selectedWing, room }); }}
@@ -1159,7 +1200,6 @@ function Dashboard({ onLogout }) {
                             >🗑</button>
                           )}
 
-                          {/* Lock icon for built-in rooms in edit mode */}
                           {roomSidebarEditMode && !isCustom && (
                             <div title="Built-in room — cannot be deleted" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#D1D5DB" }}>🔒</div>
                           )}
@@ -1167,7 +1207,6 @@ function Dashboard({ onLogout }) {
                       );
                     })}
 
-                    {/* Quick add button at bottom of list */}
                     <button
                       onClick={() => setShowAddRoomModal(true)}
                       style={{
@@ -1190,7 +1229,6 @@ function Dashboard({ onLogout }) {
                   </div>
                 </div>
 
-                {/* ── Canvas ───────────────────────────────────────────────── */}
                 <div style={{ flex: 1, minWidth: window.innerWidth <= 768 ? "100%" : "500px" }}>
                   <div style={{ background: "#EFEAD9", borderRadius: 12, padding: window.innerWidth <= 768 ? 16 : 24, border: "1px solid #D4C5A0", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
                     <div style={{ fontFamily: "Montserrat, sans-serif", fontSize: window.innerWidth <= 768 ? 12 : 14, color: "#333", fontWeight: 600, marginBottom: 16, textAlign: "center" }}>{selectedRoom}</div>
@@ -1218,7 +1256,6 @@ function Dashboard({ onLogout }) {
         </main>
       </div>
 
-      {/* ── Modals ─────────────────────────────────────────────────────────── */}
       {showAddRoomModal && (
         <AddRoomModal
           wings={wings}

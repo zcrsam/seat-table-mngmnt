@@ -28,9 +28,6 @@ class ReservationStatusMail extends Mailable
         $this->rejectionReason = $rejectionReason;
     }
 
-    /**
-     * Build the message.
-     */
     public function build(): static
     {
         $displayStatus = match ($this->status) {

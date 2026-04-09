@@ -1,14 +1,11 @@
-// src/features/home/pages/HomePage.jsx
+// src/features/client/pages/HomePage.jsx
 import { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import bellevueLogo from "../../../assets/bellevue-logo.png";
 import heroBanner from "../../../assets/banner-grandroom.jpg";
-
 import mainWingImg from "../../../assets/main-wing.jpeg";
 import towerWingImg from "../../../assets/tower-wing.jpeg";
 import diningImg from "../../../assets/dining.jpeg";
-
 import qsinaImg from "../../../assets/qsina.jpeg";
 import qsinaImg2 from "../../../assets/qsina2.jpeg";
 import qsinaImg3 from "../../../assets/qsina3.jpeg";
@@ -16,6 +13,7 @@ import hanakazuImg from "../../../assets/hanakazu.jpeg";
 import hanakazuImg2 from "../../../assets/hanakazu2.jpeg";
 import hanakazuImg3 from "../../../assets/hanakazu3.jpeg";
 import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
+import bellevueLogo from "../../../assets/bellevue-logo.png";
 
 // ─────────────────────────────────────────────
 // THEME CONTEXT
@@ -24,7 +22,7 @@ const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
 // ─────────────────────────────────────────────
-// DESIGN TOKENS
+// DESIGN TOKENS — per-theme
 // ─────────────────────────────────────────────
 function getTokens(isDark) {
   return isDark
@@ -58,29 +56,30 @@ function getTokens(isDark) {
         navText:           "rgba(245,239,224,0.70)",
       }
     : {
-        gold:              "#A07828",
-        goldLight:         "#C9A84C",
-        goldDark:          "#7A5A18",
-        goldFaint:         "rgba(160,120,40,0.10)",
-        pageBg:            "#F5F0E8",
-        darkCard:          "#FFFFFF",
-        darkMid:           "#EDE7D9",
-        textPrimary:       "#1A1612",
-        textSub:           "rgba(26,22,18,0.60)",
-        textMuted:         "#5A5040",
-        textFaint:         "#8A7A60",
-        textDeep:          "#9A8A70",
-        border:            "rgba(160,120,40,0.22)",
-        borderLight:       "rgba(160,120,40,0.14)",
-        cardBg:            "rgba(255,255,255,0.90)",
-        cardFooterBg:      "rgba(160,120,40,0.06)",
-        widgetBg:          "rgba(255,252,245,0.96)",
-        fieldBg:           "rgba(0,0,0,0.04)",
-        nlBg:              "#EDE7D9",
-        footerBg:          "#F5F0E8",
-        diningBg:          "#F5F0E8",
-        badgeBg:           "rgba(255,255,255,0.72)",
-        scrollCueOp:       0.38,
+        gold:        "#A07828",
+        goldLight:   "#C9A84C",
+        goldDark:    "#7A5A18",
+        goldFaint:   "rgba(160,120,40,0.10)",
+        pageBg:      "#F5F0E8",
+        darkCard:    "#FFFFFF",
+        darkMid:     "#EDE7D9",
+        textPrimary: "#1A1612",
+        textSub:     "rgba(26,22,18,0.60)",
+        textMuted:   "#5A5040",
+        textFaint:   "#8A7A60",
+        textDeep:    "#9A8A70",
+        border:      "rgba(160,120,40,0.22)",
+        borderLight: "rgba(160,120,40,0.14)",
+        cardBg:      "rgba(255,255,255,0.82)",
+        cardFooterBg:"rgba(160,120,40,0.06)",
+        widgetBg:    "rgba(255,252,245,0.94)",
+        fieldBg:     "rgba(0,0,0,0.04)",
+        nlBg:        "#EDE7D9",
+        footerBg:    "#F5F0E8",
+        diningBg:    "#F5F0E8",
+        heroOverlay: "rgba(20,15,5,0.62)",
+        badgeBg:     "rgba(255,255,255,0.72)",
+        scrollCueOp: 0.38,
         footerLinkDefault: "#7A6A50",
         navBg:             "rgba(245,240,232,0.96)",
         navBorder:         "rgba(160,120,40,0.18)",
@@ -90,7 +89,7 @@ function getTokens(isDark) {
 
 const F = {
   display: "Georgia, 'Times New Roman', serif",
-  body:    "'Inter', 'Helvetica Neue', Arial, sans-serif",
+  body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
 };
 
 // nav height constant — used everywhere to avoid overlap
@@ -143,18 +142,6 @@ const RESTAURANTS = [
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
-function Divider({ color, mb = 0, mt = 0 }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <div style={{ height: 1, background: color ?? C.borderLight, margin: `${mt}px 0 ${mb}px` }} />;
-}
-
-function GoldLine({ width = 32 }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <span style={{ display: "inline-block", width, height: 1, background: C.gold, verticalAlign: "middle" }} />;
-}
-
 function useScrollReveal(threshold = 0.15) {
   const ref = useRef(null);
   const [vis, setVis] = useState(false);
@@ -167,6 +154,21 @@ function useScrollReveal(threshold = 0.15) {
     return () => obs.disconnect();
   }, [threshold]);
   return [ref, vis];
+}
+
+// ─────────────────────────────────────────────
+// UTILITY COMPONENTS
+// ─────────────────────────────────────────────
+function GoldLine({ width = 32 }) {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  return <span style={{ display: "inline-block", width, height: 1, background: C.gold, verticalAlign: "middle" }} />;
+}
+
+function Divider({ mb = 0, mt = 0 }) {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  return <div style={{ height: 1, background: C.borderLight, margin: `${mt}px 0 ${mb}px` }} />;
 }
 
 // ─────────────────────────────────────────────
@@ -615,6 +617,44 @@ function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
   );
 }
 
+function WingCard({ cat, onNavigateToVenues }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      onClick={() => onNavigateToVenues(cat.section)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        cursor: "pointer", borderRadius: 10, overflow: "hidden",
+        border: hov ? "1px solid rgba(201,168,76,0.58)" : "1px solid rgba(201,168,76,0.13)",
+        boxShadow: hov ? "0 20px 56px rgba(0,0,0,0.55)" : "0 4px 22px rgba(0,0,0,0.32)",
+        transform: hov ? "translateY(-7px)" : "translateY(0)",
+        transition: "transform 0.30s cubic-bezier(.22,.68,0,1.2), box-shadow 0.30s, border-color 0.22s",
+        background: "rgba(10,9,6,0.52)",
+        backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+      }}>
+      <div style={{ height: "clamp(155px,15vw,205px)", overflow: "hidden", position: "relative" }}>
+        <img src={cat.img} alt={cat.label} loading="lazy"
+          style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.55s ease", transform: hov ? "scale(1.07)" : "scale(1.01)" }}
+        />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.62) 0%, transparent 52%)", opacity: hov ? 1 : 0.52, transition: "opacity 0.28s" }} />
+        <div style={{ position: "absolute", top: 13, left: 13, padding: "4px 10px", background: "rgba(0,0,0,0.42)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid rgba(201,168,76,0.22)", borderRadius: 20 }}>
+          <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: "#C9A84C" }}>{cat.label}</span>
+        </div>
+      </div>
+      <div style={{ padding: "15px 18px 17px", borderTop: "1px solid rgba(201,168,76,0.09)", display: "flex", alignItems: "center", justifyContent: "space-between", background: hov ? "rgba(201,168,76,0.05)" : "transparent", transition: "background 0.22s" }}>
+        <div>
+          <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: "#F5EFE0", marginBottom: 3 }}>{cat.label}</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: "rgba(138,128,112,0.85)" }}>{cat.subtitle}</div>
+        </div>
+        <div style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, border: `1px solid ${hov ? "#C9A84C" : "rgba(201,168,76,0.24)"}`, display: "flex", alignItems: "center", justifyContent: "center", background: hov ? "#C9A84C" : "transparent", transition: "all 0.22s" }}>
+          <span style={{ fontSize: 13, color: hov ? "#0E0D09" : "#C9A84C", display: "inline-block", transform: hov ? "translateX(1px)" : "translateX(0)", transition: "transform 0.2s" }}>→</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────
 // DINING SECTION
 // ─────────────────────────────────────────────
@@ -640,13 +680,18 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
     if (idx >= 0) setActiveRestaurant(idx);
   }, [initialRestaurantId]);
 
+  useEffect(() => { setActiveImg(0); }, [activeRestaurant]);
+  useEffect(() => { setForcedHighlightedLabel(null); }, [activeRestaurant]);
+  useEffect(() => {
+    const id = setInterval(() => setActiveImg((n) => (n + 1) % imgs.length), 4000);
+    return () => clearInterval(id);
+  }, [imgs.length]);
+
   const selectedMinutes = useMemo(() => {
     if (!time) return null;
     const s = String(time).trim();
-    let m = /^(\d{1,2}):(\d{2})$/.exec(s);
+    const m = /^(\d{1,2}):(\d{2})$/.exec(s);
     if (m) { let hh = Number(m[1]); const mm = Number(m[2]); if (Number.isFinite(hh) && Number.isFinite(mm)) { if (hh === 24) hh = 0; return hh * 60 + mm; } }
-    m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(s.replace(/\s+/g, " ")) || /^(\d{1,2})\s*(AM|PM)$/i.exec(s);
-    if (m) { const hh = Number(m[1]); const mm = Number(m[2] || 0); const ap = (m[3] || m[2] || "").toUpperCase(); if (Number.isFinite(hh) && Number.isFinite(mm)) { let h = hh % 12; if (ap === "PM") h += 12; return h * 60 + mm; } }
     return null;
   }, [time]);
 
@@ -676,12 +721,12 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
 
   const getNextDateForWeekdays = (weekdays) => {
     if (!weekdays?.length) return null;
-    const names = ["sun","mon","tue","wed","thu","fri","sat"];
+    const names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const today = new Date();
     for (let i = 0; i < 14; i++) {
       const d = new Date(today); d.setDate(today.getDate() + i);
       const dow = names[d.getDay()];
-      if (weekdays.includes(dow)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      if (weekdays.includes(dow)) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
     return null;
   };
@@ -690,11 +735,11 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
 
   const selectDiningTime = (d) => {
     const range = parseHoursRange(d.hours);
-    if (range) { const hh = Math.floor(range.start/60); const mm = range.start%60; setTime(`${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`); }
+    if (range) { const hh = Math.floor(range.start / 60); const mm = range.start % 60; setTime(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`); }
     else setTime(repTime(d.label));
     const hh = String(d.hours || "").toLowerCase();
     const dayMatches = hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g);
-    if (dayMatches?.length) { const tokens = dayMatches.map((s) => s.replace("thur","thu").slice(0,3)); const next = getNextDateForWeekdays(tokens); if (next) setDate(next); }
+    if (dayMatches?.length) { const tokens = dayMatches.map((s) => s.replace("thur", "thu").slice(0, 3)); const next = getNextDateForWeekdays(tokens); if (next) setDate(next); }
     setForcedHighlightedLabel(d.label);
   };
 
@@ -707,32 +752,8 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
       const { start, end } = range;
       if (start <= end ? selectedMinutes >= start && selectedMinutes <= end : selectedMinutes >= start || selectedMinutes <= end) return t.label;
     }
-    if (!fallbackSlot) return null;
-    const norm = (s) => String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-    const candidates = fallbackSlot === "Light Lunch" ? ["Light Lunch","Lunch"] : fallbackSlot === "Dinner Buffet" ? ["Dinner Buffet","Dinner"] : [fallbackSlot];
-    const nCands = candidates.map(norm);
-    let selectedDay = null;
-    if (date) { const d = new Date(date+"T00:00:00"); if (!Number.isNaN(d.getTime())) selectedDay = ["sun","mon","tue","wed","thu","fri","sat"][d.getDay()]; }
-    for (const t of times) {
-      const range = parseHoursRange(t.hours); if (range) continue;
-      const hh = String(t.hours||"").toLowerCase();
-      const hasDays = /mon|tue|wed|thu|thur|fri|sat|sun/.test(hh);
-      if (hasDays) {
-        if (!selectedDay) continue;
-        const tokens = (hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g)||[]).map((s)=>s.replace("thur","thu").slice(0,3));
-        if (!tokens.includes(selectedDay)) continue;
-        if (nCands.includes(norm(t.label))) return t.label;
-      } else { if (!t.hours && nCands.includes(norm(t.label))) return t.label; }
-    }
     return null;
-  }, [restaurant, selectedMinutes, fallbackSlot, date, forcedHighlightedLabel]);
-
-  useEffect(() => { setActiveImg(0); }, [activeRestaurant]);
-  useEffect(() => { setForcedHighlightedLabel(null); }, [activeRestaurant]);
-  useEffect(() => {
-    const id = setInterval(() => setActiveImg((n) => (n+1) % imgs.length), 4000);
-    return () => clearInterval(id);
-  }, [imgs.length]);
+  }, [restaurant, selectedMinutes, forcedHighlightedLabel]);
 
   return (
     <section
@@ -756,7 +777,7 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
           alignItems: "start",
         }}>
 
-          {/* LEFT */}
+          {/* LEFT — image + widget */}
           <div style={{ position: "relative", opacity: vis ? 1 : 0, transform: vis ? "none" : "translateX(-30px)", transition: "opacity 0.8s, transform 0.8s" }}>
             <div style={{ borderRadius: 10, overflow: "hidden", height: 400, position: "relative" }}>
               {imgs.map((src, i) => (
@@ -880,6 +901,7 @@ function NewsletterSection() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [ref, vis] = useScrollReveal(0.2);
+
   return (
     <section ref={ref} style={{ position: "relative", overflow: "hidden", background: C.nlBg, borderTop: `1px solid ${C.borderLight}`, transition: "background 0.35s ease" }}>
       <div style={{ position: "absolute", inset: 0, opacity: isDark ? 0.03 : 0.04, backgroundImage: `linear-gradient(${C.gold} 1px,transparent 1px),linear-gradient(90deg,${C.gold} 1px,transparent 1px)`, backgroundSize: "60px 60px" }} />
@@ -919,6 +941,7 @@ function NewsletterSection() {
 function Footer({ onNavigate, onManageBooking }) {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
+
   return (
     <footer style={{ background: C.footerBg, borderTop: `1px solid ${C.borderLight}`, transition: "background 0.35s ease" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(44px,6vw,72px) clamp(16px,5vw,60px) clamp(28px,4vw,44px)" }}>
@@ -1016,6 +1039,7 @@ export default function HomePage() {
   const goToVenues = (section) => { if (section) navigate(`/venues?section=${section}`); else navigate("/venues"); };
   const goToManageBooking = () => navigate("/manage-booking");
 
+  // Scroll restoration
   useEffect(() => {
     const headerH = NAV_H; const markerY = headerH + 8;
     const inView = (id) => { const el = document.getElementById(id); if (!el) return false; const r = el.getBoundingClientRect(); return r.top <= markerY && r.bottom > markerY; };
@@ -1026,35 +1050,23 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (location.pathname === "/" && (!location.state || !location.state.scrollTo)) window.scrollTo(0, 0);
-  }, []);
-
-  useEffect(() => {
-    if (location.pathname === "/" && location.state?.scrollTo) {
-      if (location.state.scrollTo === "dining") {
-        requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-      }
+    if (location.pathname === "/" && location.state?.scrollTo === "dining") {
+      requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
       navigate(".", { replace: true, state: null });
     }
   }, [location.pathname, location.state, navigate]);
 
-  const handleNavigate = (target, payload) => {
+  const handleNavigate = (target) => {
     if (target === "venue") { navigate("/venues"); return; }
     if (target === "dining") {
-      const q = typeof payload === "string" ? payload.trim().toLowerCase() : "";
-      if (q) {
-        const m = RESTAURANTS.find((r) => r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
-        if (m) setDiningRestaurantId(m.id);
-      }
       requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-      return;
     }
-    if (target === "admin") navigate("/admin");
   };
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
-      <div style={{ background: C.pageBg, minHeight: "100vh", transition: "background 0.35s ease" }}>
+      {/* paddingTop: 72px accounts for the fixed Navbar */}
+      <div style={{ background: C.pageBg, minHeight: "100vh", paddingTop: 72, transition: "background 0.35s ease" }}>
 
         {/* Fixed nav — no bottom border */}
         <TopNav onManageBooking={goToManageBooking} />

@@ -19,6 +19,8 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/" element={<><Navbar /><HomePage /></>} />
         <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
+        <Route path="/" element={<><Navbar /><HomePage /></>} />
+        <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
         <Route path="/manage-booking" element={<ManageBooking />} />
         <Route path="/reserve/:routeId" element={<><Navbar /><div>Reserve Page - Coming Soon</div></>} />
         <Route path="/alabang-reserve" element={<AlabangReserve />} />
