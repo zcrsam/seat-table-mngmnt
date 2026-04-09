@@ -9,6 +9,32 @@ export default function Nav() {
   const [active, setActive] = useState(null);
   const [scrolled, setScrolled] = useState(false);
 
+  // Read theme from localStorage (same key used by HomePage)
+  const [isDark, setIsDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem("bellevue-theme");
+      if (saved !== null) return saved === "dark";
+    } catch {}
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
+  });
+
+  // Sync theme if HomePage changes it
+  useEffect(() => {
+    const onStorage = () => {
+      try {
+        const saved = localStorage.getItem("bellevue-theme");
+        if (saved !== null) setIsDark(saved === "dark");
+      } catch {}
+    };
+    window.addEventListener("storage", onStorage);
+    // Also poll on focus in case same-tab storage doesn't fire
+    window.addEventListener("focus", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onStorage);
+    };
+  }, []);
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
@@ -53,95 +79,65 @@ export default function Nav() {
     }
   };
 
+  // Don't render on homepage — TopNav inside HomePage handles it there
+  if (location.pathname === "/") return null;
+
+  // Theme-aware scrolled background — NO border-bottom
+  const scrolledBg = isDark
+    ? "rgba(14,13,9,0.92)"
+    : "rgba(245,240,232,0.96)";
+
+  const logoFilter = isDark
+    ? "none"
+    : "brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(500%) hue-rotate(10deg)";
+
   return (
     <>
-      <nav className={`nav ${scrolled ? "scrolled" : ""}`}>
+      <nav
+        style={{
+          background: scrolled ? scrolledBg : "transparent",
+          backdropFilter: scrolled ? "blur(18px)" : "none",
+          WebkitBackdropFilter: scrolled ? "blur(18px)" : "none",
+          // KEY FIX: no border-bottom ever — no white line
+          borderBottom: "none",
+          boxShadow: "none",
+          padding: "1rem 2rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          position: "fixed",
+          top: 0,
+          width: "100%",
+          zIndex: 200,
+          transition: "background 0.35s ease, backdrop-filter 0.35s ease",
+          boxSizing: "border-box",
+        }}
+      >
         <a
           href="/"
-          className="nav-brand"
+          style={{ textDecoration: "none" }}
           onClick={(e) => {
             e.preventDefault();
             navigate("/");
           }}
         >
-          <img src={bellevueLogo} alt="The Bellevue Manila" className="nav-logo" />
+          <img
+            src={bellevueLogo}
+            alt="The Bellevue Manila"
+            style={{
+              height: 40,
+              width: "auto",
+              display: "block",
+              filter: logoFilter,
+              transition: "filter 0.35s",
+            }}
+          />
         </a>
 
-        <div className="nav-links">
-          {/* Navigation links removed as requested */}
+        <div style={{ display: "flex", gap: 10 }}>
+          {/* nav links go here if needed */}
         </div>
       </nav>
-
-      <style>{`
-        .nav {
-          background: transparent;
-          padding: 1rem 2rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          position: fixed;
-          top: 0;
-          width: 100%;
-          z-index: 200;
-          transition: background 0.3s ease, backdrop-filter 0.3s ease, box-shadow 0.3s ease;
-          box-sizing: border-box;
-        }
-
-        .nav.scrolled {
-          background: rgba(255, 251, 244, 0.82);
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
-          box-shadow: none;
-          border-bottom: 1px solid rgba(201, 168, 76, 0.15);
-        }
-
-        .nav-brand {
-          text-decoration: none;
-        }
-
-        .nav-logo {
-          height: 40px;
-          width: auto;
-          display: block;
-        }
-
-        .nav-links {
-          display: flex;
-          gap: 10px;
-        }
-
-        .nav-link {
-          padding: 0.6rem 1.5rem;
-          font-weight: 600;
-          font-size: 0.85rem;
-          letter-spacing: 0.05em;
-          text-decoration: none;
-          font-family: 'DM Sans', sans-serif;
-          color: #c4ad72ff;
-          background: transparent;
-          border: none;
-          transition: background 0.2s ease, color 0.2s ease;
-        }
-
-        .nav-link.active {
-          background: #C9A84C;
-          color: white;
-        }
-
-        .nav-link:hover {
-          background: rgba(0,0,0,0.05);
-        }
-
-        .nav-link.active:hover {
-          background: #b8984a;
-        }
-
-        .nav-link:visited,
-        .nav-link:active,
-        .nav-link:focus {
-          outline: none;
-        }
-      `}</style>
     </>
   );
 }
