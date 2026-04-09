@@ -52,9 +52,14 @@ async function callAPI(method, numericId, payload) {
       return await reservationAPI[method](numericId, payload);
     }
   } catch (error) {
-    console.warn(`reservationAPI.${method} failed, falling back to direct API`, error);
+    // If reservationAPI fails, fall through to directAPI
   }
-  return await directAPI[method](numericId, payload);
+  try {
+    return await directAPI[method](numericId, payload);
+  } catch (error) {
+    console.error(`API call failed for ${method}:`, error);
+    throw error;
+  }
 }
 
 import { StatusPill, Toast, DetailModal } from "../components/AdminComponents";
