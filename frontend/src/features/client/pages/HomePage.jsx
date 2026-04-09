@@ -231,10 +231,6 @@ function ThemeToggle() {
         cursor: "pointer", flexShrink: 0,
         transition: "all 0.22s",
       }}>
-<<<<<<< Updated upstream
-=======
-      {/* Track */}
->>>>>>> Stashed changes
       <span style={{
         position: "relative", width: 34, height: 18, borderRadius: 10,
         background: isDark ? "rgba(201,168,76,0.25)" : "rgba(0,0,0,0.10)",
@@ -249,7 +245,7 @@ function ThemeToggle() {
           transition: "left 0.24s cubic-bezier(.4,0,.2,1)",
         }} />
       </span>
-          </button>
+    </button>
   );
 }
 
