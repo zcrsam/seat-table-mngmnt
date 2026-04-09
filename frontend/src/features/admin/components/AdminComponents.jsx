@@ -30,8 +30,7 @@ const MIN_REASON_LENGTH = 5;
 function DetailModal({ res, onClose, onApprove, onReject }) {
   const [confirm, setConfirm] = useState(null);
   const [rejectionReasonInput, setRejectionReasonInput] = useState("");
-  const rejectionReason = res.rejectionReason || res.rejection_reason || "";
-
+  const [reasonError, setReasonError] = useState("");
   const rejectionReason = res.rejectionReason || res.rejection_reason || "";
   const isWhole = res.type === "whole";
 
