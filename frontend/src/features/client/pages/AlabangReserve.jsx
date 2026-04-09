@@ -539,7 +539,7 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
           height: size * 4,
           colorDark: "#000000",
           colorLight: "#FFFFFF",
-          correctLevel: window.QRCode.CorrectLevel.M,
+          correctLevel: window.QRCode.CorrectLevel.L,
         });
 
         const tryExtract = (attempt = 0) => {
@@ -610,6 +610,7 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
 }
 
 // ─── buildQrValue ─────────────────────────────────────────────────────────────
+<<<<<<< Updated upstream
 // Encode a URL so phone scanners open a web page (not a contact card).
 const buildQrValue = ({ refCode, table, date, venue = "ALABANG" }) => {
   const clean = (value = "", fallback = "N/A") => {
@@ -630,6 +631,17 @@ const buildQrValue = ({ refCode, table, date, venue = "ALABANG" }) => {
   confirmationUrl.searchParams.set("venue", ven);
 
   return confirmationUrl.toString();
+=======
+// Encodes a plain URL — phone camera opens directly in browser, never contacts.
+// Set VITE_APP_URL in your .env for production (e.g. https://yourdomain.com).
+// Falls back to window.location.origin in dev (http://localhost:5173).
+const buildQrValue = ({ refCode }) => {
+  const base = (import.meta.env.VITE_APP_URL || window.location.origin).replace(/\/$/, "");
+  const ref  = String(refCode || "").trim();
+  // Always ensure http:// or https:// prefix so scanners open a browser tab
+  const url  = base.startsWith("http") ? base : `https://${base}`;
+  return `${url}/alabang-reserve/${ref}`;
+>>>>>>> Stashed changes
 };
 
 // ─── MODAL: Success ────────────────────────────────────────────────────────────
@@ -645,12 +657,8 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook = false, booking
     } catch { return d; }
   };
 
-  const qrValue = buildQrValue({
-    refCode: refCode || "",
-    table:   bookingDetails?.table || "",
-    date:    bookingDetails?.date  || "",
-    venue:   "ALABANG",
-  });
+  // QR now encodes a scannable URL: e.g. http://localhost:5173/alabang-reserve/2026-3832
+  const qrValue = buildQrValue({ refCode: refCode || "" });
 
   // Poll until QR image is rendered
   useEffect(() => {
@@ -763,7 +771,6 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook = false, booking
         boxShadow: "0 24px 60px rgba(0,0,0,0.22)", overflow: "hidden",
       }}>
 
-        
         {/* Gold line */}
         <div style={{ height: 2, background: "linear-gradient(90deg, #C9A84C, #E8C96C, #C9A84C)" }} />
 

@@ -12,7 +12,6 @@ import AdminDashboard from "../features/admin/pages/Dashboard";
 import NotificationDashboard from "../features/admin/pages/Notifications";  
 import ForgotCode from "../features/client/pages/ForgotCode";
 
-
 export default function AppRoutes() {
   return (
     <BrowserRouter>
