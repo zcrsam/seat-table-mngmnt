@@ -51,6 +51,8 @@ async function callAPI(method, numericId, payload) {
     if (typeof reservationAPI[method] === "function") {
       return await reservationAPI[method](numericId, payload);
     }
+  } catch (error) {
+    console.warn(`reservationAPI.${method} failed, falling back to direct API`, error);
   }
   return await directAPI[method](numericId, payload);
 }

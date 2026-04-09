@@ -610,28 +610,6 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
 }
 
 // ─── buildQrValue ─────────────────────────────────────────────────────────────
-<<<<<<< Updated upstream
-// Encode a URL so phone scanners open a web page (not a contact card).
-const buildQrValue = ({ refCode, table, date, venue = "ALABANG" }) => {
-  const clean = (value = "", fallback = "N/A") => {
-    const v = String(value).trim();
-    return v || fallback;
-  };
-
-  const ref = clean(refCode);
-  const tbl = clean(table);
-  const dt  = clean(date);
-  const ven = clean(venue, "ALABANG");
-
-  const basePath = String(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
-  const confirmationUrl = new URL(`${basePath}qr-confirmation.html`, window.location.origin);
-  confirmationUrl.searchParams.set("ref", ref);
-  confirmationUrl.searchParams.set("table", tbl);
-  confirmationUrl.searchParams.set("date", dt);
-  confirmationUrl.searchParams.set("venue", ven);
-
-  return confirmationUrl.toString();
-=======
 // Encodes a plain URL — phone camera opens directly in browser, never contacts.
 // Set VITE_APP_URL in your .env for production (e.g. https://yourdomain.com).
 // Falls back to window.location.origin in dev (http://localhost:5173).
@@ -641,7 +619,6 @@ const buildQrValue = ({ refCode }) => {
   // Always ensure http:// or https:// prefix so scanners open a browser tab
   const url  = base.startsWith("http") ? base : `https://${base}`;
   return `${url}/alabang-reserve/${ref}`;
->>>>>>> Stashed changes
 };
 
 // ─── MODAL: Success ────────────────────────────────────────────────────────────
