@@ -107,7 +107,7 @@ class ReservationService
         string $sort      = 'submitted_at',  // ← was hardcoded to event_date asc
         string $direction = 'desc'           // ← was hardcoded to asc
     ): \Illuminate\Pagination\LengthAwarePaginator {
-        return Reservation::orderBy($sort, $direction)
+        return Reservation::with(['venue'])->orderBy($sort, $direction)
             ->paginate($perPage, ['*'], 'page', $page)
             ->through(
                 function ($reservation) {
@@ -119,23 +119,32 @@ class ReservationService
                     return [
                         'id'               => $reservation->reference_code,
                         'db_id'            => $reservation->id,
+                        'reference_code'    => $reservation->reference_code,
                         'name'             => $reservation->name,
                         'email'            => $reservation->email,
                         'phone'            => $reservation->phone,
-                        'room'             => $reservation->room ?? 'Alabang Function Room',
+                        'room'             => $reservation->room ?? ($reservation->venue->name ?? 'Alabang Function Room'),
+                        'table_number'      => $reservation->table_number,
+                        'seat_number'       => $reservation->seat_number,
+                        'guests_count'     => $reservation->guests_count,
+                        'event_date'       => $reservation->event_date->format('Y-m-d'),
+                        'event_time'       => $reservation->event_time,
+                        'special_requests' => $reservation->special_requests,
+                        'status'           => $reservation->status,
+                        'type'             => $reservation->type,
+                        'rejection_reason' => $reservation->rejection_reason,
+                        'submittedAt'      => $submittedAt,
+                        'submittedTimestamp' => $reservation->submitted_at
+                            ? $reservation->submitted_at->timestamp
+                            : 0,
+                        // Aliases for frontend compatibility
                         'table'            => $reservation->table_number,
                         'seat'             => $reservation->seat_number,
                         'guests'           => $reservation->guests_count,
                         'eventDate'        => $reservation->event_date->format('F j, Y'),
                         'eventTime'        => $reservation->event_time,
                         'specialRequests'  => $reservation->special_requests,
-                        'status'           => $reservation->status,
-                        'type'             => $reservation->type,
                         'rejectionReason'  => $reservation->rejection_reason,
-                        'submittedAt'      => $submittedAt,
-                        'submittedTimestamp' => $reservation->submitted_at
-                            ? $reservation->submitted_at->timestamp
-                            : 0,
                     ];
                 }
             );

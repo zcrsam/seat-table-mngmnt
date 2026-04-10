@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import LoginScreen from "../../auth/pages/LoginPage";
-import Dashboard from "../pages/Dashboard";
+import ReservationDashboard from "../pages/ReservationDashboard";
 
 export default function AdminReserve() {
   // Check localStorage for existing login state on component mount
@@ -29,5 +29,5 @@ export default function AdminReserve() {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  return <Dashboard onLogout={handleLogout} />;
+  return <ReservationDashboard />;
 }

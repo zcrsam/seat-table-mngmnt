@@ -2,6 +2,7 @@
 import { useState, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
+import SharedNavbar from "../../../components/SharedNavbar.jsx";
 
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
@@ -322,7 +323,13 @@ export default function ForgotCode() {
           }} />
         </div>
 
-        <NavBar />
+        <SharedNavbar 
+          isDark={isDark} 
+          toggle={toggleTheme} 
+          showNavigation={false} 
+          scrolled={false}
+          height={64}
+        />
 
         <div style={{
           position: "relative", zIndex: 1,

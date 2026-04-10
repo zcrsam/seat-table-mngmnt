@@ -161,4 +161,10 @@ class Echo {
   }
 }
 
+// Subscribe to reservation updates
+export function subscribeToReservationUpdates(callback) {
+  const echo = new Echo();
+  return echo.channel('reservations').listen('updated', callback);
+}
+
 export default Echo;
