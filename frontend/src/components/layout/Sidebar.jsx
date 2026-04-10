@@ -1,5 +1,6 @@
 // src/components/admin/Sidebar.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const F = { body: "Montserrat, sans-serif" };
 
@@ -55,9 +56,20 @@ function HamburgerBtn({ onClick, isOpen }) {
 // ─── Nav Item ─────────────────────────────────────────────────────────────────
 function NavItem({ item, isActive, isOpen, onClick }) {
   const [hovered, setHovered] = useState(false);
+  const navigate = useNavigate();
+  
+  const handleClick = () => {
+    const routes = {
+      "reservations": "/admin/reservations",
+      "seat-map": "/admin/seatmap"
+    };
+    navigate(routes[item.id] || "/admin/dashboard");
+    onClick(item.id);
+  };
+  
   return (
     <div
-      onClick={() => onClick(item.id)}
+      onClick={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={!isOpen ? item.label : undefined}
@@ -133,7 +145,7 @@ export default function Sidebar({
   return (
     <aside style={{
       width: isOpen ? 220 : 52,
-      minHeight: "calc(100vh - 60px)",
+      height: "calc(100vh - 60px)",
       background: "#FAF6F0", // Light cream background/ sidebar background
       borderRight: "1px solid rgba(201,168,76,0.18)",
       display: "flex",

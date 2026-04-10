@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import bellevueLogo from "../../../assets/bellevue-logo.png";
+import SharedNavbar from "../../../components/SharedNavbar.jsx";
 
 // ─────────────────────────────────────────────
 // THEME HOOK
@@ -26,45 +26,74 @@ function useThemeMode() {
 }
 
 // ─────────────────────────────────────────────
-// DESIGN TOKENS — theme-aware
+// DESIGN TOKENS
 // ─────────────────────────────────────────────
 function getTokens(isDark) {
   return isDark ? {
-    gold:        "#C9A84C",
-    goldLight:   "#E2C96A",
-    goldFaint:   "rgba(201,168,76,0.10)",
-    goldBorder:  "rgba(201,168,76,0.22)",
-    pageBg:      "#1A1612",
-    cardBg:      "#2A241E",
-    text:        "#F5EFE0",
-    textSub:     "#D7C697",
-    textMuted:   "#A6987A",
-    border:      "rgba(201,168,76,0.18)",
-    borderLight: "rgba(201,168,76,0.10)",
-    navBg:       "rgba(14,13,9,0.85)",
-    navBorder:   "rgba(201,168,76,0.15)",
-    surface:     "#2A241E",
+    gold:         "#C9A84C",
+    goldLight:    "#E2C96A",
+    goldDim:      "#A07828",
+    goldFaint:    "rgba(201,168,76,0.08)",
+    goldBorder:   "rgba(201,168,76,0.20)",
+    pageBg:       "#111009",
+    cardBg:       "#1C1A14",
+    cardBgHov:    "#221F17",
+    text:         "#F0E8D0",
+    textSub:      "#C8B880",
+    textMuted:    "#7A6E58",
+    border:       "rgba(201,168,76,0.14)",
+    borderHov:    "rgba(201,168,76,0.38)",
+    navBg:        "rgba(10,9,6,0.88)",
+    navBorder:    "rgba(201,168,76,0.12)",
+    surface:      "#1C1A14",
+    surfaceEl:    "#211F18",
+    modalBg:      "#18160F",
+    divider:      "rgba(201,168,76,0.10)",
+    shadow:       "0 2px 20px rgba(0,0,0,0.45)",
+    shadowHov:    "0 20px 56px rgba(0,0,0,0.60)",
+    tagBg:        "rgba(201,168,76,0.10)",
+    overlayBg:    "rgba(6,5,3,0.78)",
+    // ellipsis button specific
+    dotsBg:       "#2A2720",
+    dotsBorder:   "#C9A84C",
+    dotsColor:    "#C9A84C",
+    dotsBgHov:    "rgba(201,168,76,0.18)",
   } : {
-    gold:        "#A07828",
-    goldLight:   "#C9A84C",
-    goldFaint:   "rgba(160,120,40,0.10)",
-    goldBorder:  "rgba(160,120,40,0.22)",
-    pageBg:      "#F7F3EA",
-    cardBg:      "#FFFFFF",
-    text:        "#1A1612",
-    textSub:     "#5A5040",
-    textMuted:   "#8A7A60",
-    border:      "rgba(160,120,40,0.18)",
-    borderLight: "rgba(160,120,40,0.10)",
-    navBg:       "rgba(245,240,232,0.92)",
-    navBorder:   "rgba(160,120,40,0.18)",
-    surface:     "#FFFFFF",
+    gold:         "#9A6E1C",
+    goldLight:    "#C49A2C",
+    goldDim:      "#7A5814",
+    goldFaint:    "rgba(154,110,28,0.07)",
+    goldBorder:   "rgba(154,110,28,0.18)",
+    pageBg:       "#F4EFE4",
+    cardBg:       "#FFFFFF",
+    cardBgHov:    "#FDFAF4",
+    text:         "#1A1510",
+    textSub:      "#6A5830",
+    textMuted:    "#9A8C6E",
+    border:       "rgba(154,110,28,0.12)",
+    borderHov:    "rgba(154,110,28,0.38)",
+    navBg:        "rgba(244,239,228,0.92)",
+    navBorder:    "rgba(154,110,28,0.14)",
+    surface:      "#FFFFFF",
+    surfaceEl:    "#F9F6EF",
+    modalBg:      "#FFFFFF",
+    divider:      "rgba(154,110,28,0.10)",
+    shadow:       "0 2px 20px rgba(100,80,30,0.10)",
+    shadowHov:    "0 20px 56px rgba(100,80,30,0.18)",
+    tagBg:        "rgba(154,110,28,0.08)",
+    overlayBg:    "rgba(20,16,8,0.55)",
+    // ellipsis button specific
+    dotsBg:       "#F0EBE0",
+    dotsBorder:   "#9A6E1C",
+    dotsColor:    "#9A6E1C",
+    dotsBgHov:    "rgba(154,110,28,0.14)",
   };
 }
 
-const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
-// Section anchor IDs
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
 const SECTION_IDS = {
   "Main Wing":  "section-main-wing",
   "Tower Wing": "section-tower-wing",
@@ -86,103 +115,246 @@ function useResponsive() {
 }
 
 // ─────────────────────────────────────────────
-// DATA
+// STATIC VENUE DATA — descriptions & highlights
+// Images and identity stay static; seats/tables get overridden by API
 // ─────────────────────────────────────────────
-// Assets
-import alabangImg       from "../../../assets/afc.jpeg";
-import lagunaImg        from "../../../assets/laguna.jpeg";
-import twentyTwentyImg  from "../../../assets/20-20.jpeg";
+import alabangImg        from "../../../assets/afc.jpeg";
+import lagunaImg         from "../../../assets/laguna.jpeg";
+import twentyTwentyImg   from "../../../assets/20-20.jpeg";
 import businessCenterImg from "../../../assets/bc.jpeg";
-import towerBallroomImg from "../../../assets/towerb.jpeg";
-import grandBallroomImg from "../../../assets/grandr.jpg";
-import qsinaImg         from "../../../assets/qsina.jpeg";
-import hanakazuImg      from "../../../assets/hanakazu.jpeg";
-import phoenixCourtImg  from "../../../assets/phoenix-court.jpeg";
+import towerBallroomImg  from "../../../assets/towerb.jpeg";
+import grandBallroomImg  from "../../../assets/grandr.jpg";
+import qsinaImg          from "../../../assets/qsina.jpeg";
+import hanakazuImg       from "../../../assets/hanakazu.jpeg";
+import phoenixCourtImg   from "../../../assets/phoenix-court.jpeg";
 
-const SUBCATEGORIES = {
+// Each entry carries static fallback values for seats/tables that get
+// replaced by live API data once it loads.
+const STATIC_VENUES = {
   "Main Wing": [
-    { id: "alabang",         name: "Alabang Function Room", img: alabangImg,         seats: 150, tables: 14, rooms: [] },
-    { id: "laguna",          name: "Laguna Ballroom",       img: lagunaImg,          seats: 250, tables: 11, rooms: ["Laguna 1", "Laguna 2"] },
-    { id: "20-20",           name: "20/20 Function Room",   img: twentyTwentyImg,    seats: 120, tables: 12, rooms: ["20/20 A", "20/20 B", "20/20 C"] },
-    { id: "business-center", name: "Business Center",       img: businessCenterImg,  seats: 80,  tables: 10, rooms: [] },
+    {
+      id: "alabang",
+      name: "Alabang Function Room",
+      img: alabangImg,
+      seats: 150,
+      tables: 14,
+      rooms: [],
+      description: "The Alabang Function Room is an elegantly appointed venue ideal for intimate corporate events, private dinners, and social gatherings. Featuring refined interiors and flexible seating configurations, it offers a warm yet professional atmosphere suited to discerning guests.",
+      // which room names in the seat-map data map to this venue
+      seatMapKeys: ["Alabang Function Room"],
+    },
+    {
+      id: "laguna",
+      name: "Laguna Ballroom",
+      img: lagunaImg,
+      seats: 250,
+      tables: 11,
+      rooms: ["Laguna 1", "Laguna 2"],
+      description: "The Laguna Ballroom is a premier event space combining timeless elegance with modern functionality. Its grand proportions and tasteful décor make it a favored choice for weddings, gala evenings, and corporate celebrations.",
+      seatMapKeys: ["Laguna Ballroom", "Laguna 1", "Laguna 2"],
+    },
+    {
+      id: "20-20",
+      name: "20/20 Function Room",
+      img: twentyTwentyImg,
+      seats: 120,
+      tables: 12,
+      rooms: ["20/20 A", "20/20 B", "20/20 C"],
+      description: "A versatile multi-use function room with a contemporary aesthetic, the 20/20 offers three configurable sub-sections suited to seminars, product launches, and board meetings.",
+     seatMapKeys: ["20/20 Function Room", "20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C"],
+    },
+    {
+      id: "business-center",
+      name: "Business Center",
+      img: businessCenterImg,
+      seats: 80,
+      tables: 10,
+      rooms: [],
+      description: "The Business Center is a purpose-built executive venue designed for high-level conferences, board meetings, and corporate workshops.",
+      seatMapKeys: ["Business Center"],
+    },
   ],
   "Tower Wing": [
-    { id: "tower-ballroom", name: "Tower Ballroom", img: towerBallroomImg, seats: 300, tables: 15, rooms: ["Tower 1", "Tower 2", "Tower 3"] },
-    { id: "grand-ballroom", name: "Grand Ballroom", img: grandBallroomImg, seats: 400, tables: 20, rooms: ["Grand A", "Grand B", "Grand C"] },
+    {
+      id: "tower-ballroom",
+      name: "Tower Ballroom",
+      img: towerBallroomImg,
+      seats: 300,
+      tables: 15,
+      rooms: ["Tower 1", "Tower 2", "Tower 3"],
+      description: "Rising above the city, the Tower Ballroom is a signature event destination offering sweeping panoramic views and refined grandeur.",
+      seatMapKeys: ["Tower Ballroom", "Tower 1", "Tower 2", "Tower 3"],
+    },
+    {
+      id: "grand-ballroom",
+      name: "Grand Ballroom",
+      img: grandBallroomImg,
+      seats: 400,
+      tables: 20,
+      rooms: ["Grand A", "Grand B", "Grand C"],
+      description: "The Grand Ballroom is Bellevue Manila's most prestigious event space — a sweeping venue of exceptional scale and elegance.",
+      seatMapKeys: ["Grand Ballroom", "Grand A", "Grand B", "Grand C"],
+    },
   ],
   "Dining": [
-    { id: "qsina",         name: "Qsina",         img: qsinaImg,        seats: 120, tables: 12, rooms: [] },
-    { id: "hanakazu",      name: "Hanakazu",      img: hanakazuImg,     seats: 80,  tables: 10, rooms: [] },
-    { id: "phoenix-court", name: "Phoenix Court", img: phoenixCourtImg, seats: 140, tables: 16, rooms: [] },
+    {
+      id: "qsina",
+      name: "Qsina",
+      img: qsinaImg,
+      seats: 120,
+      tables: 12,
+      rooms: [],
+      description: "Qsina is Bellevue Manila's celebrated all-day dining restaurant, offering an elevated international buffet experience complemented by live cooking stations.",
+      seatMapKeys: ["Qsina"],
+    },
+    {
+      id: "hanakazu",
+      name: "Hanakazu",
+      img: hanakazuImg,
+      seats: 80,
+      tables: 10,
+      rooms: [],
+      description: "Hanakazu is Bellevue Manila's Japanese specialty restaurant, offering an authentic izakaya and kaiseki dining experience.",
+      seatMapKeys: ["Hanakazu"],
+    },
+    {
+      id: "phoenix-court",
+      name: "Phoenix Court",
+      img: phoenixCourtImg,
+      seats: 140,
+      tables: 16,
+      rooms: [],
+      description: "Phoenix Court is Bellevue Manila's distinguished Chinese restaurant, renowned for its masterfully prepared Cantonese dishes and traditional dim sum.",
+      seatMapKeys: ["Phoenix Court"],
+    },
   ],
 };
 
 // ─────────────────────────────────────────────
-// THEME TOGGLE  — identical to ManageBooking
+// SEAT MAP STORAGE KEY HELPERS (mirrors Dashboard logic)
 // ─────────────────────────────────────────────
-function ThemeToggle({ isDark, toggle }) {
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      style={{ display:"flex", alignItems:"center", padding:0, background:"none", border:"none", cursor:"pointer", flexShrink:0 }}
-    >
-      <span style={{
-        position:"relative", width:46, height:25, borderRadius:13,
-        background: isDark ? "#2C2A1E" : "#DDD6C0",
-        border:`1.5px solid ${isDark ? "rgba(201,168,76,0.28)" : "rgba(160,120,40,0.22)"}`,
-        display:"inline-flex", alignItems:"center", flexShrink:0,
-        transition:"background 0.32s, border-color 0.32s", verticalAlign:"middle",
-      }}>
-        <span style={{
-          position:"absolute", top:2,
-          left: isDark ? 2 : "calc(100% - 23px)",
-          width:19, height:19, borderRadius:"50%", background:"#FFFFFF",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          transition:"left 0.30s cubic-bezier(.4,0,.2,1)", flexShrink:0,
-        }}>
-          <svg width="11" height="11" viewBox="0 0 20 20" fill="none">
-            <path d="M10 1a9 9 0 1 0 9 9A9 9 0 0 0 10 1zm0 16V3a7 7 0 0 1 0 14z" fill={isDark ? "#1C1A10" : "#B8922A"} />
-          </svg>
-        </span>
-      </span>
-    </button>
-  );
+const WING_FOR_ROOM = {};
+Object.entries({
+  "Main Wing":  ["Alabang Function Room", "Laguna Ballroom", "Laguna 1", "Laguna 2", "20/20 Function Room", "20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C", "Business Center"],
+  "Tower Wing": ["Tower Ballroom", "Tower 1", "Tower 2", "Tower 3", "Grand Ballroom", "Grand A", "Grand B", "Grand C"],
+  "Dining":     ["Qsina", "Hanakazu", "Phoenix Court"],
+}).forEach(([wing, rooms]) => rooms.forEach(r => { WING_FOR_ROOM[r] = wing; }));
+
+/**
+ * Reads seat-map data from localStorage for a given wing+room key,
+ * then returns { seats: number, tables: number } counted from saved layout.
+ * Returns null if no saved data exists.
+ */
+function readSeatMapCounts(wing, room) {
+  try {
+    const raw = localStorage.getItem(`seatmap:${wing}:${room}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const tableArr = Array.isArray(parsed) ? parsed : [parsed];
+    const validTables = tableArr.filter(t => t && Array.isArray(t.seats) && t.seats.length > 0);
+    const totalSeats  = validTables.reduce((sum, t) => sum + t.seats.length, 0);
+    return { seats: totalSeats, tables: validTables.length };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * For a venue, aggregate seat/table counts across all its seatMapKeys.
+ * Picks the key with the most data as the "canonical" count,
+ * then sums sub-rooms if the venue is divisible.
+ */
+function aggregateCounts(venue) {
+  const keys = venue.seatMapKeys || [];
+  let totalSeats = 0, totalTables = 0, found = false;
+
+  // First try the primary key (first in list, usually the parent room name)
+  const primary = readSeatMapCounts(WING_FOR_ROOM[keys[0]], keys[0]);
+  if (primary) {
+    totalSeats  = primary.seats;
+    totalTables = primary.tables;
+    found = true;
+  }
+
+  // Then try sub-rooms — if they have data and primary didn't, use sub-room sum
+  if (!found || totalSeats === 0) {
+    let subSeats = 0, subTables = 0, subFound = false;
+    for (let i = 1; i < keys.length; i++) {
+      const c = readSeatMapCounts(WING_FOR_ROOM[keys[i]], keys[i]);
+      if (c) { subSeats += c.seats; subTables += c.tables; subFound = true; }
+    }
+    if (subFound && subSeats > totalSeats) {
+      totalSeats  = subSeats;
+      totalTables = subTables;
+      found = true;
+    }
+  }
+
+  return found ? { seats: totalSeats, tables: totalTables } : null;
 }
 
 // ─────────────────────────────────────────────
-// NAVBAR  — same structure/style as ManageBooking
+// API: fetch reservation stats per venue
+// Counts approved/reserved bookings to show available vs reserved seats
 // ─────────────────────────────────────────────
-function VenuesNav({ isDark, toggle }) {
-  const navigate = useNavigate();
-  const C = getTokens(isDark);
+async function fetchVenueStats() {
+  try {
+    const res  = await fetch(`${API_BASE}/reservations?per_page=500&page=1`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return {};
+    const json = await res.json();
+    const list = Array.isArray(json) ? json
+      : Array.isArray(json.data)         ? json.data
+      : Array.isArray(json.reservations) ? json.reservations
+      : [];
+
+    // Build a map: venue/room name → { reserved, pending }
+    const stats = {};
+    list.forEach(r => {
+      const room   = r.room || r.venue || "";
+      const status = (r.status || "").toLowerCase();
+      if (!room) return;
+      if (!stats[room]) stats[room] = { reserved: 0, pending: 0, total: 0 };
+      stats[room].total++;
+      if (status === "reserved" || status === "approved") stats[room].reserved++;
+      if (status === "pending")  stats[room].pending++;
+    });
+    return stats;
+  } catch {
+    return {};
+  }
+}
+
+// ─────────────────────────────────────────────
+// BACK BUTTON
+// ─────────────────────────────────────────────
+function BackButton({ onClick, C }) {
+  const [hov, setHov] = useState(false);
   return (
-    <nav style={{
-      position:"fixed", top:0, left:0, right:0, zIndex:9000,
-      height:64,
-      display:"flex", alignItems:"center", justifyContent:"space-between",
-      padding:"0 clamp(16px,4vw,52px)",
-      background: C.navBg,
-      backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
-      borderBottom:`1px solid ${C.navBorder}`,
-      boxSizing:"border-box",
-      transition:"background 0.35s",
-    }}>
-      <img
-        src={bellevueLogo}
-        alt="The Bellevue Manila"
-        onClick={() => navigate("/")}
-        style={{
-          height:32, width:"auto", cursor:"pointer", display:"block", flexShrink:0,
-          filter: isDark
-            ? "none"
-            : "brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(500%) hue-rotate(10deg)",
-          transition:"filter 0.35s",
-        }}
-      />
-      <ThemeToggle isDark={isDark} toggle={toggle} />
-    </nav>
+    <button
+      onClick={onClick}
+      aria-label="Go back"
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        width: 52, height: 52, borderRadius: "50%",
+        background: "transparent",
+        border: `1px solid ${hov ? C.gold : C.textMuted}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer",
+        transition: "border-color 0.3s, transform 0.3s",
+        transform: hov ? "scale(1.06)" : "scale(1)",
+        padding: 0, flexShrink: 0,
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke={hov ? C.gold : C.textMuted} strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round"
+        style={{ transition: "stroke 0.3s", display: "block" }}>
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+    </button>
   );
 }
 
@@ -195,61 +367,60 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position:"relative", display:"inline-block" }}>
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
         style={{
-          display:"inline-flex", alignItems:"center", gap:6,
-          padding:"6px 14px", borderRadius:20,
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "5px 12px 5px 10px", borderRadius: 4,
           background: open ? C.goldFaint : "transparent",
-          border:`1px solid ${open ? C.gold : C.goldBorder}`,
-          fontSize:14, color: open ? C.gold : C.textMuted,
-          cursor:"pointer", transition:"all 0.16s",
-          fontFamily:FONT, fontWeight:500, whiteSpace:"nowrap",
+          border: `1px solid ${open ? C.gold : C.goldBorder}`,
+          fontSize: 11, fontWeight: 600,
+          color: open ? C.gold : C.textMuted,
+          cursor: "pointer", transition: "all 0.18s",
+          fontFamily: FONT, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background=C.goldFaint; e.currentTarget.style.color=C.gold; e.currentTarget.style.borderColor=C.gold; }}
-        onMouseLeave={(e) => { if (!open) { e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.textMuted; e.currentTarget.style.borderColor=C.goldBorder; } }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = C.goldFaint; e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = C.gold; }}
+        onMouseLeave={(e) => { if (!open) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.goldBorder; } }}
       >
         <span>Sub-rooms ({rooms.length})</span>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          style={{ transition:"transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
 
       {open && (
         <div style={{
-          position:"absolute", top:"calc(100% + 6px)", left:0, zIndex:999,
-          background:C.surface, border:`1px solid ${C.goldBorder}`,
-          borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.12)",
-          minWidth:180, overflow:"hidden",
+          position: "absolute", top: "calc(100% + 5px)", left: 0, zIndex: 999,
+          background: C.surface, border: `1px solid ${C.goldBorder}`,
+          borderRadius: 6, boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+          minWidth: 172, overflow: "hidden",
         }}>
           {rooms.filter(r => r && typeof r === "string" && r.trim() !== "").map((r, i) => {
             const roomId = `${venueId}__${String(r).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
             return (
-              <button
-                key={r}
-                type="button"
+              <button key={r} type="button"
                 onClick={(e) => { e.stopPropagation(); setOpen(false); onRoomClick(roomId); }}
                 style={{
-                  display:"block", width:"100%", padding:"11px 16px",
-                  background:"transparent", border:"none",
-                  borderTop: i === 0 ? "none" : `1px solid ${C.borderLight}`,
-                  textAlign:"left", fontSize:14, color:C.text,
-                  cursor:"pointer", fontFamily:FONT, fontWeight:400, transition:"background 0.12s",
+                  display: "flex", alignItems: "center", gap: 10,
+                  width: "100%", padding: "10px 14px",
+                  background: "transparent", border: "none",
+                  borderTop: i === 0 ? "none" : `1px solid ${C.divider}`,
+                  textAlign: "left", fontSize: 13, color: C.text,
+                  cursor: "pointer", fontFamily: FONT, fontWeight: 400, transition: "background 0.12s, color 0.12s",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = C.goldFaint)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                onMouseEnter={(e) => { e.currentTarget.style.background = C.goldFaint; e.currentTarget.style.color = C.gold; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.text; }}
               >
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.goldDim, flexShrink: 0 }} />
                 {r}
               </button>
             );
@@ -261,72 +432,379 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
 }
 
 // ─────────────────────────────────────────────
+// VENUE DETAIL MODAL
+// ─────────────────────────────────────────────
+function VenueModal({ venue, onClose, onReserve, C, isDark }) {
+  const { isMobile } = useResponsive();
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const liveCounts = aggregateCounts(venue);
+  const displaySeats  = liveCounts?.seats  ?? venue.seats;
+  const displayTables = liveCounts?.tables ?? venue.tables;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10000,
+        background: C.overlayBg,
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: isMobile ? "16px" : "32px",
+        animation: "bvFadeIn 0.22s ease",
+      }}
+    >
+      <style>{`
+        @keyframes bvFadeIn  { from { opacity:0 } to { opacity:1 } }
+        @keyframes bvSlideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
+      `}</style>
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.modalBg,
+          border: `1px solid ${C.goldBorder}`,
+          borderRadius: 14,
+          width: "100%", maxWidth: 680,
+          maxHeight: "90vh",
+          overflow: "hidden",
+          display: "flex", flexDirection: "column",
+          boxShadow: isDark ? "0 32px 80px rgba(0,0,0,0.72)" : "0 32px 80px rgba(80,60,10,0.24)",
+          animation: "bvSlideUp 0.30s cubic-bezier(0.25,0.46,0.45,0.94)",
+        }}
+      >
+        {/* Hero image */}
+        <div style={{ height: isMobile ? 200 : 260, position: "relative", flexShrink: 0, overflow: "hidden" }}>
+          <img src={venue.img} alt={venue.name}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.70) 100%)" }} />
+
+          {/* Close btn */}
+          <button
+            onClick={onClose}
+            style={{
+              position: "absolute", top: 16, right: 16,
+              width: 36, height: 36, borderRadius: "50%",
+              background: "rgba(0,0,0,0.42)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.16)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", padding: 0, transition: "background 0.18s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.72)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.42)")}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+
+          {/* Venue name */}
+          <div style={{ position: "absolute", bottom: 20, left: 24, right: 60 }}>
+            <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.20em", textTransform: "uppercase", margin: "0 0 6px 0" }}>
+              Venue Details
+            </p>
+            <h2 style={{ fontFamily: FONT, fontSize: isMobile ? 20 : 26, fontWeight: 700, color: "#FFFFFF", margin: 0, lineHeight: 1.15, letterSpacing: "-0.3px" }}>
+              {venue.name}
+            </h2>
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ overflowY: "auto", padding: isMobile ? "22px 20px 28px" : "28px 32px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+
+          {/* Stats row — uses live counts */}
+          <div style={{ display: "flex", gap: 0, border: `1px solid ${C.divider}`, borderRadius: 8, overflow: "hidden" }}>
+            {[
+              { label: "Capacity",  value: displaySeats > 0  ? `${displaySeats} guests`  : `${venue.seats} guests` },
+              { label: "Tables",    value: displayTables > 0 ? `${displayTables} tables` : `${venue.tables} tables` },
+              { label: "Sub-rooms", value: venue.rooms.length > 0 ? `${venue.rooms.length} available` : "Open hall" },
+            ].map((stat, i) => (
+              <div key={stat.label} style={{
+                flex: 1, padding: "14px 16px",
+                borderLeft: i === 0 ? "none" : `1px solid ${C.divider}`,
+                background: C.surfaceEl,
+              }}>
+                <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.16em", textTransform: "uppercase", margin: "0 0 4px 0" }}>
+                  {stat.label}
+                </p>
+                <p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Availability pill — if we have reservation stats */}
+          {venue._stats && (venue._stats.reserved > 0 || venue._stats.pending > 0) && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {venue._stats.reserved > 0 && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px",
+                  background: "rgba(184,92,92,0.10)",
+                  border: "1px solid rgba(184,92,92,0.25)",
+                  borderRadius: 4,
+                  fontFamily: FONT, fontSize: 11, fontWeight: 600, color: "#C07070",
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#C07070" }} />
+                  {venue._stats.reserved} seats reserved
+                </span>
+              )}
+              {venue._stats.pending > 0 && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px",
+                  background: "rgba(201,168,76,0.10)",
+                  border: "1px solid rgba(201,168,76,0.25)",
+                  borderRadius: 4,
+                  fontFamily: FONT, fontSize: 11, fontWeight: 600, color: C.gold,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold }} />
+                  {venue._stats.pending} pending approval
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Description */}
+          <div>
+            <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.18em", textTransform: "uppercase", margin: "0 0 10px 0" }}>
+              About this space
+            </p>
+            <p style={{ fontFamily: FONT, fontSize: 14, color: C.textSub, lineHeight: 1.82, margin: 0, fontWeight: 400 }}>
+              {venue.description}
+            </p>
+          </div>
+
+          {/* Highlights */}
+          {venue.highlights && venue.highlights.length > 0 && (
+            <div>
+              <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.18em", textTransform: "uppercase", margin: "0 0 12px 0" }}>
+                Highlights
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {venue.highlights.map((h) => (
+                  <span key={h} style={{
+                    display: "inline-flex", alignItems: "center", gap: 7,
+                    padding: "6px 12px",
+                    background: C.goldFaint,
+                    border: `1px solid ${C.goldBorder}`,
+                    borderRadius: 4,
+                    fontFamily: FONT, fontSize: 12, fontWeight: 500, color: C.textSub,
+                  }}>
+                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.gold, flexShrink: 0 }} />
+                    {h}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sub-rooms list */}
+          {venue.rooms && venue.rooms.length > 0 && (
+            <div>
+              <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.18em", textTransform: "uppercase", margin: "0 0 12px 0" }}>
+                Available Sub-rooms
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {venue.rooms.map((r) => (
+                  <span key={r} style={{
+                    padding: "5px 12px",
+                    background: "transparent",
+                    border: `1px solid ${C.goldBorder}`,
+                    borderRadius: 4,
+                    fontFamily: FONT, fontSize: 12, fontWeight: 500, color: C.textMuted,
+                  }}>
+                    {r}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Divider */}
+          <div style={{ height: 1, background: C.divider }} />
+
+          {/* Reserve CTA */}
+          <button
+            type="button"
+            onClick={() => { onClose(); onReserve(venue.id); }}
+            style={{
+              width: "100%", padding: "14px 20px",
+              background: C.gold, color: "#FFFFFF",
+              border: "none", borderRadius: 8,
+              cursor: "pointer", fontWeight: 600, fontSize: 12,
+              fontFamily: FONT, letterSpacing: "0.14em", textTransform: "uppercase",
+              transition: "background 0.18s, transform 0.18s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.01)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            Reserve this Space
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // VENUE CARD
 // ─────────────────────────────────────────────
-function VenueCard({ venue, onClick, C }) {
+function VenueCard({ venue, onClick, onDetails, C }) {
   const [hov, setHov] = useState(false);
+  const [dotsHov, setDotsHov] = useState(false);
+
+  // Use live counts from seatmap if available, fall back to static
+  const liveCounts = aggregateCounts(venue);
+  const displaySeats  = liveCounts?.seats  ?? venue.seats;
+  const displayTables = liveCounts?.tables ?? venue.tables;
 
   return (
     <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        borderRadius:14, overflow:"visible",
-        background:C.surface,
-        boxShadow: hov ? "0 18px 48px rgba(0,0,0,0.14)" : "0 2px 16px rgba(0,0,0,0.07)",
-        border:`1px solid ${hov ? C.gold : C.borderLight}`,
-        transition:"box-shadow 0.25s, border-color 0.25s, transform 0.25s",
-        transform: hov ? "translateY(-4px)" : "translateY(0)",
-        display:"flex", flexDirection:"column", height:"100%", position:"relative",
+        borderRadius: 10, overflow: "hidden",
+        background: C.cardBg,
+        border: `1px solid ${hov ? C.borderHov : C.border}`,
+        boxShadow: hov ? C.shadowHov : C.shadow,
+        transition: "box-shadow 0.32s, border-color 0.32s, transform 0.32s",
+        transform: hov ? "translateY(-5px)" : "translateY(0)",
+        display: "flex", flexDirection: "column", height: "100%",
       }}
     >
       {/* Image */}
       <div
         onClick={() => onClick(venue.id)}
-        style={{ height:200, position:"relative", overflow:"hidden", cursor:"pointer", borderRadius:"14px 14px 0 0" }}
+        style={{ height: 210, position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
       >
         <img
           src={venue.img} alt={venue.name}
-          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform 0.4s", transform: hov ? "scale(1.05)" : "scale(1)" }}
+          style={{
+            width: "100%", height: "100%", objectFit: "cover", display: "block",
+            transition: "transform 0.5s cubic-bezier(0.25,0.46,0.45,0.94)",
+            transform: hov ? "scale(1.06)" : "scale(1)",
+          }}
         />
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.65) 100%)" }} />
-        <div style={{ position:"absolute", bottom:12, left:14, right:14 }}>
-          <div style={{ fontFamily:FONT, fontSize:18, fontWeight:700, color:"#FFFFFF", lineHeight:1.2, textShadow:"0 1px 6px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.72) 100%)" }} />
+
+        {/* Capacity badge — top right on image */}
+        <div style={{
+          position: "absolute", top: 12, right: 12,
+          background: "rgba(0,0,0,0.56)",
+          backdropFilter: "blur(6px)",
+          border: `1px solid rgba(201,168,76,0.35)`,
+          borderRadius: 5,
+          padding: "4px 9px",
+          display: "flex", alignItems: "center", gap: 5,
+        }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: "#E8D898", letterSpacing: "0.06em" }}>
+            {displaySeats > 0 ? displaySeats : venue.seats}
+          </span>
+        </div>
+
+        <div style={{ position: "absolute", bottom: 14, left: 16, right: 16 }}>
+          <p style={{ fontFamily: FONT, fontSize: 17, fontWeight: 600, color: "#FFFFFF", margin: 0, lineHeight: 1.25, letterSpacing: "-0.2px" }}>
             {venue.name}
-          </div>
+          </p>
         </div>
       </div>
 
       {/* Card body */}
-      <div style={{ padding:"14px 16px 18px", display:"flex", flexDirection:"column", gap:12, flex:1, borderRadius:"0 0 14px 14px" }}>
+      <div style={{ padding: "16px 18px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
+
+        {/* Live stats row */}
+        <div style={{ display: "flex", gap: 0, border: `1px solid ${C.divider}`, borderRadius: 6, overflow: "hidden" }}>
+          {[
+            { label: "Seats",  value: displaySeats  > 0 ? displaySeats  : venue.seats  },
+            { label: "Tables", value: displayTables > 0 ? displayTables : venue.tables },
+            ...(venue.rooms.length > 0 ? [{ label: "Rooms", value: venue.rooms.length }] : []),
+          ].map((s, i) => (
+            <div key={s.label} style={{
+              flex: 1, padding: "8px 10px",
+              borderLeft: i === 0 ? "none" : `1px solid ${C.divider}`,
+              background: C.surfaceEl,
+              display: "flex", flexDirection: "column", alignItems: "center",
+            }}>
+              <span style={{ fontFamily: FONT, fontSize: 15, fontWeight: 700, color: C.gold, lineHeight: 1 }}>{s.value}</span>
+              <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 600, color: C.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 3 }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+
         {venue.rooms && Array.isArray(venue.rooms) && venue.rooms.length > 0 && (
           <RoomDropdown rooms={venue.rooms} venueId={venue.id} onRoomClick={onClick} C={C} />
         )}
-        {(!venue.rooms || venue.rooms.length === 0) && (
-          <p style={{ fontFamily:FONT, fontSize:14, color:C.textMuted, lineHeight:1.6, margin:0 }}>
-            A versatile space for events and gatherings.
-          </p>
-        )}
+
+        <div style={{ height: 1, background: C.divider }} />
 
         {/* CTA row */}
-        <div style={{ marginTop:"auto", display:"flex", gap:8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onClick(venue.id); }}
-            style={{ flex:1, padding:"11px 12px", background:C.gold, color:"#FFFFFF", border:"none", borderRadius:8, cursor:"pointer", fontWeight:600, fontSize:14, fontFamily:FONT, letterSpacing:0.2, transition:"background 0.15s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = C.goldLight)}
-            onMouseLeave={(e) => (e.currentTarget.style.background = C.gold)}
+            style={{
+              flex: 1, padding: "10px 14px",
+              background: C.gold, color: "#FFFFFF",
+              border: "none", borderRadius: 6,
+              cursor: "pointer", fontWeight: 600, fontSize: 12,
+              fontFamily: FONT, letterSpacing: "0.10em", textTransform: "uppercase",
+              transition: "background 0.18s, transform 0.18s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.02)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "scale(1)"; }}
           >
             View & Reserve
           </button>
+
+          {/* ··· Details button — high-contrast, always visible */}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onClick(venue.id); }}
-            style={{ padding:"11px 14px", background:"transparent", border:`1px solid ${C.goldBorder}`, borderRadius:8, cursor:"pointer", color:C.gold, fontFamily:FONT, fontWeight:500, fontSize:14, transition:"all 0.14s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background=C.goldFaint; e.currentTarget.style.borderColor=C.gold; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background="transparent"; e.currentTarget.style.borderColor=C.goldBorder; }}
+            onClick={(e) => { e.stopPropagation(); onDetails(venue); }}
+            title="View venue details"
+            onMouseEnter={() => setDotsHov(true)}
+            onMouseLeave={() => setDotsHov(false)}
+            style={{
+              width: 40, height: 40, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: dotsHov ? C.dotsBgHov : C.dotsBg,
+              border: `1.5px solid ${C.dotsBorder}`,
+              borderRadius: 8,
+              cursor: "pointer",
+              transition: "all 0.20s",
+            }}
           >
-            •••
+            {/* Three horizontal dots using SVG — guaranteed visible */}
+            <svg
+              width="18"
+              height="4"
+              viewBox="0 0 18 4"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ display: "block", flexShrink: 0 }}
+            >
+              <circle cx="2"  cy="2" r="2" fill={C.dotsColor} />
+              <circle cx="9"  cy="2" r="2" fill={C.dotsColor} />
+              <circle cx="16" cy="2" r="2" fill={C.dotsColor} />
+            </svg>
           </button>
         </div>
       </div>
@@ -337,14 +815,19 @@ function VenueCard({ venue, onClick, C }) {
 // ─────────────────────────────────────────────
 // SECTION HEADER
 // ─────────────────────────────────────────────
-function SectionHeader({ title, subtitle, C }) {
+function SectionHeader({ title, subtitle, index, C }) {
   return (
-    <div style={{ marginBottom:28 }}>
-      <h2 style={{ fontFamily:FONT, fontSize:"clamp(22px, 2.6vw, 30px)", fontWeight:700, color:C.gold, margin:0, lineHeight:1.15, letterSpacing:"-0.3px" }}>
+    <div style={{ marginBottom: 36 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+        <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+          {String(index).padStart(2, "0")}
+        </span>
+        <div style={{ flex: 1, height: 1, background: C.divider }} />
+      </div>
+      <h2 style={{ fontFamily: FONT, fontSize: "clamp(22px, 2.4vw, 32px)", fontWeight: 700, color: C.text, margin: "0 0 6px 0", lineHeight: 1.1, letterSpacing: "-0.5px" }}>
         {title}
       </h2>
-      <div style={{ width:44, height:3, background:C.gold, borderRadius:2, margin:"10px 0 12px" }} />
-      <p style={{ fontFamily:FONT, color:C.textMuted, fontSize:14, margin:0, lineHeight:1.65, fontWeight:400 }}>
+      <p style={{ fontFamily: FONT, color: C.textMuted, fontSize: 13, margin: 0, lineHeight: 1.7, fontWeight: 400 }}>
         {subtitle}
       </p>
     </div>
@@ -355,12 +838,76 @@ function SectionHeader({ title, subtitle, C }) {
 // MAIN PAGE
 // ─────────────────────────────────────────────
 export default function VenuesPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate     = useNavigate();
+  const location     = useLocation();
   const { isMobile } = useResponsive();
   const { isDark, toggle } = useThemeMode();
   const C = getTokens(isDark);
 
+  const [modalVenue,   setModalVenue]   = useState(null);
+  // venues state holds the merged static+live data
+  const [subcategories, setSubcategories] = useState(STATIC_VENUES);
+  const [loadingStats,  setLoadingStats]  = useState(true);
+
+  // ── Pull live seat-map counts from localStorage on mount ──────────────────
+  // Also poll for storage changes (in case admin saves a layout in another tab)
+  useEffect(() => {
+    const merge = () => {
+      setSubcategories(prev => {
+        const next = {};
+        for (const [wing, venues] of Object.entries(prev)) {
+          next[wing] = venues.map(v => {
+            const live = aggregateCounts(v);
+            if (!live) return v;
+            return {
+              ...v,
+              seats:  live.seats  > 0 ? live.seats  : v.seats,
+              tables: live.tables > 0 ? live.tables : v.tables,
+            };
+          });
+        }
+        return next;
+      });
+    };
+
+    merge();
+    window.addEventListener("storage", merge);
+    return () => window.removeEventListener("storage", merge);
+  }, []);
+
+  // ── Pull reservation stats from API ──────────────────────────────────────
+  useEffect(() => {
+    setLoadingStats(true);
+    fetchVenueStats().then(stats => {
+      setSubcategories(prev => {
+        const next = {};
+        for (const [wing, venues] of Object.entries(prev)) {
+          next[wing] = venues.map(v => {
+            // Aggregate stats across all room keys for this venue
+            const combined = { reserved: 0, pending: 0, total: 0 };
+            v.seatMapKeys.forEach(key => {
+              if (stats[key]) {
+                combined.reserved += stats[key].reserved;
+                combined.pending  += stats[key].pending;
+                combined.total    += stats[key].total;
+              }
+            });
+            // Also check by venue name directly
+            if (stats[v.name]) {
+              combined.reserved += stats[v.name].reserved;
+              combined.pending  += stats[v.name].pending;
+              combined.total    += stats[v.name].total;
+            }
+            return { ...v, _stats: combined };
+          });
+        }
+        return next;
+      });
+      setLoadingStats(false);
+    });
+  }, []);
+
+  // ── Scroll to section if ?section= param present ─────────────────────────
   useEffect(() => {
     const params  = new URLSearchParams(location.search);
     const section = params.get("section");
@@ -374,12 +921,12 @@ export default function VenuesPage() {
       if (targetId) {
         setTimeout(() => {
           const el = document.getElementById(targetId);
-          if (el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 80);
         return;
       }
     }
-    window.scrollTo({ top:0, behavior:"instant" });
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.search]);
 
   const handleVenueClick = (id) => {
@@ -397,112 +944,124 @@ export default function VenuesPage() {
     navigate(routes[id] ?? `/reserve/${id}`);
   };
 
-  const handleBack = () => navigate("/", { state: { scrollTo:"event" } });
-
-  const pad    = isMobile ? "20px 16px 0"    : "40px 48px 0";
-  const secPad = isMobile ? "24px 16px 80px" : "36px 48px 100px";
+  const handleBack = () => navigate("/", { state: { scrollTo: "event" } });
 
   return (
-    <div style={{ background:C.pageBg, minHeight:"100vh", fontFamily:FONT }}>
+    <div style={{ background: C.pageBg, minHeight: "100vh", fontFamily: FONT }}>
 
-      {/* ── Navbar — same as ManageBooking ── */}
-      <VenuesNav isDark={isDark} toggle={toggle} />
+      {/* Navbar */}
+      <SharedNavbar
+        isDark={isDark}
+        toggle={toggle}
+        showNavigation={false}
+        scrolled={false}
+        height={58}
+      />
 
-      {/* ── Page content ── */}
-      <div style={{ paddingTop:64 }}>
-        <div style={{ padding:pad, maxWidth:1240, margin:"0 auto" }}>
+      {/* Modal */}
+      {modalVenue && (
+        <VenueModal
+          venue={modalVenue}
+          isDark={isDark}
+          C={C}
+          onClose={() => setModalVenue(null)}
+          onReserve={handleVenueClick}
+        />
+      )}
 
-          {/* ── Back button — gold circle chevron-left, matches ManageBooking ── */}
-          <div style={{ marginBottom:28, marginTop:20 }}>
-            <button
-              onClick={handleBack}
-              aria-label="Go back"
-              style={{
-                width:48, height:48, borderRadius:"50%",
-                background:"rgba(201,168,76,0.12)",
-                backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-                border:`1.5px solid ${C.gold}`,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                cursor:"pointer", transition:"all 0.22s", padding:0,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background="rgba(201,168,76,0.28)"; e.currentTarget.style.transform="scale(1.08)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background="rgba(201,168,76,0.12)"; e.currentTarget.style.transform="scale(1)"; }}
-            >
-              <svg
-                width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke={C.gold} strokeWidth="2.2"
-                strokeLinecap="round" strokeLinejoin="round"
-                style={{ display:"block", flexShrink:0 }}
-              >
-                <polyline points="15 18 9 12 15 6" />
+      {/* Content */}
+      <div style={{ paddingTop: 58 }}>
+        <div style={{
+          padding: isMobile ? "36px 20px 28px" : "52px clamp(32px, 5vw, 72px) 36px",
+          maxWidth: 1280, margin: "0 auto",
+          display: "flex", flexDirection: "column", gap: 28,
+        }}>
+
+          {/* Back + breadcrumb */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <BackButton onClick={handleBack} C={C} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, fontWeight: 400 }}>Home</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
               </svg>
-            </button>
+              <span style={{ fontFamily: FONT, fontSize: 12, color: C.gold, fontWeight: 500 }}>Venues</span>
+            </div>
           </div>
 
-          {/* Label row */}
-          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
-            <div style={{ width:30, height:2, background:C.gold, borderRadius:2, flexShrink:0 }} />
-            <span style={{ fontFamily:FONT, color:C.gold, fontSize:13, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase" }}>
-              All Venues
-            </span>
+          {/* Title block */}
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "flex-end", justifyContent: "space-between", gap: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 24, height: 1, background: C.gold }} />
+                <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+                  All Venues
+                </span>
+              </div>
+              <h1 style={{
+                margin: 0, fontFamily: FONT,
+                fontSize: "clamp(26px, 3.4vw, 44px)",
+                color: C.text, lineHeight: 1.08,
+                fontWeight: 700, letterSpacing: "-0.8px",
+              }}>
+                Browse venues and<br />reserve your space.
+              </h1>
+            </div>
+            <p style={{
+              margin: 0, fontFamily: FONT, color: C.textMuted,
+              fontSize: 13, lineHeight: 1.75, fontWeight: 400,
+              maxWidth: 320, flexShrink: 0,
+            }}>
+              Explore our spaces below — click a card to view layouts and reserve.{" "}
+              Tap the{" "}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, verticalAlign: "middle" }}>
+                <svg width="14" height="3" viewBox="0 0 14 3" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="1.5"  cy="1.5" r="1.5" fill={C.gold} />
+                  <circle cx="7"    cy="1.5" r="1.5" fill={C.gold} />
+                  <circle cx="12.5" cy="1.5" r="1.5" fill={C.gold} />
+                </svg>
+              </span>{" "}
+              button to view venue details.
+            </p>
           </div>
 
-          {/* Title */}
-          <h1 style={{ margin:"0 0 10px 0", fontFamily:FONT, fontSize:"clamp(24px, 3vw, 40px)", color:C.text, lineHeight:1.1, fontWeight:700, letterSpacing:"-0.5px" }}>
-            Browse venues and reserve your space.
-          </h1>
-
-          <p style={{ margin:"0 0 30px 0", color:C.textMuted, fontSize:14, fontFamily:FONT, fontWeight:400, lineHeight:1.7, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-            Explore our venues below — click a card to view layouts and reserve. Sub-rooms are available via the dropdown where noted.
-          </p>
-
-          {/* Divider */}
-          <div style={{ height:1, background:`linear-gradient(90deg, ${C.goldBorder}, transparent)` }} />
+          <div style={{ height: 1, background: `linear-gradient(90deg, ${C.gold} 0%, ${C.divider} 60%, transparent 100%)`, opacity: 0.6 }} />
         </div>
 
-        {/* ── Venue sections ── */}
-        <section style={{ padding:secPad, maxWidth:1240, margin:"0 auto" }}>
+        {/* Sections */}
+        <div style={{ padding: isMobile ? "8px 20px 80px" : `8px clamp(32px, 5vw, 72px) 100px`, maxWidth: 1280, margin: "0 auto" }}>
 
           {/* MAIN WING */}
-          <div id={SECTION_IDS["Main Wing"]} style={{ marginBottom:72, scrollMarginTop:80 }}>
-            <SectionHeader C={C}
-              title="Main Wing"
-              subtitle="Function rooms and ballrooms suitable for conferences and weddings."
-            />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:24, alignItems:"start" }}>
-              {SUBCATEGORIES["Main Wing"].map((venue) => (
-                <VenueCard key={venue.id} venue={venue} onClick={handleVenueClick} C={C} />
+          <div id={SECTION_IDS["Main Wing"]} style={{ paddingTop: 52, marginBottom: 72, scrollMarginTop: 80 }}>
+            <SectionHeader C={C} index={1} title="Main Wing" subtitle="Function rooms and ballrooms suitable for conferences and weddings." />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 20, alignItems: "start" }}>
+              {subcategories["Main Wing"].map((venue) => (
+                <VenueCard key={venue.id} venue={venue} onClick={handleVenueClick} onDetails={setModalVenue} C={C} />
               ))}
             </div>
           </div>
 
           {/* TOWER WING */}
-          <div id={SECTION_IDS["Tower Wing"]} style={{ marginBottom:72, borderTop:`1px solid ${C.borderLight}`, paddingTop:48, scrollMarginTop:80 }}>
-            <SectionHeader C={C}
-              title="Tower Wing"
-              subtitle="Larger ballrooms and divisible halls — perfect for galas and large events."
-            />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:24, alignItems:"start" }}>
-              {SUBCATEGORIES["Tower Wing"].map((venue) => (
-                <VenueCard key={venue.id} venue={venue} onClick={handleVenueClick} C={C} />
+          <div id={SECTION_IDS["Tower Wing"]} style={{ paddingTop: 52, marginBottom: 72, scrollMarginTop: 80 }}>
+            <SectionHeader C={C} index={2} title="Tower Wing" subtitle="Larger ballrooms and divisible halls — perfect for galas and large events." />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 20, alignItems: "start" }}>
+              {subcategories["Tower Wing"].map((venue) => (
+                <VenueCard key={venue.id} venue={venue} onClick={handleVenueClick} onDetails={setModalVenue} C={C} />
               ))}
             </div>
           </div>
 
           {/* DINING */}
-          <div id={SECTION_IDS["Dining"]} style={{ marginBottom:32, borderTop:`1px solid ${C.borderLight}`, paddingTop:48, scrollMarginTop:80 }}>
-            <SectionHeader C={C}
-              title="Dining"
-              subtitle="Restaurants and dining spaces — select a venue to reserve a table."
-            />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:24, alignItems:"start" }}>
-              {SUBCATEGORIES["Dining"].map((venue) => (
-                <VenueCard key={venue.id} venue={venue} onClick={handleVenueClick} C={C} />
+          <div id={SECTION_IDS["Dining"]} style={{ paddingTop: 52, marginBottom: 32, scrollMarginTop: 80 }}>
+            <SectionHeader C={C} index={3} title="Dining" subtitle="Restaurants and dining spaces — select a venue to reserve a table." />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 20, alignItems: "start" }}>
+              {subcategories["Dining"].map((venue) => (
+                <VenueCard key={venue.id} venue={venue} onClick={handleVenueClick} onDetails={setModalVenue} C={C} />
               ))}
             </div>
           </div>
 
-        </section>
+        </div>
       </div>
     </div>
   );

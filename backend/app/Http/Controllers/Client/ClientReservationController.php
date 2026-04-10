@@ -274,4 +274,31 @@ class ClientReservationController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Send a status notification email for a reservation.
+     * Called after approve or reject from the admin dashboard.
+     *
+     * POST /api/reservations/{reservation}/notify
+     * Body: { status: "approved"|"rejected", rejection_reason?: string }
+     */
+    public function notify(Request $request, Reservation $reservation)
+    {
+        $status          = $request->input('status');
+        $rejectionReason = $request->input('rejection_reason', '');
+
+        if (!in_array($status, ['approved', 'rejected', 'pending'])) {
+            return response()->json(['message' => 'Invalid status'], 422);
+        }
+
+        try {
+            \Mail::to($reservation->email)->send(
+                new \App\Mail\ReservationStatusMail($reservation, $status, $rejectionReason)
+            );
+            return response()->json(['success' => true, 'message' => 'Email sent.']);
+        } catch (\Exception $e) {
+            \Log::error('[ClientReservationController::notify] Mail failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Mail failed: ' . $e->getMessage()], 500);
+        }
+    }
 }

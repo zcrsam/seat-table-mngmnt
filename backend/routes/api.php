@@ -70,4 +70,5 @@ Route::prefix('reservations')->group(function () {
     Route::put('/{id}', [ClientReservationController::class, 'update']);
     Route::patch('/{id}/reject', [ClientReservationController::class, 'reject']);
     Route::delete('/{id}', [ClientReservationController::class, 'destroy']);
+    Route::post('/{reservation}/notify', [ClientReservationController::class, 'notify']);
 });

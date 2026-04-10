@@ -171,14 +171,20 @@ class AdminReservationController extends Controller
 
     public function approve(int $id): JsonResponse
     {
+        \Log::info('AdminReservationController::approve called for reservation ID: ' . $id);
+        
         try {
             $reservation = Reservation::findOrFail($id);
+            \Log::info('Reservation found: ' . $reservation->email . ', status: ' . $reservation->status);
+            
             $this->reservationService->approveReservation($reservation);
+            \Log::info('Reservation approved, sending email to: ' . $reservation->email);
 
             // Send approval email to the client
             try {
                 Mail::to($reservation->email)
                     ->send(new ReservationStatusMail($reservation, 'reserved'));
+                \Log::info('Approval email sent successfully to: ' . $reservation->email);
             } catch (\Exception $e) {
                 \Log::error('Failed to send approval email: ' . $e->getMessage());
             }
@@ -204,18 +210,24 @@ class AdminReservationController extends Controller
 
     public function reject(Request $request, int $id): JsonResponse
     {
+        \Log::info('AdminReservationController::reject called for reservation ID: ' . $id);
+        
         try {
             $validated = $request->validate([
                 'reason' => 'required|string|min:5|max:1000',
             ]);
 
             $reservation = Reservation::findOrFail($id);
+            \Log::info('Reservation found: ' . $reservation->email . ', status: ' . $reservation->status);
+            
             $this->reservationService->rejectReservation($reservation, $validated['reason']);
+            \Log::info('Reservation rejected, sending email to: ' . $reservation->email . ' with reason: ' . $validated['reason']);
 
             // Send rejection email to the client
             try {
                 Mail::to($reservation->email)
                     ->send(new ReservationStatusMail($reservation, 'rejected', $validated['reason']));
+                \Log::info('Rejection email sent successfully to: ' . $reservation->email);
             } catch (\Exception $e) {
                 \Log::error('Failed to send rejection email: ' . $e->getMessage());
             }

@@ -6,6 +6,7 @@ import heroBanner from "../../../assets/banner-grandroom.jpg";
 import mainWingImg from "../../../assets/main-wing.jpeg";
 import towerWingImg from "../../../assets/tower-wing.jpeg";
 import diningImg from "../../../assets/dining.jpeg";
+import SharedNavbar from "../../../components/SharedNavbar.jsx";
 import qsinaImg from "../../../assets/qsina.jpeg";
 import qsinaImg2 from "../../../assets/qsina2.jpeg";
 import qsinaImg3 from "../../../assets/qsina3.jpeg";
@@ -211,185 +212,6 @@ function Divider({ mb = 0, mt = 0 }) {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
   return <div style={{ height: 1, background: C.borderLight, margin: `${mt}px 0 ${mb}px` }} />;
-}
-
-// ─────────────────────────────────────────────
-// THEME TOGGLE
-// ─────────────────────────────────────────────
-function ThemeToggle() {
-  const { isDark, toggle } = useTheme();
-  const C = getTokens(isDark);
-  return (
-    <button type="button" onClick={toggle}
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "6px 10px 6px 6px",
-        background: "transparent",
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"}`,
-        borderRadius: 20,
-        cursor: "pointer", flexShrink: 0,
-        transition: "all 0.22s",
-      }}>
-      <span style={{
-        position: "relative", width: 34, height: 18, borderRadius: 10,
-        background: isDark ? "rgba(201,168,76,0.25)" : "rgba(0,0,0,0.10)",
-        display: "inline-flex", alignItems: "center", flexShrink: 0,
-        transition: "background 0.28s",
-      }}>
-        <span style={{
-          position: "absolute",
-          left: isDark ? 2 : "calc(100% - 16px)",
-          width: 14, height: 14, borderRadius: "50%",
-          background: isDark ? C.gold : "#8C6E2A",
-          transition: "left 0.24s cubic-bezier(.4,0,.2,1)",
-        }} />
-      </span>
-    </button>
-  );
-}
-
-// ─────────────────────────────────────────────
-// TOP NAV
-// ─────────────────────────────────────────────
-function TopNav({ onManageBooking }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const navLinkBase = {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    fontFamily: F.body,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.18em",
-    textTransform: "uppercase",
-    color: C.navText,
-    padding: 0,
-    whiteSpace: "nowrap",
-    transition: "color 0.2s",
-  };
-
-  return (
-    <>
-      <style>{`
-        nav { outline: none; border: none; }
-        @media (max-width: 640px) {
-          .hp-nav-desktop { display: none !important; }
-          .hp-nav-burger  { display: flex !important; }
-        }
-        @media (min-width: 641px) {
-          .hp-nav-burger  { display: none !important; }
-          .hp-nav-drawer  { display: none !important; }
-        }
-      `}</style>
-
-      <nav style={{
-        position: "fixed",
-        top: 0, left: 0, right: 0,
-        zIndex: 9000,
-        height: NAV_H,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 clamp(16px,4vw,52px)",
-        background: C.navBg,
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-        borderBottom: "none",
-        boxSizing: "border-box",
-        transition: "background 0.35s",
-      }}>
-        <img
-          src={bellevueLogo}
-          alt="The Bellevue Manila"
-          onClick={() => navigate("/")}
-          style={{
-            height: 32, width: "auto", cursor: "pointer", display: "block",
-            filter: isDark ? "none" : "brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(500%) hue-rotate(10deg)",
-            transition: "filter 0.35s", flexShrink: 0,
-          }}
-        />
-
-        <div className="hp-nav-desktop" style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-          <button type="button" style={navLinkBase} onClick={() => navigate("/venues")}
-            onMouseEnter={e => e.currentTarget.style.color = C.gold}
-            onMouseLeave={e => e.currentTarget.style.color = C.navText}>
-            Event
-          </button>
-
-          <button type="button" style={navLinkBase}
-            onClick={() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-            onMouseEnter={e => e.currentTarget.style.color = C.gold}
-            onMouseLeave={e => e.currentTarget.style.color = C.navText}>
-            Dining
-          </button>
-
-          <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
-          <ThemeToggle />
-        </div>
-
-        <button
-          className="hp-nav-burger"
-          type="button"
-          onClick={() => setMobileMenuOpen(p => !p)}
-          style={{
-            display: "none",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36, height: 36,
-            background: "none",
-            border: `1px solid ${C.border}`,
-            borderRadius: 6,
-            cursor: "pointer",
-            flexDirection: "column",
-            gap: 4,
-            padding: 0,
-            flexShrink: 0,
-          }}
-        >
-          {[0,1,2].map(i => (
-            <span key={i} style={{ display: "block", width: 18, height: 1.5, background: C.navText, borderRadius: 2, transition: "background 0.2s" }} />
-          ))}
-        </button>
-      </nav>
-
-      {mobileMenuOpen && (
-        <div
-          className="hp-nav-drawer"
-          style={{
-            position: "fixed",
-            top: NAV_H, left: 0, right: 0,
-            zIndex: 8999,
-            background: isDark ? "#1A1812" : "#FFFFFF",
-            borderBottom: `1px solid ${C.border}`,
-            padding: "20px 24px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
-          <button type="button" style={{ ...navLinkBase, textAlign: "left" }}
-            onClick={() => { navigate("/venues"); setMobileMenuOpen(false); }}>
-            Event
-          </button>
-          <button type="button" style={{ ...navLinkBase, textAlign: "left" }}
-            onClick={() => {
-              setMobileMenuOpen(false);
-              const el = document.getElementById("home-dining");
-              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}>
-            Dining
-          </button>
-          <div style={{ height: 1, background: C.border }} />
-          <ThemeToggle />
-        </div>
-      )}
-    </>
-  );
 }
 
 // ─────────────────────────────────────────────
@@ -763,42 +585,6 @@ function DiningSection({ onNavigate, initialRestaurantId }) {
                 ))}
               </div>
             </div>
-
-            {/* Floating booking widget */}
-            <div style={{
-              position: "absolute", bottom: -28, left: 20, right: 20,
-              background: C.widgetBg,
-              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-              border: `1px solid ${C.border}`,
-              borderRadius: 10, padding: "20px 22px",
-              boxShadow: isDark ? "0 20px 60px rgba(0,0,0,0.55)" : "0 20px 60px rgba(0,0,0,0.14)",
-              transition: "background 0.35s, border-color 0.35s",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.goldFaint, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: C.gold, fontSize: 13 }}>⌖</span>
-                </div>
-                <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: C.gold }}>Find Restaurants</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                <FieldInput type="date" value={date} onChange={(v) => { setForcedHighlightedLabel(null); setDate(v); }} />
-                <FieldInput type="time" value={time} onChange={(v) => { setForcedHighlightedLabel(null); setTime(v); }} />
-              </div>
-              <GuestPicker value={guests} onChange={setGuests} style={{ marginBottom: 12 }} />
-              <button type="button" onClick={() => onNavigate("venue")}
-                style={{
-                  width: "100%", padding: "11px",
-                  background: C.gold, border: "none", borderRadius: 4,
-                  fontFamily: F.body, fontSize: 12, fontWeight: 700,
-                  letterSpacing: "0.16em", textTransform: "uppercase",
-                  color: C.btnPrimaryText,
-                  cursor: "pointer", transition: "background 0.2s, color 0.35s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = C.goldLight)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = C.gold)}>
-                SUBMIT
-              </button>
-            </div>
           </div>
 
           {/* RIGHT */}
@@ -1087,7 +873,13 @@ export default function HomePage() {
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
       <div style={{ background: C.pageBg, minHeight: "100vh", transition: "background 0.35s ease" }}>
-        <TopNav onManageBooking={goToManageBooking} />
+        <SharedNavbar 
+          isDark={isDark} 
+          toggle={toggleTheme} 
+          showNavigation={true} 
+          scrolled={false}
+          height={64}
+        />
         <HeroBrowseSection onNavigateToVenues={goToVenues} onManageBooking={goToManageBooking} />
         <div id="home-dining">
           <DiningSection onNavigate={handleNavigate} initialRestaurantId={diningRestaurantId} />
