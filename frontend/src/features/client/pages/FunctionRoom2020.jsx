@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MainWingNavbar from "../components/MainWingNavbar";
-import ClientSeatMap, { STATUS_COLORS } from "../components/ClientSeatMap";
+import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -343,7 +343,7 @@ export default function FunctionRoom2020() {
 
         <div style={{ ...s.layout, ...(isMobile || isTablet ? { flexDirection: "column" } : {}) }}>
           <div style={s.mapCard}>
-            <ClientSeatMap
+            <SeatMap
               tableData={tableData}
               editMode={false}
               selectedSeat={selectedSeat}

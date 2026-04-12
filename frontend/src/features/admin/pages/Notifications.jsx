@@ -1,694 +1,452 @@
 // src/features/admin/pages/NotificationDashboard.jsx
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext } from "react";
 import {
   Bell, BellDot, Clock, X, CalendarDays,
   MapPin, Users, Phone, Mail, FileText, Hash, CheckCircle,
-  Wifi, WifiOff, ThumbsUp, Loader2,
+  Wifi, WifiOff, ThumbsUp, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { reservationAPI } from "../../../services/reservationAPI";
+import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-let bellevueLogo = null;
+// ─── Design Tokens (mirrors ManageBooking exactly) ────────────────────────────
+const ThemeContext = createContext({ isDark: true, toggle: () => {} });
+const useTheme = () => useContext(ThemeContext);
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const C = {
-  bg:           "#F5F6FA",
-  surface:      "#FFFFFF",
-  gold:         "#C9A84C",
-  goldBorder:   "rgba(201,168,76,0.30)",
-  navy:         "#1B2A4A",
-  navyLight:    "rgba(27,42,74,0.06)",
-  blue:         "#3B82F6",
-  bluePastel:   "#EFF6FF",
-  blueBorder:   "rgba(59,130,246,0.20)",
-  green:        "#16A34A",
-  greenPastel:  "#F0FDF4",
-  greenBorder:  "rgba(22,163,74,0.20)",
-  red:          "#DC2626",
-  redPastel:    "#FEF2F2",
-  redBorder:    "rgba(220,38,38,0.20)",
-  amber:        "#D97706",
-  amberPastel:  "#FFFBEB",
-  amberBorder:  "rgba(217,119,6,0.22)",
-  text:         "#111827",
-  textSub:      "#374151",
-  textMuted:    "#6B7280",
-  textLight:    "#9CA3AF",
-  textTiny:     "#D1D5DB",
-  border:       "#E5E7EB",
-  borderLight:  "#F3F4F6",
-  shadow:       "rgba(17,24,39,0.05)",
-  shadowMd:     "rgba(17,24,39,0.10)",
-  font:         "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+function getTokens(isDark) {
+  return isDark
+    ? {
+        gold: "#C4A35A",
+        goldLight: "#D9BC7A",
+        goldFaint: "rgba(196,163,90,0.08)",
+        goldFaintest: "rgba(196,163,90,0.04)",
+        pageBg: "#0A0908",
+        surfaceBase: "#111009",
+        surfaceRaised: "#161410",
+        surfaceInput: "rgba(255,255,255,0.04)",
+        borderDefault: "rgba(255,255,255,0.08)",
+        borderStrong: "rgba(255,255,255,0.12)",
+        borderAccent: "rgba(196,163,90,0.30)",
+        textPrimary: "#EDE8DF",
+        textSecondary: "#8A8278",
+        textTertiary: "rgba(237,232,223,0.32)",
+        textOnAccent: "#0A0908",
+        red: "#B85C5C",
+        redFaint: "rgba(184,92,92,0.08)",
+        redBorder: "rgba(184,92,92,0.20)",
+        green: "#4A9E7E",
+        greenFaint: "rgba(74,158,126,0.08)",
+        greenBorder: "rgba(74,158,126,0.20)",
+        blue: "#5B8FD4",
+        blueFaint: "rgba(91,143,212,0.08)",
+        blueBorder: "rgba(91,143,212,0.20)",
+        badgePending:  { bg: "rgba(196,163,90,0.10)", color: "#C4A35A", dot: "#C4A35A" },
+        badgeApproved: { bg: "rgba(74,158,126,0.10)", color: "#4A9E7E", dot: "#4A9E7E" },
+        badgeRejected: { bg: "rgba(184,92,92,0.10)",  color: "#B85C5C", dot: "#B85C5C" },
+        navBg: "rgba(10,9,8,0.95)",
+        navBorder: "rgba(196,163,90,0.12)",
+        divider: "rgba(255,255,255,0.05)",
+        inputFocusShadow: "0 0 0 3px rgba(196,163,90,0.12)",
+        modalOverlay: "rgba(0,0,0,0.82)",
+        statusNote: { pending: "rgba(196,163,90,0.05)", approved: "rgba(74,158,126,0.05)" },
+        statusNoteBorder: { pending: "rgba(196,163,90,0.15)", approved: "rgba(74,158,126,0.15)" },
+        headerGradient: "linear-gradient(160deg,#111009 0%,#161410 100%)",
+        spinnerBorder: "rgba(255,255,255,0.15)",
+        spinnerTop: "#C4A35A",
+        cardBg: "#111009",
+        cardBorder: "rgba(255,255,255,0.06)",
+        bgFilter: "blur(6px) brightness(0.35)",
+        bgOverlay: "rgba(12,11,10,0.75)",
+      }
+    : {
+        gold: "#8C6B2A",
+        goldLight: "#A07D38",
+        goldFaint: "rgba(140,107,42,0.07)",
+        goldFaintest: "rgba(140,107,42,0.04)",
+        pageBg: "#F7F4EE",
+        surfaceBase: "#FFFFFF",
+        surfaceRaised: "#FAF8F4",
+        surfaceInput: "#FFFFFF",
+        borderDefault: "rgba(0,0,0,0.08)",
+        borderStrong: "rgba(0,0,0,0.13)",
+        borderAccent: "rgba(140,107,42,0.28)",
+        textPrimary: "#18140E",
+        textSecondary: "#7A7060",
+        textTertiary: "rgba(24,20,14,0.35)",
+        textOnAccent: "#FFFFFF",
+        red: "#A03838",
+        redFaint: "rgba(160,56,56,0.07)",
+        redBorder: "rgba(160,56,56,0.18)",
+        green: "#2E7A5A",
+        greenFaint: "rgba(46,122,90,0.07)",
+        greenBorder: "rgba(46,122,90,0.18)",
+        blue: "#2E5CA0",
+        blueFaint: "rgba(46,92,160,0.07)",
+        blueBorder: "rgba(46,92,160,0.18)",
+        badgePending:  { bg: "rgba(140,107,42,0.09)", color: "#8C6B2A", dot: "#8C6B2A" },
+        badgeApproved: { bg: "rgba(46,122,90,0.09)",  color: "#2E7A5A", dot: "#2E7A5A" },
+        badgeRejected: { bg: "rgba(160,56,56,0.09)",  color: "#A03838", dot: "#A03838" },
+        navBg: "rgba(247,244,238,0.96)",
+        navBorder: "rgba(140,107,42,0.14)",
+        divider: "rgba(0,0,0,0.05)",
+        inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
+        modalOverlay: "rgba(0,0,0,0.55)",
+        statusNote: { pending: "rgba(140,107,42,0.05)", approved: "rgba(46,122,90,0.05)" },
+        statusNoteBorder: { pending: "rgba(140,107,42,0.18)", approved: "rgba(46,122,90,0.18)" },
+        headerGradient: "linear-gradient(160deg,#111009 0%,#1A160F 100%)",
+        spinnerBorder: "rgba(0,0,0,0.12)",
+        spinnerTop: "#8C6B2A",
+        cardBg: "#FFFFFF",
+        cardBorder: "rgba(0,0,0,0.07)",
+        bgFilter: "blur(6px) brightness(0.45) saturate(0.4)",
+        bgOverlay: "rgba(237,233,224,0.65)",
+      };
+}
+
+const F = {
+  display: "'Inter','Helvetica Neue',Arial,sans-serif",
+  body:    "'Inter','Helvetica Neue',Arial,sans-serif",
+  mono:    "'Inter','Helvetica Neue',Arial,sans-serif",
+  label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-// ── Normalise raw API row ─────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 function normaliseRow(r) {
-  // Handle both API format and WebSocket format
-  const isWebSocketFormat = !r.room && !r.eventDate && (r.event_date || r.eventDate);
-  
-  if (isWebSocketFormat) {
-    // WebSocket format - map to API format
+  const isWS = !r.room && !r.eventDate && (r.event_date || r.eventDate);
+  if (isWS) {
     return {
       ...r,
       db_id: Number(r.db_id ?? r.id),
       id: r.reference_code ?? String(r.id),
-      // Map WebSocket fields to API format
       room: r.venue || r.room || "Alabang Function Room",
       table: r.table_number || r.table,
       seat: r.seat_number || r.seat,
-      guests: r.guests_count || r.guests,
+      guests: r.guests_count || r.guests || r.guests_number,
       eventDate: r.event_date || r.eventDate,
       eventTime: r.event_time || r.eventTime,
-      specialRequests: r.special_requests || r.specialRequests,
-      submittedAt: r.submitted_at || r.submittedAt,
+      specialRequests: r.special_requests || r.specialRequests || r.notes || r.remarks,
       submittedTimestamp: r.submitted_timestamp || r.submittedTimestamp,
       guest_name: r.name || r.guest_name,
-    };
-  } else {
-    // API format - keep as is
-    return {
-      ...r,
-      db_id: Number(r.db_id ?? r.id),
-      id: r.reference_code ?? String(r.id),
+      status: r.status || r.reservationStatus || r.reservation_status || 'pending'
     };
   }
+  return {
+    ...r,
+    db_id: Number(r.db_id ?? r.id),
+    id: r.reference_code ?? String(r.id),
+    guests: r.guests_count || r.guests || r.guests_number || r.guests,
+    specialRequests: r.special_requests || r.specialRequests || r.notes || r.remarks,
+    guest_name: r.name || r.guest_name,
+    status: r.status || r.reservationStatus || r.reservation_status || 'pending'
+  };
 }
-
-// ── Status helpers ─────────────────────────────────────────────────────────────
-function shouldTrack(r) {
-  const s = (r.status || r.reservationStatus || r.reservation_status || "")
-    .toLowerCase().trim();
-  return s !== "rejected" && s !== "cancelled" && s !== "canceled";
+function shouldTrack(r) { 
+  const s = (r.status || "").toLowerCase().trim(); 
+  return s !== "rejected" && s !== "cancelled" && s !== "canceled" && s !== "deleted" && s !== "archived"; 
 }
-
-function isApproved(r) {
-  const s = (r.status || r.reservationStatus || r.reservation_status || "")
-    .toLowerCase().trim();
-  return s === "reserved" || s === "approved" || s === "confirmed" || s === "done";
+function isApproved(r)  { 
+  const s = (r.status || "").toLowerCase().trim(); 
+  return ["reserved","approved","confirmed","done","completed","accepted"].includes(s); 
 }
-
-function isPending(r) {
-  const s = (r.status || r.reservationStatus || r.reservation_status || "")
-    .toLowerCase().trim();
-  return s === "pending";
+function isPending(r)   { 
+  const s = (r.status || "").toLowerCase().trim(); 
+  return s === "pending" || s === "awaiting" || s === "under review"; 
 }
-
-// ── Date / time helpers ───────────────────────────────────────────────────────
-function parseEventDate(dateStr, timeStr) {
-  if (!dateStr) return null;
-  const base = new Date(dateStr);
-  if (isNaN(base)) return null;
-  if (timeStr) {
-    const m24 = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    const m12 = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (m24) {
-      base.setHours(+m24[1], +m24[2], 0, 0);
-    } else if (m12) {
-      let h = +m12[1];
-      const ap = m12[3].toUpperCase();
-      if (ap === "PM" && h !== 12) h += 12;
-      if (ap === "AM" && h === 12) h = 0;
-      base.setHours(h, +m12[2], 0, 0);
+function parseEventDate(d, t) {
+  if (!d) return null;
+  let b = new Date(d); 
+  if (isNaN(b)) {
+    // Try parsing common date formats
+    const cleanDate = String(d).trim().replace(/[^\d\-\/]/g, '');
+    b = new Date(cleanDate);
+    if (isNaN(b)) return null;
+  }
+  
+  if (t) { 
+    const m = t.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i); 
+    if (m) { 
+      let h = +m[1]; 
+      if (m[3] && m[3].toUpperCase() === "PM" && h !== 12) h += 12; 
+      if (m[3] && m[3].toUpperCase() === "AM" && h === 12) h = 0; 
+      b.setHours(h, +m[2], 0, 0); 
     }
   }
-  return base;
+  return b;
 }
+function fmtTime(t) { if (!t) return "—"; const m = t.match(/^(\d{1,2}):(\d{2})$/); if (m) { const h = +m[1]; return `${((h+11)%12)+1}:${m[2]} ${h>=12?"PM":"AM"}`; } return t; }
+function fmtDate(d) { if (!d) return "—"; const dt = new Date(d); return isNaN(dt) ? String(d) : dt.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }); }
+function relLabel(ms) { if (ms<=0) return "now"; const m=Math.round(ms/60000); if (m<60) return `${m} min`; const h=Math.floor(m/60),r=m%60; return r===0?`${h} hr`:`${h} hr ${r} min`; }
+function clockStr() { return new Date().toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+function dateStr()  { return new Date().toLocaleDateString("en-PH",{weekday:"long",month:"long",day:"numeric",year:"numeric"}); }
 
-function fmtTime(t) {
-  if (!t) return "—";
-  const m24 = t.match(/^(\d{1,2}):(\d{2})$/);
-  if (m24) {
-    const h = +m24[1];
-    return `${((h + 11) % 12) + 1}:${m24[2]} ${h >= 12 ? "PM" : "AM"}`;
-  }
-  return t;
-}
-
-function fmtDate(d) {
-  if (!d) return "—";
-  const dt = new Date(d);
-  return isNaN(dt)
-    ? String(d)
-    : dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function relativeTimeLabel(diffMs) {
-  if (diffMs <= 0) return "now";
-  const totalMin = Math.round(diffMs / 60000);
-  if (totalMin < 60) return `${totalMin} min`;
-  const hrs  = Math.floor(totalMin / 60);
-  const mins = totalMin % 60;
-  const hLabel = hrs === 1 ? "1 hr" : `${hrs} hrs`;
-  return mins === 0 ? hLabel : `${hLabel} ${mins} min`;
-}
-
-function clockStr() {
-  return new Date().toLocaleTimeString("en-PH", {
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
-}
-function dateStr() {
-  return new Date()
-    .toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })
-    .toUpperCase();
-}
-
-// ── Audio ─────────────────────────────────────────────────────────────────────
-let _alertInterval = null;
-
-function _playAlertOnce(onDone) {
+// ─── Audio ────────────────────────────────────────────────────────────────────
+let _alertId = null;
+function stopAlert() { if (_alertId) { clearInterval(_alertId); _alertId = null; } }
+function _beep(notes, onDone) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [
-      { f: 880, d: 0.12 }, { f: 880, d: 0.12 },
-      { f: 880, d: 0.12 }, { f: 1100, d: 0.24 },
-    ];
-    let t = ctx.currentTime + 0.05;
-    notes.forEach(({ f, d }) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = "square";
-      o.frequency.setValueAtTime(f, t);
-      g.gain.setValueAtTime(0.18, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + d);
-      o.start(t); o.stop(t + d);
-      t += d + 0.06;
-    });
-    if (onDone) setTimeout(onDone, (t - ctx.currentTime) * 1000 + 500);
-  } catch (e) { if (onDone) onDone(); }
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const end = notes.reduce((t,{f,d,w="sine"}) => { const o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g);g.connect(ctx.destination);o.type=w;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.start(t);o.stop(t+d);return t+d+0.05; }, ctx.currentTime+0.05);
+    if (onDone) setTimeout(onDone, (end-ctx.currentTime)*1000+400);
+  } catch { if (onDone) onDone(); }
+}
+function playAlertThenSpeak(text) { stopAlert(); _beep([{f:880,d:.12,w:"square"},{f:880,d:.12,w:"square"},{f:1100,d:.24,w:"square"}],()=>speakText(text)); _alertId=setInterval(()=>_beep([{f:880,d:.12,w:"square"},{f:880,d:.12,w:"square"},{f:1100,d:.24,w:"square"}]),4000); }
+function playPendingChime() { _beep([{f:1046,d:.13},{f:784,d:.13},{f:523,d:.22}]); }
+function playApproveSound() { _beep([{f:523,d:.08},{f:659,d:.08},{f:784,d:.08},{f:1047,d:.20}]); }
+function speakText(text) { if (!window.speechSynthesis) return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=0.95;u.pitch=1.05;u.volume=1; const v=window.speechSynthesis.getVoices(); const eng=v.find(x=>x.lang.startsWith("en")&&/female|zira|samantha/i.test(x.name))||v.find(x=>x.lang.startsWith("en")); if(eng)u.voice=eng; window.speechSynthesis.speak(u); }
+
+// ─── Primitives ───────────────────────────────────────────────────────────────
+function Spinner({ size=13, C }) {
+  return <span style={{ display:"inline-block",width:size,height:size,border:`1.5px solid ${C.spinnerBorder}`,borderTopColor:C.spinnerTop,borderRadius:"50%",animation:"spin 0.65s linear infinite",flexShrink:0 }} />;
 }
 
-function playAlertThenSpeak(text) {
-  stopAlertSound();
-  _playAlertOnce(() => speakText(text));
-  _alertInterval = setInterval(() => _playAlertOnce(), 4000);
-}
-
-function stopAlertSound() {
-  if (_alertInterval !== null) { clearInterval(_alertInterval); _alertInterval = null; }
-}
-
-// ── NEW: Distinct pending alarm — urgent repeated beeps ───────────────────────
-// Sounds like a front-desk notification chime: descending 3-tone with a slight urgency
-let _pendingAlertInterval = null;
-
-function _playPendingChimeOnce(onDone) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // Three descending tones — "ding-ding-dong" pattern
-    const notes = [
-      { f: 1046, d: 0.13, type: "sine" },  // C6
-      { f: 784,  d: 0.13, type: "sine" },  // G5
-      { f: 523,  d: 0.22, type: "sine" },  // C5 (long)
-    ];
-    let t = ctx.currentTime + 0.05;
-    notes.forEach(({ f, d, type }) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = type;
-      o.frequency.setValueAtTime(f, t);
-      g.gain.setValueAtTime(0.20, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + d);
-      o.start(t); o.stop(t + d);
-      t += d + 0.07;
-    });
-    if (onDone) setTimeout(onDone, (t - ctx.currentTime) * 1000 + 300);
-  } catch (e) { if (onDone) onDone(); }
-}
-
-/**
- * Play the pending-reservation chime once (sound only, no speech).
- * Unlike the upcoming-event alarm it does NOT keep repeating — it's a
- * one-shot notification so it doesn't feel intrusive for every new booking.
- */
-function playPendingAlertThenSpeak() {
-  stopPendingAlertSound();
-  _playPendingChimeOnce(() => {
-    // No text-to-speech for pending reservations - only sound alert
-  });
-}
-
-function stopPendingAlertSound() {
-  if (_pendingAlertInterval !== null) {
-    clearInterval(_pendingAlertInterval);
-    _pendingAlertInterval = null;
-  }
-}
-
-function playNewSound(onDone) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [{ f: 523, d: 0.10 }, { f: 659, d: 0.10 }, { f: 784, d: 0.18 }];
-    let t = ctx.currentTime + 0.05;
-    notes.forEach(({ f, d }) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = "sine";
-      o.frequency.setValueAtTime(f, t);
-      g.gain.setValueAtTime(0.13, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + d);
-      o.start(t); o.stop(t + d);
-      t += d + 0.04;
-    });
-    if (onDone) setTimeout(onDone, (t - ctx.currentTime) * 1000 + 400);
-  } catch (e) { if (onDone) onDone(); }
-}
-
-function playApproveSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [{ f: 523, d: 0.08 }, { f: 659, d: 0.08 }, { f: 784, d: 0.08 }, { f: 1047, d: 0.20 }];
-    let t = ctx.currentTime + 0.05;
-    notes.forEach(({ f, d }) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = "sine";
-      o.frequency.setValueAtTime(f, t);
-      g.gain.setValueAtTime(0.14, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + d);
-      o.start(t); o.stop(t + d);
-      t += d + 0.03;
-    });
-  } catch (e) {}
-}
-
-function speakText(text) {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.95; u.pitch = 1.05; u.volume = 1.0;
-  const voices = window.speechSynthesis.getVoices();
-  const eng =
-    voices.find(v => v.lang.startsWith("en") && /female|zira|samantha/i.test(v.name)) ||
-    voices.find(v => v.lang.startsWith("en")) || null;
-  if (eng) u.voice = eng;
-  window.speechSynthesis.speak(u);
-}
-
-// ── InfoGrid — 2 × 3 ──────────────────────────────────────────────────────────
-function InfoGrid({ fields, labelColor = C.textLight, valueColor = C.textSub }) {
-  const slots = [...fields];
-  while (slots.length < 6) slots.push({ label: "", value: "" });
+function ThemeToggle({ C, isDark, toggle }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 10px" }}>
-      {slots.slice(0, 6).map(({ label, value }, i) => (
-        <div key={i}>
-          {label && (
-            <>
-              <div style={{ fontFamily: C.font, fontSize: 10, fontWeight: 600, color: labelColor, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
-              <div style={{ fontFamily: C.font, fontSize: 12, fontWeight: 500, color: valueColor, lineHeight: 1.4 }}>{value || "—"}</div>
-            </>
-          )}
-        </div>
-      ))}
-    </div>
+    <button type="button" onClick={toggle}
+      style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 12px 6px 8px",background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:20,cursor:"pointer",flexShrink:0,transition:"all 0.22s" }}
+      onMouseEnter={e=>e.currentTarget.style.borderColor=C.borderAccent}
+      onMouseLeave={e=>e.currentTarget.style.borderColor=C.borderDefault}
+    >
+      <span style={{ position:"relative",width:28,height:16,borderRadius:8,background:isDark?"rgba(196,163,90,0.22)":"rgba(0,0,0,0.08)",display:"inline-flex",alignItems:"center",flexShrink:0,transition:"background 0.28s" }}>
+        <span style={{ position:"absolute",left:isDark?2:"calc(100% - 14px)",width:12,height:12,borderRadius:"50%",background:isDark?"#C4A35A":"#8C6B2A",transition:"left 0.24s cubic-bezier(.4,0,.2,1)" }} />
+      </span>
+      <span style={{ fontFamily:F.label,fontSize:11,fontWeight:500,letterSpacing:"0.03em",color:C.textSecondary }}>{isDark?"Dark":"Light"}</span>
+    </button>
   );
 }
 
-// ── Status badge helper ───────────────────────────────────────────────────────
-function StatusBadge({ status }) {
-  const s = (status || "").toLowerCase().trim();
-  const cfg =
-    s === "reserved" || s === "approved" || s === "confirmed"
-      ? { bg: C.greenPastel, border: `${C.green}40`, color: C.green, label: s === "reserved" ? "Reserved" : s.charAt(0).toUpperCase() + s.slice(1) }
-    : s === "done"
-      ? { bg: C.bluePastel,  border: `${C.blue}40`,  color: C.blue,  label: "Done" }
-    : s === "pending"
-      ? { bg: C.amberPastel, border: `${C.amber}40`, color: C.amber, label: "Pending" }
-    : { bg: C.borderLight,   border: C.border,       color: C.textMuted, label: s || "—" };
-
+function StatusBadge({ status, C }) {
+  const s = (status||"").toLowerCase().trim();
+  const cfg = s==="reserved"||s==="approved"||s==="confirmed" ? {...C.badgeApproved,label:"Reserved"} : s==="done" ? {bg:C.blueFaint,color:C.blue,dot:C.blue,label:"Done"} : s==="pending" ? {...C.badgePending,label:"Pending"} : {bg:C.borderDefault,color:C.textSecondary,dot:C.textSecondary,label:s||"—"};
   return (
-    <span style={{
-      background: cfg.bg,
-      border: `1px solid ${cfg.border}`,
-      borderRadius: 20,
-      padding: "3px 12px",
-      fontFamily: C.font,
-      fontSize: 12,
-      fontWeight: 600,
-      color: cfg.color,
-    }}>
-      {cfg.label}
+    <span style={{ display:"inline-flex",alignItems:"center",gap:5,background:cfg.bg,color:cfg.color,padding:"4px 10px 4px 8px",borderRadius:4,fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",fontFamily:F.label,border:`1px solid ${cfg.color}30` }}>
+      <span style={{ width:4,height:4,borderRadius:"50%",background:cfg.dot }} />{cfg.label}
     </span>
   );
 }
 
-// ── Approve Confirmation Modal ────────────────────────────────────────────────
-function ApproveConfirmModal({ res, onConfirm, onCancel, isApproving }) {
-  if (!res) return null;
+function SectionLabel({ children, C, style={} }) {
+  return <div style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.20em",color:C.gold,fontWeight:700,textTransform:"uppercase",marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${C.divider}`,...style }}>{children}</div>;
+}
+
+// ─── Modal Shell + Header ─────────────────────────────────────────────────────
+function ModalShell({ children, onClose, disabled, C, maxWidth=520, zIndex=4000 }) {
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 10002, background: "rgba(17,24,39,0.50)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeUp .2s ease" }}
-      onClick={e => { if (e.target === e.currentTarget && !isApproving) onCancel(); }}
-    >
-      <div style={{ background: C.surface, borderRadius: 14, width: "100%", maxWidth: 380, overflow: "hidden", boxShadow: "0 24px 64px rgba(17,24,39,.22)", animation: "popupIn .3s cubic-bezier(.34,1.5,.64,1)" }}>
-        <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.greenPastel, border: `1.5px solid ${C.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <ThumbsUp size={16} color={C.green} />
-            </div>
-            <div>
-              <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 15, color: C.navy }}>Approve Reservation</div>
-              <div style={{ fontFamily: C.font, fontSize: 12, color: C.textMuted, marginTop: 1 }}>This action cannot be undone</div>
-            </div>
-          </div>
-        </div>
-        <div style={{ padding: "16px 20px" }}>
-          <div style={{ background: C.amberPastel, border: `1px solid ${C.amberBorder}`, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
-            <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 4 }}>
-              {res.guest_name || res.name || "Unknown Guest"}
-            </div>
-            <div style={{ fontFamily: C.font, fontSize: 12, color: C.textMuted }}>
-              {res.room || res.venue || "—"} · {fmtDate(res.event_date || res.eventDate || res.reservationDate)} · {fmtTime(res.event_time || res.eventTime || res.reservationTime)}
-            </div>
-            <div style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-              Ref: {res.reference_code || res.ref_code || res.id || "—"}
-            </div>
-          </div>
-          <div style={{ fontFamily: C.font, fontSize: 13, color: C.textSub, lineHeight: 1.55 }}>
-            Are you sure you want to <strong>approve</strong> this reservation? The status will be updated to <strong style={{ color: C.green }}>Reserved</strong>.
-          </div>
-        </div>
-        <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onCancel} disabled={isApproving}
-            style={{ padding: "8px 18px", background: C.borderLight, border: `1px solid ${C.border}`, borderRadius: 8, fontFamily: C.font, fontSize: 13, fontWeight: 600, color: C.textMuted, cursor: isApproving ? "not-allowed" : "pointer", opacity: isApproving ? 0.6 : 1 }}>
-            Cancel
-          </button>
-          <button onClick={onConfirm} disabled={isApproving}
-            style={{ padding: "8px 20px", background: isApproving ? C.green + "99" : C.green, color: "#fff", border: "none", borderRadius: 8, fontFamily: C.font, fontSize: 13, fontWeight: 600, cursor: isApproving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 7, minWidth: 110, justifyContent: "center", transition: "background .2s" }}>
-            {isApproving ? (
-              <><Loader2 size={13} style={{ animation: "spin .7s linear infinite" }} />Approving…</>
-            ) : (
-              <><ThumbsUp size={13} />Approve</>
-            )}
-          </button>
-        </div>
+    <div style={{ position:"fixed",inset:0,background:C.modalOverlay,zIndex,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)" }} onClick={e=>{ if(e.target===e.currentTarget&&!disabled)onClose(); }}>
+      <div style={{ background:C.surfaceBase,borderRadius:14,width:"100%",maxWidth,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.30)",border:`1px solid ${C.borderDefault}`,fontFamily:F.body,animation:"modalIn 0.20s cubic-bezier(0.16,1,0.3,1)",overflow:"hidden" }}>
+        <div style={{ height:"2px",background:`linear-gradient(90deg,transparent,${C.gold}80 30%,${C.gold}80 70%,transparent)` }} />
+        {children}
       </div>
     </div>
   );
 }
 
-// ── Reservation Detail Modal ──────────────────────────────────────────────────
-function ReservationDetailModal({ res, onClose, onApprove, approvingIds }) {
-  if (!res) return null;
+function ModalHeader({ eyebrow, title, onClose, disabled, C, right }) {
+  return (
+    <div style={{ background:C.headerGradient,padding:"20px 22px 18px",position:"sticky",top:0,zIndex:2,borderBottom:`1px solid ${C.divider}` }}>
+      <div style={{ position:"absolute",top:14,right:16,zIndex:20,display:"flex",alignItems:"center",gap:10 }}>
+        {right}
+        <button onClick={onClose} disabled={disabled} style={{ width:32,height:32,borderRadius:"50%",background:"transparent",border:"1px solid rgba(255,255,255,0.10)",cursor:disabled?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"all 0.18s" }} onMouseEnter={e=>{ if(!disabled){e.currentTarget.style.borderColor=C.gold;e.currentTarget.style.background=C.goldFaint;} }} onMouseLeave={e=>{ if(!disabled){e.currentTarget.style.borderColor="rgba(255,255,255,0.10)";e.currentTarget.style.background="transparent";} }}>
+          <X size={12} color="rgba(237,232,223,0.50)" strokeWidth={2.5} />
+        </button>
+      </div>
+      <div style={{ paddingRight:80 }}>
+        {eyebrow&&<div style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.gold,fontWeight:700,textTransform:"uppercase",marginBottom:6,opacity:0.80 }}>{eyebrow}</div>}
+        <div style={{ fontFamily:F.display,fontSize:20,fontWeight:400,color:"#EDE8DF",letterSpacing:"0.01em",lineHeight:1.2 }}>{title}</div>
+      </div>
+    </div>
+  );
+}
 
-  const rawStatus = (res.status || res.reservationStatus || res.reservation_status || "").toLowerCase();
+function DetailRow({ label, value, icon, C, accent }) {
+  return (
+    <div style={{ display:"flex",alignItems:"flex-start",gap:12,marginBottom:10 }}>
+      <div style={{ width:30,height:30,borderRadius:8,flexShrink:0,background:C.goldFaintest,border:`1px solid ${C.borderAccent}`,display:"flex",alignItems:"center",justifyContent:"center",marginTop:1 }}>
+        {React.cloneElement(icon,{size:13,color:C.gold})}
+      </div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.18em",color:C.textTertiary,fontWeight:700,textTransform:"uppercase",marginBottom:3 }}>{label}</div>
+        <div style={{ fontFamily:F.body,fontSize:13,fontWeight:500,color:accent?C.gold:C.textPrimary,lineHeight:1.45 }}>{value||"—"}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Approve Confirm Modal ────────────────────────────────────────────────────
+function ApproveConfirmModal({ res, onConfirm, onCancel, isApproving, C }) {
+  if (!res) return null;
+  return (
+    <ModalShell onClose={onCancel} disabled={isApproving} C={C} maxWidth={400} zIndex={5000}>
+      <ModalHeader eyebrow="Confirmation Required" title="Approve Reservation" onClose={onCancel} disabled={isApproving} C={C} />
+      <div style={{ padding:"20px 24px 26px" }}>
+        <div style={{ padding:"14px 16px",borderRadius:10,marginBottom:18,background:C.goldFaintest,border:`1px solid ${C.borderAccent}` }}>
+          <div style={{ fontFamily:F.body,fontSize:14,fontWeight:600,color:C.textPrimary,marginBottom:4 }}>{res.guest_name||res.name||"Unknown Guest"}</div>
+          <div style={{ fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.6 }}>{res.room||res.venue||"—"} · {fmtDate(res.event_date||res.eventDate)} · {fmtTime(res.event_time||res.eventTime)}</div>
+          <div style={{ fontFamily:F.mono,fontSize:11,color:C.textTertiary,marginTop:4 }}>Ref: {res.reference_code||res.id||"—"}</div>
+        </div>
+        <div style={{ padding:"10px 14px",borderRadius:8,marginBottom:20,background:C.greenFaint,border:`1px solid ${C.greenBorder}`,fontFamily:F.body,fontSize:12.5,color:C.textSecondary,lineHeight:1.65 }}>
+          Status will update to <strong style={{ color:C.green }}>Reserved</strong>. This cannot be undone.
+        </div>
+        <div style={{ display:"flex",gap:8 }}>
+          <button onClick={onCancel} disabled={isApproving} style={{ flex:1,padding:"12px",background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:C.textSecondary,cursor:isApproving?"not-allowed":"pointer",transition:"all 0.18s" }} onMouseEnter={e=>{ if(!isApproving){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;} }} onMouseLeave={e=>{ if(!isApproving){e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;} }}>Cancel</button>
+          <button onClick={onConfirm} disabled={isApproving} style={{ flex:2,padding:"12px",border:"none",borderRadius:8,background:isApproving?C.green+"80":C.green,color:"#fff",fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",cursor:isApproving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.18s" }}>
+            {isApproving?<><Spinner C={C} size={12}/>Approving…</>:<><ThumbsUp size={12}/>Approve</>}
+          </button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+function DetailModal({ res, onClose, onApprove, approvingIds, C }) {
+  if (!res) return null;
+  const rawStatus = (res.status||"").toLowerCase();
   const resIsPending = rawStatus === "pending";
   const resId = res.id ?? res.db_id;
   const isApprovingThis = approvingIds?.has(resId);
-
-  const sections = [
-    {
-      title: "Guest Information",
-      rows: [
-        { icon: <Users size={13} color={C.gold} />,    label: "Guest Name", value: res.guest_name || res.name || "—" },
-        { icon: <Mail  size={13} color={C.gold} />,    label: "Email",      value: res.email || res.guest_email || "—" },
-        { icon: <Phone size={13} color={C.gold} />,    label: "Phone",      value: res.phone || res.contact || res.guest_phone || "—" },
-        { icon: <Users size={13} color={C.gold} />,    label: "Guests",     value: (res.guests_count ?? res.guests_number ?? res.guests) ? `${res.guests_count ?? res.guests_number ?? res.guests} Pax` : "1 Pax" },
-      ],
-    },
-    {
-      title: "Reservation Details",
-      rows: [
-        { icon: <Hash         size={13} color={C.gold} />, label: "Reference",  value: res.reference_code || res.ref_code || res.id || "—" },
-        { icon: <MapPin       size={13} color={C.gold} />, label: "Venue",      value: res.room || res.venue || "—" },
-        { icon: <FileText     size={13} color={C.gold} />, label: "Table",      value: res.table_number ?? res.table ?? "—" },
-        { icon: <FileText     size={13} color={C.gold} />, label: "Seat",       value: res.seat_number  ?? res.seat  ?? "—" },
-        { icon: <CalendarDays size={13} color={C.gold} />, label: "Event Date", value: fmtDate(res.event_date || res.eventDate || res.reservationDate) },
-        { icon: <Clock        size={13} color={C.gold} />, label: "Event Time", value: fmtTime(res.event_time || res.eventTime || res.reservationTime) },
-      ],
-    },
-    {
-      title: "Additional Info",
-      rows: [
-        { icon: <FileText    size={13} color={C.gold} />, label: "Special Requests", value: res.special_requests || res.notes || res.remarks || "None" },
-        { icon: <CheckCircle size={13} color={C.gold} />, label: "Status",            value: <StatusBadge status={rawStatus} /> },
-      ],
-    },
-  ];
-
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(17,24,39,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeUp .2s ease" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{ background: C.surface, borderRadius: 14, width: "100%", maxWidth: 520, maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(17,24,39,.20), 0 4px 20px rgba(0,0,0,.06)", animation: "popupIn .3s cubic-bezier(.34,1.5,.64,1)" }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div>
-            <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 15, color: C.navy }}>Reservation Details</div>
-            <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 400, color: C.textMuted, marginTop: 2 }}>{res.guest_name || res.name || "Guest"}</div>
-          </div>
-          <StatusBadge status={rawStatus} />
-        </div>
-        {resIsPending && (
-          <div style={{ background: C.amberPastel, borderBottom: `1px solid ${C.amberBorder}`, padding: "10px 20px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <Clock size={13} color={C.amber} />
-            <span style={{ fontFamily: C.font, fontSize: 12, fontWeight: 600, color: C.amber, flex: 1 }}>
-              This reservation is awaiting approval
-            </span>
-          </div>
-        )}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 20px" }}>
-          {sections.map(({ title, rows }) => (
-            <div key={title} style={{ marginBottom: 20 }}>
-              <div style={{ fontFamily: C.font, fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${C.borderLight}` }}>{title}</div>
-              {rows.map(({ icon, label, value }) => (
-                <div key={label} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>{icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: C.font, fontSize: 10, fontWeight: 600, color: C.textLight, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
-                    <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 500, color: C.textSub, lineHeight: 1.4 }}>{value}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          {resIsPending && onApprove && (
-            <button onClick={() => onApprove(res)} disabled={isApprovingThis}
-              style={{ padding: "8px 20px", background: isApprovingThis ? C.green + "99" : C.green, color: "#fff", border: "none", borderRadius: 8, fontFamily: C.font, fontSize: 13, fontWeight: 600, cursor: isApprovingThis ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 7, transition: "background .2s" }}>
-              {isApprovingThis ? (
-                <><Loader2 size={13} style={{ animation: "spin .7s linear infinite" }} /> Approving…</>
-              ) : (
-                <><ThumbsUp size={13} /> Approve</>
-              )}
-            </button>
-          )}
-          <button onClick={onClose} style={{ padding: "8px 22px", background: C.navy, color: "#fff", border: "none", borderRadius: 8, fontFamily: C.font, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Close</button>
-        </div>
+    <ModalShell onClose={onClose} C={C} maxWidth={520}>
+      <ModalHeader eyebrow="Reservation Record" title={res.guest_name||res.name||"Guest"} onClose={onClose} C={C} right={<StatusBadge status={rawStatus} C={C}/>} />
+      {resIsPending&&<div style={{ padding:"10px 22px",display:"flex",alignItems:"center",gap:8,background:C.statusNote.pending,borderBottom:`1px solid ${C.statusNoteBorder.pending}` }}><Clock size={12} color={C.gold}/><span style={{ fontFamily:F.body,fontSize:12,color:C.gold }}>Awaiting approval</span></div>}
+      <div style={{ padding:"20px 22px",maxHeight:"60vh",overflowY:"auto" }}>
+        <SectionLabel C={C}>Guest Information</SectionLabel>
+        <DetailRow icon={<Users/>} label="Guest Name" value={res.guest_name||res.name} C={C}/>
+        <DetailRow icon={<Mail/>}  label="Email"      value={res.email||res.guest_email} C={C}/>
+        <DetailRow icon={<Phone/>} label="Phone"      value={res.phone||res.contact||res.guest_phone} C={C}/>
+        <DetailRow icon={<Users/>} label="Guests"     value={(res.guests_count??res.guests)?`${res.guests_count??res.guests} pax`:"1 pax"} C={C}/>
+        <SectionLabel C={C} style={{ marginTop:18 }}>Reservation Details</SectionLabel>
+        <DetailRow icon={<Hash/>}         label="Reference"  value={res.reference_code||res.id} C={C} accent/>
+        <DetailRow icon={<MapPin/>}       label="Venue"      value={res.room||res.venue} C={C}/>
+        <DetailRow icon={<FileText/>}     label="Table"      value={res.table_number??res.table} C={C}/>
+        <DetailRow icon={<FileText/>}     label="Seat"       value={res.seat_number??res.seat} C={C}/>
+        <DetailRow icon={<CalendarDays/>} label="Event Date" value={fmtDate(res.event_date||res.eventDate||res.reservationDate)} C={C}/>
+        <DetailRow icon={<Clock/>}        label="Event Time" value={fmtTime(res.event_time||res.eventTime||res.reservationTime)} C={C}/>
+        <SectionLabel C={C} style={{ marginTop:18 }}>Additional Info</SectionLabel>
+        <DetailRow icon={<FileText/>}    label="Special Requests" value={res.special_requests||res.notes||"None"} C={C}/>
+        <DetailRow icon={<CheckCircle/>} label="Status"           value={<StatusBadge status={rawStatus} C={C}/>} C={C}/>
       </div>
-    </div>
-  );
-}
-
-// ── Multi-event Picker Modal ──────────────────────────────────────────────────
-function EventPickerModal({ items, allCards, onSelect, onClose }) {
-  const [nowMs, setNowMs] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 10001, background: "rgba(17,24,39,0.50)", backdropFilter: "blur(5px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeUp .2s ease" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{ background: C.surface, borderRadius: 14, width: "100%", maxWidth: 460, maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(17,24,39,.22)", animation: "popupIn .3s cubic-bezier(.34,1.5,.64,1)" }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div>
-            <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 15, color: C.navy }}>Choose Event to View</div>
-            <div style={{ fontFamily: C.font, fontSize: 12, color: C.textMuted, marginTop: 2 }}>{items.length} upcoming events — select one</div>
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px" }}>
-          {items.map((item, idx) => {
-            const dt   = parseEventDate(item.eventDate, item.eventTime);
-            const diff = dt ? dt.getTime() - nowMs : null;
-            const rel  = diff !== null && diff > 0
-              ? relativeTimeLabel(diff) + " before event"
-              : diff !== null && diff <= 0 ? "Event started" : null;
-            const urgent  = diff !== null && diff <= 30 * 60000;
-            const fullRes = allCards.find(r => (r.id ?? r.db_id) === item.id);
-            return (
-              <button key={idx} onClick={() => fullRes && onSelect(fullRes)} disabled={!fullRes}
-                style={{ display: "block", width: "100%", textAlign: "left", background: fullRes ? C.surface : C.borderLight, border: `1.5px solid ${urgent ? C.redBorder : C.border}`, borderRadius: 10, padding: "13px 15px", marginBottom: 8, cursor: fullRes ? "pointer" : "not-allowed", transition: "all .15s", boxShadow: `0 1px 4px ${C.shadow}`, opacity: fullRes ? 1 : 0.55 }}
-                onMouseEnter={e => { if (fullRes) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.boxShadow = `0 4px 14px rgba(201,168,76,.15)`; } }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = urgent ? C.redBorder : C.border; e.currentTarget.style.boxShadow = `0 1px 4px ${C.shadow}`; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <span style={{ fontFamily: C.font, fontSize: 10, fontWeight: 700, color: C.gold }}>{idx + 1}</span>
-                  </div>
-                  <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 13, color: C.navy, flex: 1 }}>{item.name}</div>
-                  {rel && (
-                    <span style={{ background: urgent ? C.redPastel : C.amberPastel, border: `1px solid ${urgent ? C.redBorder : C.amberBorder}`, borderRadius: 20, padding: "2px 9px", fontSize: 10, fontWeight: 700, color: urgent ? C.red : C.amber, whiteSpace: "nowrap" }}>
-                      {rel}
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}><CalendarDays size={11} color={C.textLight} /><span style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted }}>{fmtDate(item.eventDate)}</span></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock size={11} color={C.textLight} /><span style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted }}>{fmtTime(item.eventTime)}</span></div>
-                  {item.room && <div style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={11} color={C.textLight} /><span style={{ fontFamily: C.font, fontSize: 11, color: C.textMuted }}>{item.room}</span></div>}
-                </div>
-                <div style={{ marginTop: 8, fontFamily: C.font, fontSize: 10, color: fullRes ? C.gold : C.textLight, fontWeight: 600, letterSpacing: 0.5 }}>
-                  {fullRes ? "Click to view full details →" : "Details not available"}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ width: "100%", padding: "9px 0", background: C.borderLight, border: `1px solid ${C.border}`, borderRadius: 8, fontFamily: C.font, fontSize: 12, fontWeight: 600, color: C.textMuted, cursor: "pointer" }}>
-            Cancel
+      <div style={{ padding:"14px 22px",borderTop:`1px solid ${C.divider}`,display:"flex",gap:8 }}>
+        {resIsPending&&onApprove&&(
+          <button onClick={()=>onApprove(res)} disabled={isApprovingThis} style={{ flex:2,padding:"12px",border:"none",borderRadius:8,background:isApprovingThis?C.green+"80":C.green,color:"#fff",fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",cursor:isApprovingThis?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.18s" }}>
+            {isApprovingThis?<><Spinner C={C} size={12}/>Approving…</>:<><ThumbsUp size={12}/>Approve</>}
           </button>
-        </div>
+        )}
+        <button onClick={onClose} style={{ flex:1,padding:"12px",background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:C.textSecondary,cursor:"pointer",transition:"all 0.18s" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}>Close</button>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 
-// ── Reminder Popup ────────────────────────────────────────────────────────────
-function ReminderPopup({ popup, onView, onClose, queueCount }) {
-  const [nowMs, setNowMs] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
-
-  const items = popup.items || [];
-
+// ─── Event Picker Modal ───────────────────────────────────────────────────────
+function EventPickerModal({ items, allCards, onSelect, onClose, C }) {
+  const [nowMs,setNowMs]=useState(Date.now());
+  useEffect(()=>{ const t=setInterval(()=>setNowMs(Date.now()),30000); return()=>clearInterval(t); },[]);
   return (
-    <div style={{ position: "fixed", top: 72, right: 18, zIndex: 9999, width: 310, fontFamily: C.font, animation: "popupIn .35s cubic-bezier(.34,1.5,.64,1)" }}>
-      <div style={{ position: "absolute", top: -24, left: 14, width: 48, height: 48, borderRadius: "50%", background: C.surface, border: `1.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", animation: "bellRing .6s ease .1s 4" }}>
-        <BellDot size={22} color={C.navy} strokeWidth={1.8} />
+    <ModalShell onClose={onClose} C={C} maxWidth={460} zIndex={4500}>
+      <ModalHeader eyebrow="Upcoming Events" title={`${items.length} Events`} onClose={onClose} C={C}/>
+      <div style={{ padding:"16px 22px 22px",maxHeight:"60vh",overflowY:"auto" }}>
+        <p style={{ fontFamily:F.body,fontSize:12.5,color:C.textSecondary,marginBottom:16,lineHeight:1.6 }}>Select which event to inspect:</p>
+        {items.map((item,idx)=>{
+          const dt=parseEventDate(item.eventDate,item.eventTime),diff=dt?dt.getTime()-nowMs:null;
+          const rel=diff!==null&&diff>0?relLabel(diff)+" to event":diff!==null?"Event started":null,urgent=diff!==null&&diff<=30*60000;
+          const fullRes=allCards.find(r=>(r.id??r.db_id)===item.id);
+          return (
+            <button key={idx} onClick={()=>fullRes&&onSelect(fullRes)} disabled={!fullRes} style={{ display:"flex",width:"100%",textAlign:"left",background:C.surfaceRaised,border:`1.5px solid ${urgent?C.redBorder:C.borderDefault}`,borderRadius:10,padding:"14px 16px",marginBottom:8,cursor:fullRes?"pointer":"not-allowed",transition:"all 0.18s",gap:12,alignItems:"center",opacity:fullRes?1:0.55 }} onMouseEnter={e=>{ if(fullRes){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.background=C.goldFaintest;} }} onMouseLeave={e=>{ if(fullRes){e.currentTarget.style.borderColor=urgent?C.redBorder:C.borderDefault;e.currentTarget.style.background=C.surfaceRaised;} }}>
+              <div style={{ width:28,height:28,borderRadius:"50%",background:C.goldFaint,border:`1px solid ${C.borderAccent}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                <span style={{ fontFamily:F.label,fontSize:10,fontWeight:700,color:C.gold }}>{idx+1}</span>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontFamily:F.body,fontSize:13,fontWeight:600,color:C.textPrimary,marginBottom:4 }}>{item.name}</div>
+                <div style={{ fontFamily:F.body,fontSize:11,color:C.textSecondary }}>{fmtDate(item.eventDate)} · {fmtTime(item.eventTime)}{item.room?` · ${item.room}`:""}</div>
+              </div>
+              {rel&&<span style={{ background:urgent?C.redFaint:C.goldFaint,border:`1px solid ${urgent?C.redBorder:C.borderAccent}`,borderRadius:4,padding:"3px 8px",fontSize:9,fontWeight:700,fontFamily:F.label,letterSpacing:"0.10em",textTransform:"uppercase",color:urgent?C.red:C.gold,whiteSpace:"nowrap" }}>{rel}</span>}
+            </button>
+          );
+        })}
       </div>
-      <div style={{ background: C.surface, borderRadius: "24px 12px 12px 12px", overflow: "hidden", boxShadow: "0 8px 36px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.06)", position: "relative", zIndex: 2 }}>
-        <div style={{ padding: "28px 18px 16px" }}>
-          <div style={{ height: 8 }} />
-          <div style={{ fontWeight: 700, fontSize: 16, color: C.text, textAlign: "center", marginBottom: 4 }}>
-            {items.length > 1 ? `${items.length} Upcoming Events!` : "Upcoming Event!"}
-          </div>
-          {queueCount > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 }}>
-              <span style={{ background: C.amberPastel, border: `1px solid ${C.amberBorder}`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 600, color: C.amber, display: "flex", alignItems: "center", gap: 4 }}>
-                <Bell size={10} color={C.amber} />
-                {queueCount} reminders queued
-              </span>
+      <div style={{ padding:"14px 22px",borderTop:`1px solid ${C.divider}` }}>
+        <button onClick={onClose} style={{ width:"100%",padding:"12px",background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:C.textSecondary,cursor:"pointer",transition:"all 0.18s" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}>Dismiss</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Reminder Popup ───────────────────────────────────────────────────────────
+function ReminderPopup({ popup, onView, onClose, queueCount, C }) {
+  const [nowMs,setNowMs]=useState(Date.now());
+  useEffect(()=>{ const t=setInterval(()=>setNowMs(Date.now()),30000); return()=>clearInterval(t); },[]);
+  const items=popup.items||[];
+  return (
+    <div style={{ position:"fixed",top:80,right:20,zIndex:9999,width:320,fontFamily:F.body,animation:"modalIn 0.30s cubic-bezier(0.16,1,0.3,1)" }}>
+      <div style={{ background:C.surfaceBase,borderRadius:14,border:`1px solid ${C.borderAccent}`,boxShadow:"0 24px 80px rgba(0,0,0,0.28)",overflow:"hidden" }}>
+        <div style={{ height:"2px",background:`linear-gradient(90deg,transparent,${C.gold}80 30%,${C.gold}80 70%,transparent)` }}/>
+        <div style={{ padding:"16px 18px 14px" }}>
+          <div style={{ display:"flex",alignItems:"flex-start",gap:12,marginBottom:14 }}>
+            <div style={{ width:36,height:36,borderRadius:10,flexShrink:0,background:C.goldFaint,border:`1px solid ${C.borderAccent}`,display:"flex",alignItems:"center",justifyContent:"center",animation:"bellRing 0.6s ease 0.1s 4" }}>
+              <BellDot size={16} color={C.gold}/>
             </div>
-          )}
-          <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            {items.map((item, idx) => {
-              const dt   = parseEventDate(item.eventDate, item.eventTime);
-              const diff = dt ? dt.getTime() - nowMs : null;
-              const rel  = diff !== null && diff > 0
-                ? relativeTimeLabel(diff) + " before event"
-                : diff !== null && diff <= 0 ? "Event started" : null;
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.gold,fontWeight:700,textTransform:"uppercase",marginBottom:4 }}>Event Reminder</div>
+              <div style={{ fontFamily:F.display,fontSize:16,fontWeight:400,color:C.textPrimary,lineHeight:1.2 }}>{items.length>1?`${items.length} Upcoming Events`:"Upcoming Event"}</div>
+            </div>
+            <button onClick={onClose} style={{ width:28,height:28,borderRadius:"50%",background:"transparent",border:`1px solid ${C.borderDefault}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"all 0.18s",flexShrink:0 }} onMouseEnter={e=>e.currentTarget.style.borderColor=C.gold} onMouseLeave={e=>e.currentTarget.style.borderColor=C.borderDefault}>
+              <X size={10} color={C.textSecondary}/>
+            </button>
+          </div>
+          {queueCount>1&&<div style={{ padding:"5px 10px",borderRadius:6,marginBottom:10,background:C.goldFaint,border:`1px solid ${C.borderAccent}`,fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.12em",color:C.gold,textTransform:"uppercase" }}>{queueCount} reminders queued</div>}
+          <div style={{ maxHeight:180,overflowY:"auto" }}>
+            {items.map((item,idx)=>{
+              const dt=parseEventDate(item.eventDate,item.eventTime),diff=dt?dt.getTime()-nowMs:null;
+              const rel=diff!==null&&diff>0?relLabel(diff)+" to event":diff!==null?"Event started":null,urgent=diff!==null&&diff<=30*60000;
               return (
-                <div key={idx} style={{ marginBottom: idx < items.length - 1 ? 10 : 0, paddingBottom: idx < items.length - 1 ? 10 : 0, borderBottom: idx < items.length - 1 ? `1px solid ${C.borderLight}` : "none" }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 2 }}>{item.name}</div>
-                  <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 1 }}>{fmtDate(item.eventDate)} · {fmtTime(item.eventTime)}</div>
-                  {item.room && <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 1 }}>{item.room}</div>}
-                  {rel && (
-                    <span style={{ display: "inline-block", marginTop: 4, background: diff <= 30 * 60000 ? C.redPastel : C.amberPastel, border: `1px solid ${diff <= 30 * 60000 ? C.redBorder : C.amberBorder}`, borderRadius: 20, padding: "1px 8px", fontSize: 10, fontWeight: 600, color: diff <= 30 * 60000 ? C.red : C.amber }}>
-                      {rel}
-                    </span>
-                  )}
+                <div key={idx} style={{ marginBottom:idx<items.length-1?10:0,paddingBottom:idx<items.length-1?10:0,borderBottom:idx<items.length-1?`1px solid ${C.divider}`:"none" }}>
+                  <div style={{ fontFamily:F.body,fontSize:13,fontWeight:600,color:C.textPrimary,marginBottom:3 }}>{item.name}</div>
+                  <div style={{ fontFamily:F.body,fontSize:11.5,color:C.textSecondary,marginBottom:rel?6:0 }}>{fmtDate(item.eventDate)} · {fmtTime(item.eventTime)}{item.room?` · ${item.room}`:""}</div>
+                  {rel&&<span style={{ background:urgent?C.redFaint:C.goldFaint,border:`1px solid ${urgent?C.redBorder:C.borderAccent}`,borderRadius:4,padding:"2px 8px",fontSize:9,fontWeight:700,fontFamily:F.label,letterSpacing:"0.10em",textTransform:"uppercase",color:urgent?C.red:C.gold,display:"inline-block" }}>{rel}</span>}
                 </div>
               );
             })}
           </div>
-          {items.length > 1 && (
-            <div style={{ marginTop: 10, padding: "6px 10px", background: C.bluePastel, border: `1px solid ${C.blueBorder}`, borderRadius: 8, fontSize: 11, color: C.blue, fontWeight: 600, textAlign: "center" }}>
-              Click "View" to choose which event to inspect
-            </div>
-          )}
         </div>
-        <div style={{ height: 1, background: C.borderLight }} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-          <button onClick={() => onView(popup)}
-            style={{ padding: "13px 0", background: "none", border: "none", borderRight: `1px solid ${C.borderLight}`, fontFamily: C.font, fontWeight: 600, fontSize: 14, color: C.green, cursor: "pointer" }}
-            onMouseOver={e => e.currentTarget.style.background = C.greenPastel}
-            onMouseOut={e  => e.currentTarget.style.background = "none"}>
-            View
-          </button>
-          <button onClick={onClose}
-            style={{ padding: "13px 0", background: "none", border: "none", fontFamily: C.font, fontWeight: 600, fontSize: 14, color: C.red, cursor: "pointer" }}
-            onMouseOver={e => e.currentTarget.style.background = C.redPastel}
-            onMouseOut={e  => e.currentTarget.style.background = "none"}>
-            Dismiss
-          </button>
+        <div style={{ borderTop:`1px solid ${C.divider}`,display:"grid",gridTemplateColumns:"1fr 1fr" }}>
+          <button onClick={()=>onView(popup)} style={{ padding:"13px 0",background:"transparent",border:"none",borderRight:`1px solid ${C.divider}`,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.green,cursor:"pointer",transition:"background 0.18s" }} onMouseEnter={e=>e.currentTarget.style.background=C.greenFaint} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>View</button>
+          <button onClick={onClose} style={{ padding:"13px 0",background:"transparent",border:"none",fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.red,cursor:"pointer",transition:"background 0.18s" }} onMouseEnter={e=>e.currentTarget.style.background=C.redFaint} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>Dismiss</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Card helpers ──────────────────────────────────────────────────────────────
-function cardFields(res) {
-  return [
-    { label: "Venue",  value: res.room || res.venue },
-    { label: "Table",  value: res.table_number ?? res.table },
-    { label: "Seat",   value: res.seat_number  ?? res.seat  },
-    { label: "Date",   value: fmtDate(res.event_date  || res.eventDate  || res.reservationDate) },
-    { label: "Guests", value: (res.guests_count ?? res.guests) ? `${res.guests_count ?? res.guests} Pax` : "1 Pax" },
-    { label: "Time",   value: fmtTime(res.event_time  || res.eventTime  || res.reservationTime) },
-  ];
-}
-
-// ── Upcoming / Pending Card ────────────────────────────────────────────────────
-function NewResCard({ res, isNew, onClick, onApprove, approvingIds }) {
-  const [hi, setHi] = useState(isNew);
-  useEffect(() => {
-    if (isNew) { const t = setTimeout(() => setHi(false), 4000); return () => clearTimeout(t); }
-  }, [isNew]);
-
-  const rawStatus = (res.status || "").toLowerCase();
-  const resIsPending = rawStatus === "pending";
-  const resId = res.id ?? res.db_id;
-  const isApproving = approvingIds?.has(resId);
-
+// ─── Reservation Card ─────────────────────────────────────────────────────────
+function ReservationCard({ res, isNew, onClick, onApprove, approvingIds, C }) {
+  const [hi,setHi]=useState(isNew);
+  useEffect(()=>{ if(isNew){const t=setTimeout(()=>setHi(false),4000);return()=>clearTimeout(t);} },[isNew]);
+  const rawStatus=(res.status||"").toLowerCase(),resIsPending=rawStatus==="pending";
+  const resId=res.id??res.db_id,isApprovingThis=approvingIds?.has(resId);
   return (
-    <div
-      style={{
-        background: resIsPending ? C.amberPastel : C.surface,
-        border: `1px solid ${hi ? C.blue : resIsPending ? C.amberBorder : C.border}`,
-        borderRadius: 10,
-        padding: "14px 16px",
-        marginBottom: 8,
-        boxShadow: hi ? "0 4px 14px rgba(59,130,246,.12)" : `0 1px 4px ${C.shadow}`,
-        transition: "all .4s ease",
-        animation: isNew ? "cardSlideIn .4s cubic-bezier(.34,1.5,.64,1)" : "none",
-        cursor: "pointer",
-      }}
-      onClick={() => onClick(res)}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.boxShadow = `0 4px 14px rgba(201,168,76,.12)`; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = hi ? C.blue : resIsPending ? C.amberBorder : C.border; e.currentTarget.style.boxShadow = hi ? "0 4px 14px rgba(59,130,246,.12)" : `0 1px 4px ${C.shadow}`; }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy }}>
-          {res.guest_name || res.name || "Unknown Guest"}
-        </div>
-        <StatusBadge status={rawStatus} />
+    <div style={{ background:hi?C.goldFaintest:C.cardBg,border:`1px solid ${hi?C.borderAccent:C.cardBorder}`,borderRadius:10,padding:"15px 16px",marginBottom:8,boxShadow:hi?`0 0 0 3px ${C.goldFaint}`:"none",transition:"all 0.30s ease",animation:isNew?"cardSlideIn 0.40s cubic-bezier(0.34,1.5,0.64,1)":"none",cursor:"pointer" }} onClick={()=>onClick(res)} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.background=C.goldFaintest;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=hi?C.borderAccent:C.cardBorder;e.currentTarget.style.background=hi?C.goldFaintest:C.cardBg;}}>
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:10 }}>
+        <div style={{ fontFamily:F.body,fontSize:13.5,fontWeight:600,color:C.textPrimary,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{res.guest_name||res.name||"Unknown Guest"}</div>
+        <StatusBadge status={rawStatus} C={C}/>
       </div>
-      <InfoGrid fields={cardFields(res)} labelColor={C.textLight} valueColor={C.textSub} />
-      {resIsPending && onApprove && (
-        <div style={{ marginTop: 12, borderTop: `1px solid ${C.amberBorder}`, paddingTop: 10 }}>
-          <button
-            onClick={e => { e.stopPropagation(); onApprove(res); }}
-            disabled={isApproving}
-            style={{ width: "100%", padding: "8px 0", background: isApproving ? C.green + "99" : C.green, color: "#fff", border: "none", borderRadius: 8, fontFamily: C.font, fontSize: 12, fontWeight: 700, cursor: isApproving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "background .2s", letterSpacing: 0.3 }}>
-            {isApproving ? (
-              <><Loader2 size={12} style={{ animation: "spin .7s linear infinite" }} /> Approving…</>
-            ) : (
-              <><ThumbsUp size={12} /> Approve Reservation</>
-            )}
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"5px 8px" }}>
+        {[
+          {icon:<MapPin size={10}/>,      val:res.room||res.venue},
+          {icon:<CalendarDays size={10}/>,val:fmtDate(res.event_date||res.eventDate||res.reservationDate)},
+          {icon:<Clock size={10}/>,       val:fmtTime(res.event_time||res.eventTime||res.reservationTime)},
+          {icon:<FileText size={10}/>,    val:res.table_number??res.table?`Table ${res.table_number||res.table}`:"No table"},
+          {icon:<Users size={10}/>,       val:(res.guests_count||res.guests||res.guests_number||res.guests_number||0)>0?`${res.guests_count||res.guests||res.guests_number||res.guests_number||1} pax`:"1 pax"},
+          {icon:<Hash size={10}/>,        val:res.reference_code||res.id},
+        ].map(({icon,val},i)=>val&&(
+          <div key={i} style={{ display:"flex",alignItems:"center",gap:5,overflow:"hidden" }}>
+            <span style={{ color:C.textTertiary,flexShrink:0 }}>{icon}</span>
+            <span style={{ fontFamily:F.body,fontSize:11,color:C.textSecondary,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{val}</span>
+          </div>
+        ))}
+      </div>
+      {resIsPending&&onApprove&&(
+        <div style={{ marginTop:12,paddingTop:10,borderTop:`1px solid ${C.divider}` }}>
+          <button onClick={e=>{e.stopPropagation();onApprove(res);}} disabled={isApprovingThis} style={{ width:"100%",padding:"9px",background:isApprovingThis?C.green+"80":C.green,border:"none",borderRadius:8,fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",color:"#fff",cursor:isApprovingThis?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,transition:"all 0.18s" }} onMouseEnter={e=>{if(!isApprovingThis)e.currentTarget.style.opacity="0.85";}} onMouseLeave={e=>{if(!isApprovingThis)e.currentTarget.style.opacity="1";}}>
+            {isApprovingThis?<><Spinner C={C} size={11}/>Approving…</>:<><ThumbsUp size={11}/>Approve Reservation</>}
           </button>
         </div>
       )}
@@ -696,691 +454,350 @@ function NewResCard({ res, isNew, onClick, onApprove, approvingIds }) {
   );
 }
 
-function DoneCard({ res, onClick }) {
+// ─── Done Card ────────────────────────────────────────────────────────────────
+function DoneCard({ res, onClick, C }) {
   return (
-    <div
-      onClick={() => onClick(res)}
-      style={{ background: C.greenPastel, border: `1px solid ${C.greenBorder}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, boxShadow: `0 1px 4px ${C.shadow}`, cursor: "pointer", transition: "all .2s" }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 4px 14px rgba(22,163,74,.12)`; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = `0 1px 4px ${C.shadow}`; }}
-    >
-      <div style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy, marginBottom: 10 }}>
-        {res.guest_name || res.name || "Unknown Guest"}
+    <div onClick={()=>onClick(res)} style={{ background:C.cardBg,border:`1px solid ${C.greenBorder}`,borderRadius:10,padding:"13px 15px",marginBottom:8,cursor:"pointer",transition:"all 0.18s" }} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.green;e.currentTarget.style.background=C.greenFaint;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.greenBorder;e.currentTarget.style.background=C.cardBg;}}>
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7,gap:8 }}>
+        <div style={{ fontFamily:F.body,fontSize:13,fontWeight:600,color:C.textPrimary,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{res.guest_name||res.name||"Unknown Guest"}</div>
+        <span style={{ display:"inline-flex",alignItems:"center",gap:4,background:C.greenFaint,border:`1px solid ${C.greenBorder}`,borderRadius:4,padding:"3px 8px",fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:C.green }}>
+          <span style={{ width:4,height:4,borderRadius:"50%",background:C.green }}/>Done
+        </span>
       </div>
-      <InfoGrid fields={cardFields(res)} labelColor={C.textLight} valueColor="#166534" />
+      <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+        {[fmtDate(res.event_date||res.eventDate||res.reservationDate),fmtTime(res.event_time||res.eventTime||res.reservationTime),res.room||res.venue].filter(Boolean).map((v,i)=>(
+          <span key={i} style={{ fontFamily:F.body,fontSize:11,color:C.textSecondary }}>{v}</span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function EmptyState({ msg }) {
+// ─── Pagination ───────────────────────────────────────────────────────────────
+function Pagination({ page, total, perPage, setPage, setPerPage, C }) {
+  const totalPages=Math.ceil(total/perPage);
+  if (total<=10) return null;
   return (
-    <div style={{ textAlign: "center", padding: "50px 20px", fontFamily: C.font, fontSize: 13, color: C.textLight }}>
-      {msg}
+    <div style={{ padding:"12px 16px",borderTop:`1px solid ${C.divider}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
+      <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+        <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.12em",color:C.textTertiary,textTransform:"uppercase" }}>{Math.min((page-1)*perPage+1,total)}–{Math.min(page*perPage,total)} of {total}</span>
+        <select value={perPage} onChange={e=>{setPerPage(Number(e.target.value));setPage(1);}} style={{ padding:"4px 8px",border:`1px solid ${C.borderDefault}`,borderRadius:4,fontSize:10,fontFamily:F.label,color:C.textSecondary,background:C.surfaceInput,cursor:"pointer",colorScheme:"dark" }}>
+          {[10,20,50].map(n=><option key={n} value={n}>{n}/page</option>)}
+        </select>
+      </div>
+      <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+        <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page<=1} style={{ width:28,height:28,border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:page<=1?"not-allowed":"pointer",opacity:page<=1?0.3:1,padding:0 }} onMouseEnter={e=>{if(page>1)e.currentTarget.style.borderColor=C.borderAccent;}} onMouseLeave={e=>{if(page>1)e.currentTarget.style.borderColor=C.borderDefault;}}><ChevronLeft size={12} color={C.textSecondary}/></button>
+        <span style={{ fontFamily:F.mono,fontSize:11,color:C.textSecondary,padding:"0 8px" }}>{page}/{totalPages}</span>
+        <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} style={{ width:28,height:28,border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:page>=totalPages?"not-allowed":"pointer",opacity:page>=totalPages?0.3:1,padding:0 }} onMouseEnter={e=>{if(page<totalPages)e.currentTarget.style.borderColor=C.borderAccent;}} onMouseLeave={e=>{if(page<totalPages)e.currentTarget.style.borderColor=C.borderDefault;}}><ChevronRight size={12} color={C.textSecondary}/></button>
+      </div>
     </div>
   );
 }
 
-// ── Toast notification ────────────────────────────────────────────────────────
-function Toast({ toasts }) {
+function EmptyState({ msg, C }) {
+  return <div style={{ textAlign:"center",padding:"50px 20px",fontFamily:F.label,fontSize:9,letterSpacing:"0.18em",color:C.textTertiary,textTransform:"uppercase",fontWeight:700 }}>{msg}</div>;
+}
+
+function Toast({ toasts, C }) {
   return (
-    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 20000, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
-      {toasts.map(t => (
-        <div key={t.id} style={{
-          background: t.type === "success" ? C.green : t.type === "error" ? C.red : C.navy,
-          color: "#fff",
-          borderRadius: 10,
-          padding: "10px 18px",
-          fontFamily: C.font,
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: "0 4px 18px rgba(0,0,0,0.18)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          animation: "popupIn .3s cubic-bezier(.34,1.5,.64,1)",
-          minWidth: 220,
-        }}>
-          {t.type === "success" && <CheckCircle size={14} color="#fff" />}
-          {t.message}
+    <div style={{ position:"fixed",bottom:24,right:24,zIndex:20000,display:"flex",flexDirection:"column",gap:8,pointerEvents:"none" }}>
+      {toasts.map(t=>(
+        <div key={t.id} style={{ background:C.surfaceBase,borderRadius:10,padding:"12px 18px",fontFamily:F.body,fontSize:13,fontWeight:500,boxShadow:"0 8px 32px rgba(0,0,0,0.20)",display:"flex",alignItems:"center",gap:10,animation:"modalIn 0.28s cubic-bezier(0.16,1,0.3,1)",border:`1px solid ${t.type==="success"?C.greenBorder:C.redBorder}`,color:C.textPrimary,minWidth:240 }}>
+          {t.type==="success"?<CheckCircle size={14} color={C.green}/>:<X size={14} color={C.red}/>}{t.message}
         </div>
       ))}
     </div>
   );
 }
 
-// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
+function TabBtn({ active, onClick, children, activeColor, count, pulse, C }) {
+  return (
+    <button onClick={onClick} style={{ display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:active?activeColor+"18":"transparent",border:`1px solid ${active?activeColor+"50":C.borderDefault}`,borderRadius:6,cursor:"pointer",transition:"all 0.18s",fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:active?activeColor:C.textSecondary }} onMouseEnter={e=>{if(!active){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}} onMouseLeave={e=>{if(!active){e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}}>
+      {children}
+      <span style={{ background:active?activeColor+"25":C.goldFaint,border:`1px solid ${active?activeColor+"40":C.borderDefault}`,borderRadius:4,padding:"1px 6px",fontSize:9,fontWeight:700,color:active?activeColor:C.textTertiary }}>{count}</span>
+      {pulse&&!active&&<span style={{ width:5,height:5,borderRadius:"50%",background:C.red,animation:"dotPulse 1.2s ease infinite" }}/>}
+    </button>
+  );
+}
+
+function Panel({ children, accentColor, C, style={} }) {
+  const color=accentColor||C.gold;
+  return (
+    <div style={{ background:C.surfaceBase,borderRadius:14,border:`1px solid ${C.borderDefault}`,overflow:"hidden",display:"flex",flexDirection:"column",minHeight:0,...style }}>
+      <div style={{ height:"2px",background:`linear-gradient(90deg,transparent,${color}80 30%,${color}80 70%,transparent)`,flexShrink:0 }}/>
+      {children}
+    </div>
+  );
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function NotificationDashboard() {
-  const [allCards,    setAllCards]    = useState([]);
-  const [popupQueue,  setPopupQueue]  = useState([]);
-  const popup = popupQueue[0] ?? null;
+  const [isDark,setIsDark]=useState(()=>{
+    try{const s=localStorage.getItem("bellevue-theme");if(s!==null)return s==="dark";}catch{}
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches??true;
+  });
+  const toggleTheme=()=>setIsDark(p=>{const n=!p;try{localStorage.setItem("bellevue-theme",n?"dark":"light");}catch{}return n;});
+  const C=getTokens(isDark);
 
-  const [pickerItems,    setPickerItems]    = useState(null);
-  const [detailRes,      setDetailRes]      = useState(null);
-  const [newIds,         setNewIds]         = useState(new Set());
-  const [clock,          setClock]          = useState(clockStr());
-  const [date,           setDate]           = useState(dateStr());
-  const [loading,        setLoading]        = useState(true);
+  const [allCards,setAllCards]=useState([]);
+  const [popupQueue,setPopupQueue]=useState([]);
+  const popup=popupQueue[0]??null;
+  const [pickerItems,setPickerItems]=useState(null);
+  const [detailRes,setDetailRes]=useState(null);
+  const [newIds,setNewIds]=useState(new Set());
+  const [clock,setClock]=useState(clockStr());
+  const [date,setDate]=useState(dateStr());
+  const [loading,setLoading]=useState(true);
+  const [wsStatus,setWsStatus]=useState("connecting");
+  const [approvingIds,setApprovingIds]=useState(new Set());
+  const [confirmRes,setConfirmRes]=useState(null);
+  const [isApproving,setIsApproving]=useState(false);
+  const [toasts,setToasts]=useState([]);
+  const [pendingPage,setPendingPage]=useState(1);
+  const [donePage,setDonePage]=useState(1);
+  const [pendingPerPage,setPendingPerPage]=useState(20);
+  const [donePerPage,setDonePerPage]=useState(20);
+  const [leftTab,setLeftTab]=useState("pending");
 
-  // ── WebSocket connection status ───────────────────────────────────────────
-  // "connected" | "connecting" | "disconnected"
-  const [wsStatus,       setWsStatus]       = useState("connecting");
+  const knownIds=useRef(new Set()),firedAlerts=useRef(new Set()),leftRef=useRef(null);
+  const echoRef=useRef(null),reconnectDelay=useRef(2000),reconnectTimer=useRef(null),isMounted=useRef(true);
 
-  // ── Approve state ─────────────────────────────────────────────────────────
-  const [approvingIds,   setApprovingIds]   = useState(new Set());
-  const [confirmRes,     setConfirmRes]     = useState(null);
-  const [isApproving,    setIsApproving]    = useState(false);
-  const [toasts,         setToasts]         = useState([]);
+  useEffect(()=>{isMounted.current=true;return()=>{isMounted.current=false;};},[]);
+  const addToast=useCallback((message,type="success")=>{const id=Date.now();setToasts(p=>[...p,{id,message,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3500);},[]);
+  const dismissPopup=useCallback(()=>{setPopupQueue(q=>{const next=q.slice(1);if(!next.length)stopAlert();return next;});},[]);
+  useEffect(()=>{const t=setInterval(()=>{setClock(clockStr());setDate(dateStr());},1000);return()=>clearInterval(t);},[]);
 
-  const [pendingPage,    setPendingPage]    = useState(1);
-  const [donePage,       setDonePage]       = useState(1);
-  const [pendingPerPage, setPendingPerPage] = useState(20);
-  const [donePerPage,    setDonePerPage]    = useState(20);
+  const checkAlerts=useCallback((list)=>{
+    const cands=list.filter(isApproved).map(res=>{
+      const id=res.id??res.db_id,key=`${id}-alert`;
+      if(firedAlerts.current.has(key))return null;
+      const dt=parseEventDate(res.event_date||res.eventDate||res.reservationDate,res.event_time||res.eventTime||res.reservationTime);
+      if(!dt)return null;
+      const diff=dt.getTime()-Date.now();
+      if(diff>0&&diff<=2*3_600_000)return{res,id,key,diff};return null;
+    }).filter(Boolean).sort((a,b)=>a.diff-b.diff);
+    if(!cands.length)return;
+    cands.forEach(({key})=>firedAlerts.current.add(key));
+    const items=cands.map(({res})=>({id:res.id??res.db_id,name:res.guest_name||res.name||"Guest",room:res.room||res.venue||"",eventDate:res.event_date||res.eventDate||res.reservationDate,eventTime:res.event_time||res.eventTime||res.reservationTime}));
+    setPopupQueue(q=>[...q,{items,primaryId:items[0].id}]);
+    const first=cands[0].res,rel=relLabel(cands[0].diff);
+    if(cands.length===1)playAlertThenSpeak(`Reminder. ${first.guest_name||first.name||"A guest"}'s reservation starts in ${rel}.`);
+    else playAlertThenSpeak(`Reminder. ${cands.length} reservations coming up. Earliest in ${rel}.`);
+  },[]);
 
-  const [leftTab,        setLeftTab]        = useState("pending");
-
-  const knownIds    = useRef(new Set());
-  const firedAlerts = useRef(new Set());
-  const leftRef     = useRef(null);
-  const echoRef     = useRef(null);
-  // Track reconnect attempts for exponential back-off
-  const reconnectDelay = useRef(2000);
-  const reconnectTimer  = useRef(null);
-  const isMounted       = useRef(true);
-  // Polling interval removed - WebSocket handles all real-time updates
-  // const pollRef = useRef(null); // REMOVED
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => { isMounted.current = false; };
-  }, []);
-
-  // ── Toast helper ─────────────────────────────────────────────────────────
-  const addToast = useCallback((message, type = "success") => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
-  }, []);
-
-  // ── Dismiss popup ─────────────────────────────────────────────────────────
-  const dismissPopup = useCallback(() => {
-    setPopupQueue(q => {
-      const next = q.slice(1);
-      if (next.length === 0) stopAlertSound();
-      return next;
-    });
-  }, []);
-
-  // ── Clock ─────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const t = setInterval(() => { setClock(clockStr()); setDate(dateStr()); }, 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // ── Alert check (upcoming-event alarm) ───────────────────────────────────
-  const checkAlerts = useCallback((list) => {
-    const candidates = list
-      .filter(isApproved)
-      .map(res => {
-        const id  = res.id ?? res.db_id;
-        const key = `${id}-alert`;
-        if (firedAlerts.current.has(key)) return null;
-        const dt   = parseEventDate(
-          res.event_date  || res.eventDate  || res.reservationDate,
-          res.event_time  || res.eventTime  || res.reservationTime,
-        );
-        if (!dt) return null;
-        const diff = dt.getTime() - Date.now();
-        if (diff > 0 && diff <= 2 * 3_600_000) return { res, id, key, diff };
-        return null;
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.diff - b.diff);
-
-    if (candidates.length === 0) return;
-    candidates.forEach(({ key }) => firedAlerts.current.add(key));
-
-    const items = candidates.map(({ res }) => ({
-      id:        res.id ?? res.db_id,
-      name:      res.guest_name || res.name || "Guest",
-      room:      res.room || res.venue || "",
-      eventDate: res.event_date  || res.eventDate  || res.reservationDate,
-      eventTime: res.event_time  || res.eventTime  || res.reservationTime,
-    }));
-
-    setPopupQueue(q => [...q, { items, primaryId: items[0].id }]);
-
-    const first    = candidates[0].res;
-    const diff0    = candidates[0].diff;
-    const relLabel = relativeTimeLabel(diff0);
-
-    if (candidates.length === 1) {
-      playAlertThenSpeak(
-        `Reminder. ${first.guest_name || first.name || "A guest"}'s reservation ` +
-        `at ${first.room || first.venue || "the venue"} starts in ${relLabel}.`,
-      );
-    } else {
-      playAlertThenSpeak(
-        `Reminder. ${candidates.length} reservations are coming up soon. ` +
-        `The earliest starts in ${relLabel}.`,
-      );
+  const upsertReservation=useCallback((res,isInit=false)=>{
+    const id=res.id??res.db_id;if(!id)return;
+    if(!shouldTrack(res)){setAllCards(p=>p.filter(r=>(r.id??r.db_id)!==id));knownIds.current.delete(id);return;}
+    const isNew=!knownIds.current.has(id);knownIds.current.add(id);
+    setAllCards(p=>{ if(!isNew)return p.map(r=>(r.id??r.db_id)===id?{...r,...res}:r); return[res,...p].sort((a,b)=>(b.submittedTimestamp||+new Date(b.created_at)||0)-(a.submittedTimestamp||+new Date(a.created_at)||0)); });
+    setDetailRes(p=>p&&(p.id??p.db_id)===id?{...p,...res}:p);
+    if(!isInit&&isNew){
+      setNewIds(p=>new Set([...p,id]));setTimeout(()=>setNewIds(p=>{const n=new Set(p);n.delete(id);return n;}),4000);
+      if(leftRef.current)leftRef.current.scrollTo({top:0,behavior:"smooth"});
+      if(isPending(res)){playPendingChime();setLeftTab("pending");}
+      else if(isApproved(res)){playApproveSound();checkAlerts([res]);}
     }
-  }, []);
+    if(!isInit&&!isNew&&isApproved(res))checkAlerts([res]);
+  },[checkAlerts]);
 
-  // ── Upsert reservation ────────────────────────────────────────────────────
-  const upsertReservation = useCallback((res, isInit = false) => {
-    const id = res.id ?? res.db_id;
-    if (!id) return;
+  const handleApproveRequest=useCallback(res=>setConfirmRes(res),[]);
+  const handleApproveConfirm=useCallback(async()=>{
+    if(!confirmRes)return;
+    const id=confirmRes.id??confirmRes.db_id,dbId=confirmRes.db_id??Number(confirmRes.id);
+    setIsApproving(true);setApprovingIds(p=>new Set([...p,id]));
+    try{await reservationAPI.update(dbId,{status:"reserved"});upsertReservation({...confirmRes,status:"reserved"},false);playApproveSound();addToast(`✓ ${confirmRes.guest_name||confirmRes.name||"Reservation"} approved!`,"success");setConfirmRes(null);setLeftTab("upcoming");}
+    catch{addToast("Failed to approve. Please try again.","error");}
+    finally{setIsApproving(false);setApprovingIds(p=>{const n=new Set(p);n.delete(id);return n;});}
+  },[confirmRes,upsertReservation,addToast]);
 
-    if (!shouldTrack(res)) {
-      setAllCards(prev => prev.filter(r => (r.id ?? r.db_id) !== id));
-      knownIds.current.delete(id);
+  useEffect(()=>{
+    const fetch=async()=>{
+      try{const resp=await reservationAPI.getAll("?per_page=200");const raw=Array.isArray(resp)?resp:Array.isArray(resp?.data)?resp.data:[];const tracked=raw.filter(shouldTrack).map(normaliseRow).sort((a,b)=>(b.submittedTimestamp||+new Date(b.created_at)||0)-(a.submittedTimestamp||+new Date(a.created_at)||0));tracked.forEach(r=>knownIds.current.add(r.id??r.db_id));setAllCards(tracked);checkAlerts(tracked);}catch{}finally{setLoading(false);}
+    };fetch();
+  },[checkAlerts]);
+
+  useEffect(()=>{
+    const wsHost=import.meta.env.VITE_WS_HOST||"localhost",wsPort=import.meta.env.VITE_WS_PORT||"6001";
+    const protocol=window.location.protocol==="https:"?"wss:":"ws:";
+    const wsUrl=`${protocol}//${wsHost}:${wsPort}`;
+    const connect=()=>{
+      const ws=new WebSocket(wsUrl);
+      ws.onopen=()=>{setWsStatus("connected");reconnectDelay.current=2000;};
+      ws.onclose=()=>{setWsStatus("connecting");if(isMounted.current){reconnectTimer.current=setTimeout(()=>{connect();reconnectDelay.current=Math.min(reconnectDelay.current*2,30000);},reconnectDelay.current);}};
+      ws.onerror=()=>{setWsStatus("connecting");if(isMounted.current)setTimeout(connect,reconnectDelay.current);};
+      ws.onmessage=event=>{
+  try{
+    const data=JSON.parse(event.data);
+    console.log('[Notifications WS] Received event:', data.event);
+    
+    const res=data?.payload?.reservation;
+    if(!res){
+      console.log('[Notifications WS] No reservation data in message:', data);
       return;
     }
-
-    const isNew = !knownIds.current.has(id);
-    knownIds.current.add(id);
-
-    setAllCards(prev => {
-      if (!isNew) {
-        return prev.map(r => (r.id ?? r.db_id) === id ? { ...r, ...res } : r);
-      }
-      return [res, ...prev].sort((a, b) =>
-        (b.submittedTimestamp || +new Date(b.created_at) || 0) -
-        (a.submittedTimestamp || +new Date(a.created_at) || 0)
-      );
-    });
-
-    setDetailRes(prev => {
-      if (prev && (prev.id ?? prev.db_id) === id) return { ...prev, ...res };
-      return prev;
-    });
-
-    if (!isInit && isNew) {
-      setNewIds(prev => new Set([...prev, id]));
-      setTimeout(() => setNewIds(prev => {
-        const next = new Set(prev); next.delete(id); return next;
-      }), 4000);
-
-      if (leftRef.current) leftRef.current.scrollTo({ top: 0, behavior: "smooth" });
-
-      if (isPending(res)) {
-        // ── PENDING: distinct descending-chime only (no speech) ──────────────
-        const guestName = res.guest_name || res.name || "a guest";
-        const venue     = res.room || res.venue || "the venue";
-        playPendingAlertThenSpeak();
-        setLeftTab("pending");
-      } else if (isApproved(res)) {
-        // ── APPROVED / RESERVED: ascending chime ─────────────────────────
-        playNewSound(() =>
-          speakText(`New approved reservation from ${res.guest_name || res.name || "a guest"}.`)
-        );
-        checkAlerts([res]);
-      }
-    }
-
-    if (!isInit && !isNew && isApproved(res)) {
-      checkAlerts([res]);
-    }
-  }, [checkAlerts]);
-
-  // ── Approve reservation ───────────────────────────────────────────────────
-  const handleApproveRequest = useCallback((res) => {
-    setConfirmRes(res);
-  }, []);
-
-  const handleApproveConfirm = useCallback(async () => {
-    if (!confirmRes) return;
-    const id   = confirmRes.id ?? confirmRes.db_id;
-    const dbId = confirmRes.db_id ?? Number(confirmRes.id);
-
-    setIsApproving(true);
-    setApprovingIds(prev => new Set([...prev, id]));
-
-    try {
-      await reservationAPI.update(dbId, { status: "reserved" });
-      const updated = { ...confirmRes, status: "reserved" };
-      upsertReservation(updated, false);
-      playApproveSound();
-      addToast(`✓ ${confirmRes.guest_name || confirmRes.name || "Reservation"} has been approved!`, "success");
-      setConfirmRes(null);
-      setLeftTab("upcoming");
-    } catch (err) {
-      console.error("[NotifDashboard] Approve failed:", err);
-      addToast("Failed to approve reservation. Please try again.", "error");
-    } finally {
-      setIsApproving(false);
-      setApprovingIds(prev => {
-        const next = new Set(prev); next.delete(id); return next;
-      });
-    }
-  }, [confirmRes, upsertReservation, addToast]);
-
-  const handleApproveCancel = useCallback(() => {
-    if (!isApproving) setConfirmRes(null);
-  }, [isApproving]);
-
-  // ── Initial fetch ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchInitial = async () => {
-      try {
-        const resp = await reservationAPI.getAll("?per_page=200");
-        const raw  = Array.isArray(resp) ? resp : Array.isArray(resp?.data) ? resp.data : [];
-        const tracked = raw
-          .filter(shouldTrack)
-          .map(normaliseRow)
-          .sort((a, b) =>
-            (b.submittedTimestamp || +new Date(b.created_at) || 0) -
-            (a.submittedTimestamp || +new Date(a.created_at) || 0)
-          );
-        tracked.forEach(res => knownIds.current.add(res.id ?? res.db_id));
-        setAllCards(tracked);
-        checkAlerts(tracked);
-      } catch (e) {
-        console.error("[NotifDashboard] Initial fetch failed:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInitial();
-  }, [checkAlerts]);
-
-  // ── Polling fallback removed - WebSocket handles all updates ─────────────
-  // No polling needed - WebSocket connection is always active
-
-  // ── WebSocket — Custom Server Connection ─────────────────────────────────────
-  // Direct WebSocket connection to our server with auto-reconnect
-  useEffect(() => {
-    const wsHost = import.meta.env.VITE_WS_HOST || "localhost";
-    const wsPort = import.meta.env.VITE_WS_PORT || "6001";
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${wsHost}:${wsPort}`;
-
-    const connect = () => {
-      console.log("[Notifications WS] Connecting to:", wsUrl);
-      const ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => { 
-        console.log("[Notifications WS] Connected"); 
-        setWsStatus("connected"); 
-        reconnectDelay.current = 2000; // Reset back-off on success
-      };
-      
-      ws.onclose = () => { 
-        console.log("[Notifications WS] Disconnected - reconnecting..."); 
-        setWsStatus("connecting");
-        // Auto-reconnect with exponential back-off
-        if (isMounted.current) {
-          reconnectTimer.current = setTimeout(() => {
-            connect();
-            reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000); // Max 30 seconds
-          }, reconnectDelay.current);
-        }
-      };
-      
-      ws.onerror = () => { 
-        console.log("[Notifications WS] Error - reconnecting..."); 
-        setWsStatus("connecting");
-        // Auto-reconnect after error
-        if (isMounted.current) {
-          setTimeout(connect, reconnectDelay.current);
-        }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const res  = data?.payload?.reservation;
-          if (!res) {
-            console.log("[Notifications WS] No reservation data in message:", data);
-            return;
-          }
-
-          console.log("[Notifications WS] Received event:", data.event);
-          console.log("[Notifications WS] Raw reservation data:", res);
-          
-          const normalized = normaliseRow(res);
-          console.log("[Notifications WS] Normalized data:", normalized);
-
-          if (data.event === "ReservationCreated") {
-            upsertReservation(normalized, false);
-          } else if (data.event === "ReservationUpdated") {
-            upsertReservation(normalized, false);
-          } else if (data.event === "ReservationDeleted") {
-            const id = res.id ?? res.db_id;
-            setAllCards(prev => prev.filter(r => (r.id ?? r.db_id) !== String(id) && (r.id ?? r.db_id) !== id));
-            knownIds.current.delete(id);
-            knownIds.current.delete(String(id));
-          }
-        } catch (err) {
-          console.error("[Notifications WS] Parse error:", err);
-          console.error("[Notifications WS] Raw message:", event.data);
-        }
-      };
-
-      echoRef.current = ws;
-    };
-
-    // Initial connection
-    connect();
     
-    return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (echoRef.current) {
-        echoRef.current.close();
-        echoRef.current = null;
-      }
-    };
-  }, [upsertReservation]);
-
-  // ── Split cards into categories ──────────────────────────────────────────
-  const { upcomingCards, pendingCards, doneCards } = useMemo(() => {
-    const upcoming = [];
-    const pending  = [];
-    const done     = [];
-    allCards.forEach(res => {
-      if (isPending(res)) { pending.push(res); return; }
-      if (!isApproved(res)) return;
-      const dt = parseEventDate(
-        res.event_date  || res.eventDate  || res.reservationDate,
-        res.event_time  || res.eventTime  || res.reservationTime,
-      );
-      if (!dt || dt.getTime() > Date.now()) upcoming.push(res);
-      else done.push(res);
-    });
-    return { upcomingCards: upcoming, pendingCards: pending, doneCards: done };
-  }, [allCards]);
-
-  const leftCards   = leftTab === "upcoming" ? upcomingCards : pendingCards;
-  const leftPerPage = pendingPerPage;
-  const leftPage    = pendingPage;
-  const setLeftPage = setPendingPage;
-
-  const leftVisible = leftCards.slice((leftPage - 1) * leftPerPage, leftPage * leftPerPage);
-  const doneVisible = doneCards.slice((donePage - 1) * donePerPage, donePage * donePerPage);
-
-  // ── Handle "View" on popup ────────────────────────────────────────────────
-  const handlePopupView = useCallback((p) => {
-    dismissPopup();
-    const items = p.items || [];
-    if (items.length === 1) {
-      const full = allCards.find(r => (r.id ?? r.db_id) === items[0].id);
-      if (full) setDetailRes(full);
-    } else {
-      setPickerItems(items);
+    console.log('[Notifications WS] Raw reservation data:', res);
+    const n=normaliseRow(res);
+    console.log('[Notifications WS] Normalized data:', n);
+    
+    if(data.event==="ReservationCreated"||data.event==="ReservationUpdated"){
+      upsertReservation(n,false);
+    }else if(data.event==="ReservationDeleted"){
+      const id=res.id??res.db_id;
+      setAllCards(p=>p.filter(r=>(r.id??r.db_id)!==String(id)&&(r.id??r.db_id)!==id));
+      knownIds.current.delete(id);
+      knownIds.current.delete(String(id));
     }
-  }, [allCards, dismissPopup]);
+  }catch(err){
+    console.error('[Notifications WS] Parse error:', err);
+    console.error('[Notifications WS] Raw message:', event.data);
+  }
+};
+      echoRef.current=ws;
+    };
+    connect();
+    return()=>{if(reconnectTimer.current)clearTimeout(reconnectTimer.current);if(echoRef.current){echoRef.current.close();echoRef.current=null;}};
+  },[upsertReservation]);
 
-  // ── WS badge ─────────────────────────────────────────────────────────────
-  const wsColor = wsStatus === "connected" ? C.green : wsStatus === "connecting" ? C.amber : C.red;
-  const wsLabel = wsStatus === "connected" ? "Live" : wsStatus === "connecting" ? "Connecting…" : "Offline";
-  const WsIcon  = wsStatus === "connected" ? Wifi : WifiOff;
+  const{upcomingCards,pendingCards,doneCards}=useMemo(()=>{
+    const u=[],p=[],d=[];
+    allCards.forEach(res=>{if(isPending(res)){p.push(res);return;}if(!isApproved(res))return;const dt=parseEventDate(res.event_date||res.eventDate||res.reservationDate,res.event_time||res.eventTime||res.reservationTime);if(!dt||dt.getTime()>Date.now())u.push(res);else d.push(res);});
+    return{upcomingCards:u,pendingCards:p,doneCards:d};
+  },[allCards]);
 
-  // ── Tab button style ──────────────────────────────────────────────────────
-  const tabStyle = (active, color, pastColor) => ({
-    padding: "7px 14px",
-    border: "none",
-    borderRadius: 8,
-    fontFamily: C.font,
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-    transition: "all .18s",
-    background: active ? color : "transparent",
-    color: active ? "#fff" : pastColor,
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-  });
+  const leftCards=leftTab==="upcoming"?upcomingCards:pendingCards;
+  const leftVisible=leftCards.slice((pendingPage-1)*pendingPerPage,pendingPage*pendingPerPage);
+  const doneVisible=doneCards.slice((donePage-1)*donePerPage,donePage*donePerPage);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handlePopupView=useCallback(p=>{dismissPopup();const items=p.items||[];if(items.length===1){const full=allCards.find(r=>(r.id??r.db_id)===items[0].id);if(full)setDetailRes(full);}else setPickerItems(items);},[allCards,dismissPopup]);
+
+  const wsColor=wsStatus==="connected"?C.green:wsStatus==="connecting"?C.gold:C.red;
+  const wsLabel=wsStatus==="connected"?"Live":wsStatus==="connecting"?"Connecting":"Offline";
+
   return (
-    <div style={{ fontFamily: C.font, background: C.bg, height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", color: C.text }}>
+    <ThemeContext.Provider value={{ isDark, toggle:toggleTheme }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        * { box-sizing:border-box; margin:0; padding:0; }
-        ::-webkit-scrollbar { width:4px; }
-        ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:${C.border}; border-radius:4px; }
-        @keyframes cardSlideIn {
-          from { opacity:0; transform:translateY(-8px) scale(.98); }
-          to   { opacity:1; transform:none; }
-        }
-        @keyframes popupIn {
-          from { opacity:0; transform:translateY(-10px) scale(.96); }
-          to   { opacity:1; transform:none; }
-        }
-        @keyframes bellRing {
-          0%,100% { transform:rotate(0deg); }
-          25%     { transform:rotate(-18deg); }
-          75%     { transform:rotate(18deg); }
-        }
-        @keyframes dotPulse {
-          0%,100% { opacity:1; transform:scale(1); }
-          50%     { opacity:.3; transform:scale(1.8); }
-        }
-        @keyframes spin { to { transform:rotate(360deg); } }
-        @keyframes fadeUp {
-          from { opacity:0; transform:translateY(6px); }
-          to   { opacity:1; transform:none; }
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+        @keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(0.97);}to{opacity:1;transform:none;}}
+        @keyframes cardSlideIn{from{opacity:0;transform:translateY(-8px) scale(0.98);}to{opacity:1;transform:none;}}
+        @keyframes bellRing{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-16deg);}75%{transform:rotate(16deg);}}
+        @keyframes dotPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.3;transform:scale(1.8);}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+        ::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${C.borderDefault};border-radius:4px;}
       `}</style>
 
-      {/* ══ HEADER ══════════════════════════════════════════════════════════ */}
-      <header style={{ height: 64, background: C.surface, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 24px", flexShrink: 0, boxShadow: `0 1px 6px ${C.shadow}`, gap: 16 }}>
-        {bellevueLogo && (
-          <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height: 38, width: "auto", objectFit: "contain", flexShrink: 0 }} onError={e => { e.currentTarget.style.display = "none"; }} />
-        )}
-        <div style={{ width: 1, height: 26, background: C.border }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 14, color: C.gold, letterSpacing: 1.5, textTransform: "uppercase" }}>
-            Notification Monitor
+      <div style={{ minHeight:"100vh",fontFamily:F.body,background:C.pageBg,color:C.textPrimary,display:"flex",flexDirection:"column",transition:"background 0.30s",position:"relative" }}>
+
+        {/* BG image — identical to ManageBooking */}
+        <div style={{ position:"fixed",inset:0,zIndex:0 }}>
+          <div style={{ position:"absolute",inset:0,backgroundImage:"url('/src/assets/bg-login.jpeg')",backgroundSize:"cover",backgroundPosition:"center",filter:C.bgFilter,transform:"scale(1.05)",transition:"filter 0.40s" }}/>
+          <div style={{ position:"absolute",inset:0,background:C.bgOverlay,transition:"background 0.40s" }}/>
+        </div>
+
+        {/* NAV — identical to ManageBooking */}
+        <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(20px,5vw,64px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box",transition:"background 0.30s" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:20 }}>
+            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:26,width:"auto",display:"block",flexShrink:0,filter:isDark?"brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)":"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
+            <div style={{ width:1,height:18,background:C.borderDefault }}/>
+            <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.textSecondary,fontWeight:700,textTransform:"uppercase" }}>Notification Monitor</span>
           </div>
-        </div>
-
-        {/* Pending badge */}
-        {pendingCards.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.amberPastel, border: `1px solid ${C.amberBorder}`, borderRadius: 20, padding: "4px 12px", flexShrink: 0 }}>
-            <Clock size={12} color={C.amber} />
-            <span style={{ fontFamily: C.font, fontSize: 11, fontWeight: 700, color: C.amber }}>{pendingCards.length} Pending</span>
-          </div>
-        )}
-
-        {/* WS / connection badge */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: `${wsColor}15`, border: `1px solid ${wsColor}40`, borderRadius: 20, padding: "4px 12px", flexShrink: 0 }}>
-          <WsIcon size={12} color={wsColor} />
-          <span style={{ fontFamily: C.font, fontSize: 11, fontWeight: 600, color: wsColor }}>{wsLabel}</span>
-          {/* Polling always runs — show a subtle dot when WS is not "connected" */}
-          {wsStatus !== "connected" && (
-            <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 500 }}>(polling active)</span>
-          )}
-        </div>
-
-        {/* Bell */}
-        <div style={{ width: 36, height: 36, borderRadius: "50%", background: popup ? C.navy : C.borderLight, border: `1.5px solid ${popup ? C.gold : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s", animation: popup ? "bellRing .6s ease infinite" : "none", position: "relative" }}>
-          {popup ? <BellDot size={16} color={C.gold} /> : <Bell size={16} color={C.gold} />}
-          {popup && (
-            <div style={{ position: "absolute", top: 3, right: 3, width: 7, height: 7, borderRadius: "50%", background: C.red, border: "1.5px solid #fff", animation: "dotPulse 1.2s ease infinite" }} />
-          )}
-        </div>
-
-        <div style={{ width: 1, height: 26, background: C.border }} />
-
-        {/* Clock */}
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontFamily: C.font, fontWeight: 700, fontSize: 16, color: C.navy, lineHeight: 1.15 }}>{clock}</div>
-          <div style={{ fontFamily: C.font, fontSize: 10, fontWeight: 500, color: C.textLight, letterSpacing: 0.8, marginTop: 2 }}>{date}</div>
-        </div>
-      </header>
-
-      {/* ══ LOADING ══════════════════════════════════════════════════════════ */}
-      {loading && (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
-          <div style={{ width: 30, height: 30, border: `2px solid ${C.border}`, borderTopColor: C.gold, borderRadius: "50%", animation: "spin .8s linear infinite" }} />
-          <div style={{ fontFamily: C.font, fontSize: 13, fontWeight: 400, color: C.textMuted }}>Loading notifications…</div>
-        </div>
-      )}
-
-      {/* ══ TWO COLUMNS ═════════════════════════════════════════════════════ */}
-      {!loading && (
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "3fr 1.4fr", gap: 16, padding: "16px 20px", minHeight: 0, animation: "fadeUp .3s ease" }}>
-
-          {/* LEFT — Tabbed: Upcoming / Pending */}
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", boxShadow: `0 2px 10px ${C.shadow}`, display: "flex", flexDirection: "column", minHeight: 0 }}>
-
-            {/* Tab header */}
-            <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "10px 14px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button style={tabStyle(leftTab === "upcoming", C.blue, C.textMuted)} onClick={() => { setLeftTab("upcoming"); setLeftPage(1); }}>
-                  <CalendarDays size={12} />
-                  Upcoming
-                  <span style={{ background: leftTab === "upcoming" ? "rgba(255,255,255,0.25)" : C.bluePastel, color: leftTab === "upcoming" ? "#fff" : C.blue, borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
-                    {upcomingCards.length}
-                  </span>
-                </button>
-
-                <button style={tabStyle(leftTab === "pending", C.amber, C.textMuted)} onClick={() => { setLeftTab("pending"); setLeftPage(1); }}>
-                  <Clock size={12} />
-                  Pending
-                  <span style={{ background: leftTab === "pending" ? "rgba(255,255,255,0.25)" : C.amberPastel, color: leftTab === "pending" ? "#fff" : C.amber, borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
-                    {pendingCards.length}
-                  </span>
-                  {pendingCards.length > 0 && leftTab !== "pending" && (
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.red, display: "inline-block", animation: "dotPulse 1.2s ease infinite" }} />
-                  )}
-                </button>
+          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+            {pendingCards.length>0&&(
+              <div style={{ display:"flex",alignItems:"center",gap:5,background:C.goldFaint,border:`1px solid ${C.borderAccent}`,borderRadius:20,padding:"5px 12px" }}>
+                <span style={{ width:5,height:5,borderRadius:"50%",background:C.gold,animation:"dotPulse 1.2s ease infinite" }}/>
+                <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.gold }}>{pendingCards.length} Pending</span>
               </div>
-              <span style={{ fontFamily: C.font, fontSize: 11, color: C.textLight }}>
-                {leftTab === "pending" ? "Tap 'Approve' to confirm a reservation" : "Showing approved, event not yet passed"}
-              </span>
+            )}
+            <div style={{ display:"flex",alignItems:"center",gap:6,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:20,padding:"5px 12px" }}>
+              {wsStatus==="connected"?<Wifi size={11} color={wsColor}/>:<WifiOff size={11} color={wsColor}/>}
+              <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor }}>{wsLabel}</span>
             </div>
-
-            {/* Cards */}
-            <div ref={leftRef} style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}>
-              {leftCards.length === 0 ? (
-                <EmptyState msg={leftTab === "upcoming" ? "No upcoming reservations" : "No pending reservations"} />
-              ) : (
-                <>
-                  {leftVisible.map(res => (
-                    <NewResCard
-                      key={res.id ?? res.db_id}
-                      res={res}
-                      isNew={newIds.has(res.id ?? res.db_id)}
-                      onClick={setDetailRes}
-                      onApprove={handleApproveRequest}
-                      approvingIds={approvingIds}
-                    />
-                  ))}
-                  {leftCards.length > leftPerPage && (
-                    <div style={{ padding: "12px 16px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ fontSize: 11, color: C.textMuted }}>
-                          {Math.min((leftPage - 1) * leftPerPage + 1, leftCards.length)}–{Math.min(leftPage * leftPerPage, leftCards.length)} of {leftCards.length}
-                        </span>
-                        <select value={leftPerPage} onChange={e => { setPendingPerPage(Number(e.target.value)); setLeftPage(1); }}
-                          style={{ padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 11, color: C.text, background: C.surface, cursor: "pointer" }}>
-                          {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <button onClick={() => setLeftPage(p => Math.max(1, p - 1))} disabled={leftPage <= 1}
-                          style={{ padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, background: leftPage <= 1 ? C.bg : C.surface, color: leftPage <= 1 ? C.textMuted : C.text, cursor: leftPage <= 1 ? "not-allowed" : "pointer", fontSize: 11, fontFamily: C.font }}>
-                          Previous
-                        </button>
-                        <span style={{ fontSize: 11, color: C.text, padding: "0 8px", fontFamily: C.font }}>{leftPage} / {Math.ceil(leftCards.length / leftPerPage)}</span>
-                        <button onClick={() => setLeftPage(p => Math.min(Math.ceil(leftCards.length / leftPerPage), p + 1))} disabled={leftPage >= Math.ceil(leftCards.length / leftPerPage)}
-                          style={{ padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, background: leftPage >= Math.ceil(leftCards.length / leftPerPage) ? C.bg : C.surface, color: leftPage >= Math.ceil(leftCards.length / leftPerPage) ? C.textMuted : C.text, cursor: leftPage >= Math.ceil(leftCards.length / leftPerPage) ? "not-allowed" : "pointer", fontSize: 11, fontFamily: C.font }}>
-                          Next
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+            <div style={{ width:36,height:36,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
+              {popup?<BellDot size={15} color={C.gold}/>:<Bell size={15} color={C.textSecondary}/>}
+              {popup&&<div style={{ position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
             </div>
+            <div style={{ width:1,height:18,background:C.borderDefault }}/>
+            <div style={{ textAlign:"right",flexShrink:0 }}>
+              <div style={{ fontFamily:F.mono,fontWeight:700,fontSize:15,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
+              <div style={{ fontFamily:F.label,fontSize:9,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase",marginTop:2 }}>{date}</div>
+            </div>
+            <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
           </div>
+        </nav>
 
-          {/* RIGHT — Done */}
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", boxShadow: `0 2px 10px ${C.shadow}`, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ background: C.greenPastel, borderBottom: `1px solid ${C.greenBorder}`, padding: "11px 16px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontFamily: C.font, fontWeight: 600, fontSize: 13, color: C.navy }}>Done</span>
-              <span style={{ background: C.green, color: "#fff", borderRadius: 20, padding: "2px 10px", fontFamily: C.font, fontSize: 12, fontWeight: 600 }}>{doneCards.length}</span>
+        {/* PAGE BODY */}
+        <div style={{ position:"relative",zIndex:1,paddingTop:64,minHeight:"100vh",display:"flex",flexDirection:"column" }}>
+          {loading&&(
+            <div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16 }}>
+              <Spinner C={C} size={22}/>
+              <div style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",color:C.textTertiary }}>Loading…</div>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px", minHeight: 0 }}>
-              {doneCards.length === 0 ? (
-                <EmptyState msg="No completed reservations" />
-              ) : (
-                <>
-                  {doneVisible.map(res => (
-                    <DoneCard key={`done-${res.id ?? res.db_id}`} res={res} onClick={setDetailRes} />
-                  ))}
-                  {doneCards.length > donePerPage && (
-                    <div style={{ padding: "12px 16px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ fontSize: 11, color: C.textMuted }}>
-                          {Math.min((donePage - 1) * donePerPage + 1, doneCards.length)}–{Math.min(donePage * donePerPage, doneCards.length)} of {doneCards.length}
-                        </span>
-                        <select value={donePerPage} onChange={e => { setDonePerPage(Number(e.target.value)); setDonePage(1); }}
-                          style={{ padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 11, color: C.text, background: C.surface, cursor: "pointer" }}>
-                          {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
+          )}
+
+          {!loading&&(
+            <div style={{ flex:1,display:"flex",flexDirection:"column",padding:"clamp(32px,5vh,52px) clamp(20px,5vw,64px) clamp(24px,4vh,40px)",gap:20,animation:"fadeUp 0.32s ease" }}>
+
+              {/* Page header — matches ManageBooking exactly */}
+              <div>
+                
+                <h1 style={{ fontFamily:F.display,fontSize:"clamp(30px,4.5vw,44px)",fontWeight:400,color:C.textPrimary,lineHeight:1.12,margin:"0 0 12px",letterSpacing:"0.01em" }}>
+                  Notification<br/>Monitor
+                </h1>
+                <p style={{ fontFamily:F.body,fontSize:13.5,color:C.textSecondary,margin:0,lineHeight:1.70 }}>
+                  Real-time reservation tracking · {allCards.length} total · {pendingCards.length} pending approval
+                </p>
+              </div>
+
+              {/* Two-column layout */}
+              <div style={{ display:"grid",gridTemplateColumns:"3fr 1.4fr",gap:14,flex:1,minHeight:0 }}>
+
+                {/* LEFT */}
+                <Panel C={C} style={{ maxHeight:"calc(100vh - 310px)" }}>
+                  <div style={{ padding:"12px 16px 10px",borderBottom:`1px solid ${C.divider}`,flexShrink:0 }}>
+                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+                      <div style={{ display:"flex",gap:6 }}>
+                        <TabBtn active={leftTab==="pending"} onClick={()=>{setLeftTab("pending");setPendingPage(1);}} activeColor={C.gold} count={pendingCards.length} pulse={pendingCards.length>0} C={C}><Clock size={10}/>Pending</TabBtn>
+                        <TabBtn active={leftTab==="upcoming"} onClick={()=>{setLeftTab("upcoming");setPendingPage(1);}} activeColor={C.blue} count={upcomingCards.length} C={C}><CalendarDays size={10}/>Upcoming</TabBtn>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <button onClick={() => setDonePage(p => Math.max(1, p - 1))} disabled={donePage <= 1}
-                          style={{ padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, background: donePage <= 1 ? C.bg : C.surface, color: donePage <= 1 ? C.textMuted : C.text, cursor: donePage <= 1 ? "not-allowed" : "pointer", fontSize: 11, fontFamily: C.font }}>
-                          Previous
-                        </button>
-                        <span style={{ fontSize: 11, color: C.text, padding: "0 8px", fontFamily: C.font }}>{donePage} / {Math.ceil(doneCards.length / donePerPage)}</span>
-                        <button onClick={() => setDonePage(p => Math.min(Math.ceil(doneCards.length / donePerPage), p + 1))} disabled={donePage >= Math.ceil(doneCards.length / donePerPage)}
-                          style={{ padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, background: donePage >= Math.ceil(doneCards.length / donePerPage) ? C.bg : C.surface, color: donePage >= Math.ceil(doneCards.length / donePerPage) ? C.textMuted : C.text, cursor: donePage >= Math.ceil(doneCards.length / donePerPage) ? "not-allowed" : "pointer", fontSize: 11, fontFamily: C.font }}>
-                          Next
-                        </button>
-                      </div>
+                      <span style={{ fontFamily:F.label,fontSize:9,color:C.textTertiary,letterSpacing:"0.10em",textTransform:"uppercase" }}>{leftTab==="pending"?"Tap approve to confirm":"Approved · not yet passed"}</span>
                     </div>
-                  )}
-                </>
-              )}
+                  </div>
+                  <div ref={leftRef} style={{ flex:1,overflowY:"auto",padding:"10px 12px",minHeight:0 }}>
+                    {leftCards.length===0?<EmptyState msg={leftTab==="upcoming"?"No upcoming reservations":"No pending reservations"} C={C}/>:leftVisible.map(res=><ReservationCard key={res.id??res.db_id} res={res} isNew={newIds.has(res.id??res.db_id)} onClick={setDetailRes} onApprove={handleApproveRequest} approvingIds={approvingIds} C={C}/>)}
+                  </div>
+                  <Pagination page={pendingPage} total={leftCards.length} perPage={pendingPerPage} setPage={setPendingPage} setPerPage={setPendingPerPage} C={C}/>
+                </Panel>
+
+                {/* RIGHT */}
+                <Panel accentColor={C.green} C={C} style={{ maxHeight:"calc(100vh - 310px)" }}>
+                  <div style={{ padding:"12px 16px 10px",borderBottom:`1px solid ${C.divider}`,flexShrink:0 }}>
+                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                        <CheckCircle size={12} color={C.green}/>
+                        <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",color:C.green }}>Done</span>
+                      </div>
+                      <span style={{ background:C.greenFaint,border:`1px solid ${C.greenBorder}`,borderRadius:4,padding:"2px 8px",fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.12em",color:C.green }}>{doneCards.length}</span>
+                    </div>
+                  </div>
+                  <div style={{ flex:1,overflowY:"auto",padding:"10px 12px",minHeight:0 }}>
+                    {doneCards.length===0?<EmptyState msg="No completed reservations" C={C}/>:doneVisible.map(res=><DoneCard key={`done-${res.id??res.db_id}`} res={res} onClick={setDetailRes} C={C}/>)}
+                  </div>
+                  <Pagination page={donePage} total={doneCards.length} perPage={donePerPage} setPage={setDonePage} setPerPage={setDonePerPage} C={C}/>
+                </Panel>
+
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* ══ REMINDER POPUP ══════════════════════════════════════════════════ */}
-      {popup && (
-        <ReminderPopup popup={popup} queueCount={popupQueue.length} onView={handlePopupView} onClose={dismissPopup} />
-      )}
-
-      {/* ══ EVENT PICKER ════════════════════════════════════════════════════ */}
-      {pickerItems && (
-        <EventPickerModal
-          items={pickerItems}
-          allCards={allCards}
-          onSelect={(res) => { setPickerItems(null); setDetailRes(res); }}
-          onClose={() => setPickerItems(null)}
-        />
-      )}
-
-      {/* ══ DETAIL MODAL ════════════════════════════════════════════════════ */}
-      {detailRes && (
-        <ReservationDetailModal
-          res={detailRes}
-          onClose={() => setDetailRes(null)}
-          onApprove={handleApproveRequest}
-          approvingIds={approvingIds}
-        />
-      )}
-
-      {/* ══ APPROVE CONFIRM MODAL ═══════════════════════════════════════════ */}
-      {confirmRes && (
-        <ApproveConfirmModal
-          res={confirmRes}
-          onConfirm={handleApproveConfirm}
-          onCancel={handleApproveCancel}
-          isApproving={isApproving}
-        />
-      )}
-
-      {/* ══ TOASTS ══════════════════════════════════════════════════════════ */}
-      <Toast toasts={toasts} />
-    </div>
+      {popup&&<ReminderPopup popup={popup} queueCount={popupQueue.length} onView={handlePopupView} onClose={dismissPopup} C={C}/>}
+      {pickerItems&&<EventPickerModal items={pickerItems} allCards={allCards} onSelect={r=>{setPickerItems(null);setDetailRes(r);}} onClose={()=>setPickerItems(null)} C={C}/>}
+      {detailRes&&<DetailModal res={detailRes} onClose={()=>setDetailRes(null)} onApprove={handleApproveRequest} approvingIds={approvingIds} C={C}/>}
+      {confirmRes&&<ApproveConfirmModal res={confirmRes} onConfirm={handleApproveConfirm} onCancel={()=>{if(!isApproving)setConfirmRes(null);}} isApproving={isApproving} C={C}/>}
+      <Toast toasts={toasts} C={C}/>
+    </ThemeContext.Provider>
   );
 }

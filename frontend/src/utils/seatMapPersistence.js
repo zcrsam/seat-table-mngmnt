@@ -100,33 +100,34 @@ export function subscribeToSeatMapChanges(callback) {
   };
 }
 
-// ─── Dispatch same-tab event ──────────────────────────────────────────────────
+// ─── Dispatch same-tab event ──────────────────────────────────────────
 // Saves to localStorage AND fires both BroadcastChannel and a same-tab custom
 // event so every subscriber (same tab or other tabs) receives the update.
 export function dispatchSeatMapUpdate(wing, room, data) {
-  // 1. Persist to localStorage
-  saveRoomData(wing, room, data);
-
-  // 2. Also update the legacy key so loadSeatMapData() stays consistent
+  // 1. Persist to unified key
+  const key = buildKey(wing, room);
   try {
-    const existing = loadSeatMapData() || {};
-    const updated  = {
-      ...existing,
-      [wing]: { ...(existing[wing] || {}), [room]: data },
-    };
-    localStorage.setItem(LEGACY_KEY, JSON.stringify(updated));
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn("SeatMap: could not save to localStorage", err);
+  }
+
+  // 2. Fire storage event for same-tab sync
+  try {
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: key,
+      newValue: JSON.stringify(data),
+    }));
   } catch {}
 
   // 3. Fire same-tab custom event (storage events don't fire in the originating tab)
   window.dispatchEvent(
     new CustomEvent("seatmap:update", { detail: { wing, room, data } })
   );
-
-  // 4. Fire a synthetic StorageEvent so same-tab storage listeners also fire
-  const key = buildKey(wing, room);
+  const storageKey = buildKey(wing, room);
   try {
     window.dispatchEvent(
-      new StorageEvent("storage", { key, newValue: JSON.stringify(data) })
+      new StorageEvent("storage", { key: storageKey, newValue: JSON.stringify(data) })
     );
   } catch {}
 }

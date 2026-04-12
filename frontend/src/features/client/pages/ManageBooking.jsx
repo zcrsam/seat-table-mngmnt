@@ -1,7 +1,6 @@
-// src/pages/AlabangReserve.jsx
+// src/pages/ManageBooking.jsx
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import MainWingNavbar from "../components/MainWingNavbar";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import {
   getRoomData,
@@ -15,7 +14,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api"
 const WING = "Main Wing";
 const ROOM = "Alabang Function Room";
 
-// ─── Design Tokens (mirrors ManageBooking exactly) ────────────────────────────
+// ─── Design Tokens ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
@@ -164,7 +163,7 @@ const getSeatRatio = (table) => {
   return `${available}/${table.seats.length}`;
 };
 
-// ─── Shared UI Primitives (mirrors ManageBooking) ─────────────────────────────
+// ─── Shared UI Primitives ─────────────────────────────────────────────────────
 function Spinner({ size = 13, C }) {
   return (
     <span style={{
@@ -355,62 +354,6 @@ function ThemeToggle() {
         {isDark ? "Dark" : "Light"}
       </span>
     </button>
-  );
-}
-
-// ─── Navbar ───────────────────────────────────────────────────────────────────
-function NavBar({ onBack }) {
-  const navigate = useNavigate();
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return (
-    <nav style={{
-      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000,
-      height: 64, display: "flex", alignItems: "center",
-      justifyContent: "space-between", padding: "0 clamp(20px,5vw,64px)",
-      background: C.navBg, backdropFilter: "blur(24px)",
-      WebkitBackdropFilter: "blur(24px)",
-      borderBottom: `1px solid ${C.navBorder}`,
-      boxSizing: "border-box", transition: "background 0.30s",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-        <img src={bellevueLogo} alt="The Bellevue Manila" onClick={() => navigate("/")}
-          style={{
-            height: 26, width: "auto", cursor: "pointer", display: "block", flexShrink: 0,
-            filter: isDark
-              ? "brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)"
-              : "brightness(0) saturate(100%)",
-            transition: "filter 0.30s",
-          }} />
-        <div style={{ width: 1, height: 18, background: C.borderDefault }} />
-        <span style={{
-          fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em",
-          color: C.textSecondary, fontWeight: 700, textTransform: "uppercase",
-        }}>
-          {ROOM}
-        </span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={onBack}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "7px 14px", background: "transparent",
-            border: `1px solid ${C.borderDefault}`, borderRadius: 8,
-            fontFamily: F.label, fontSize: 9, fontWeight: 700,
-            letterSpacing: "0.16em", textTransform: "uppercase",
-            color: C.textSecondary, cursor: "pointer", transition: "all 0.18s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          All Venues
-        </button>
-        <ThemeToggle />
-      </div>
-    </nav>
   );
 }
 
@@ -983,7 +926,6 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
   return (
     <ModalShell onClose={onBack} C={C} maxWidth={460}>
       <div style={{ padding: "26px 26px 28px" }}>
-        {/* Success indicator */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <div style={{
             width: 40, height: 40, borderRadius: 8, flexShrink: 0,
@@ -1004,7 +946,6 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
           </div>
         </div>
 
-        {/* Reference */}
         <div style={{
           padding: "14px 16px", borderRadius: 10, marginBottom: 16,
           background: C.goldFaintest, border: `1px solid ${C.borderAccent}`,
@@ -1013,7 +954,6 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
           <div style={{ fontFamily: F.mono, fontSize: 24, fontWeight: 800, color: C.textPrimary, letterSpacing: "0.12em" }}>{refCode || "—"}</div>
         </div>
 
-        {/* Info + QR */}
         <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
           <div style={{ flex: 1 }}>
             {[
@@ -1093,8 +1033,194 @@ function LegendDot({ color }) {
   return <span style={{ width: 10, height: 10, borderRadius: 3, background: color, display: "inline-block", flexShrink: 0 }} />;
 }
 
+// ─── Inline Edit Field ────────────────────────────────────────────────────────
+function EditField({ label, value, onChange, type = "text", placeholder = "", required = false, min, C, isDark }) {
+  const [focused, setFocused] = useState(false);
+  const isTextarea = type === "textarea";
+
+  const inputStyle = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 12px",
+    border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderRadius: 8,
+    background: C.surfaceInput,
+    color: C.textPrimary,
+    fontFamily: F.body,
+    fontSize: 13,
+    outline: "none",
+    colorScheme: isDark ? "dark" : "light",
+    transition: "border-color 0.18s, box-shadow 0.18s",
+    boxShadow: focused ? C.inputFocusShadow : "none",
+    resize: isTextarea ? "vertical" : undefined,
+    minHeight: isTextarea ? 72 : undefined,
+  };
+
+  return (
+    <div>
+      <label style={{
+        fontFamily: F.label, fontSize: 9, letterSpacing: "0.14em",
+        color: focused ? C.gold : C.textSecondary,
+        fontWeight: 700, textTransform: "uppercase", marginBottom: 6,
+        display: "block", transition: "color 0.18s",
+      }}>
+        {label}{required && <span style={{ color: C.red, marginLeft: 3 }}>*</span>}
+      </label>
+      {isTextarea
+        ? <textarea value={value} rows={3} placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+            style={inputStyle} />
+        : <input type={type} value={value} placeholder={placeholder} min={min}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+            style={inputStyle} />
+      }
+    </div>
+  );
+}
+
+// ─── Cancel Reason Modal ──────────────────────────────────────────────────────
+function CancelReasonModal({ onConfirm, onDismiss, cancelling, C }) {
+  const [reason, setReason] = useState("");
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: C.modalOverlay,
+        zIndex: 5000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget && !cancelling) onDismiss(); }}
+    >
+      <div style={{
+        background: C.surfaceBase, borderRadius: 14,
+        width: "100%", maxWidth: 420,
+        boxShadow: "0 24px 80px rgba(0,0,0,0.30)",
+        border: `1px solid ${C.borderDefault}`,
+        fontFamily: F.body,
+        animation: "modalIn 0.20s cubic-bezier(0.16,1,0.3,1)",
+        overflow: "hidden",
+      }}>
+        {/* Red accent bar */}
+        <div style={{ height: 2, background: `linear-gradient(90deg,transparent 0%,${C.red}90 30%,${C.red}90 70%,transparent 100%)` }} />
+
+        <div style={{ padding: "22px 22px 24px" }}>
+          {/* Icon + title */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+              background: C.redFaint, border: `1px solid ${C.redBorder}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.red, fontWeight: 700, textTransform: "uppercase", marginBottom: 3 }}>
+                Cancel Booking
+              </div>
+              <div style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600, color: C.textPrimary, lineHeight: 1.2 }}>
+                Are you sure?
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            padding: "10px 14px", borderRadius: 8, marginBottom: 18,
+            background: C.redFaint, border: `1px solid ${C.redBorder}`,
+            fontFamily: F.body, fontSize: 12.5, color: C.textSecondary, lineHeight: 1.65,
+          }}>
+            This action <strong style={{ color: C.textPrimary }}>cannot be undone</strong>. Your reservation will be permanently cancelled.
+          </div>
+
+          {/* Reason textarea */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: "block", fontFamily: F.label, fontSize: 9,
+              letterSpacing: "0.18em", color: focused ? C.red : C.textSecondary,
+              fontWeight: 700, textTransform: "uppercase", marginBottom: 7,
+              transition: "color 0.18s",
+            }}>
+              Reason for cancellation <span style={{ color: C.textTertiary, fontWeight: 400, letterSpacing: "0.06em", textTransform: "none" }}>(optional)</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder="e.g. Change of plans, date conflict, found another venue…"
+              rows={3}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "11px 14px",
+                border: `1.5px solid ${focused ? C.redBorder : C.borderDefault}`,
+                borderRadius: 8, background: C.surfaceInput,
+                fontFamily: F.body, fontSize: 13, color: C.textPrimary,
+                outline: "none", resize: "vertical", minHeight: 80,
+                transition: "border-color 0.18s, box-shadow 0.18s",
+                boxShadow: focused ? `0 0 0 3px rgba(160,56,56,0.09)` : "none",
+                colorScheme: "light",
+              }}
+            />
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={onDismiss}
+              disabled={cancelling}
+              style={{
+                flex: 1, padding: "12px",
+                background: "transparent",
+                border: `1px solid ${C.borderDefault}`,
+                borderRadius: 8,
+                fontFamily: F.label, fontSize: 10, fontWeight: 700,
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                color: C.textSecondary,
+                cursor: cancelling ? "not-allowed" : "pointer",
+                transition: "all 0.18s",
+              }}
+              onMouseEnter={(e) => { if (!cancelling) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
+            >
+              Keep Booking
+            </button>
+            <button
+              onClick={() => onConfirm(reason.trim())}
+              disabled={cancelling}
+              style={{
+                flex: 1, padding: "12px",
+                background: cancelling ? C.redBorder : C.red,
+                border: "none", borderRadius: 8,
+                fontFamily: F.label, fontSize: 10, fontWeight: 700,
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                color: "#fff",
+                cursor: cancelling ? "not-allowed" : "pointer",
+                transition: "all 0.18s",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+              onMouseEnter={(e) => { if (!cancelling) e.currentTarget.style.background = "#8C2E2E"; }}
+              onMouseLeave={(e) => { if (!cancelling) e.currentTarget.style.background = C.red; }}
+            >
+              {cancelling
+                ? <><Spinner C={C} size={12} />Cancelling…</>
+                : "Yes, Cancel It"
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function AlabangReserve() {
+export default function ManageBooking() {
   const navigate = useNavigate();
 
   const [isDark, setIsDark] = useState(() => {
@@ -1109,603 +1235,596 @@ export default function AlabangReserve() {
 
   const C = getTokens(isDark);
 
-  const [mode,          setMode]          = useState("whole");
-  const [selectedSeat,  setSelectedSeat]  = useState(null);
-  const [selectedTable, setSelectedTable] = useState(null);
-  const [windowSize,    setWindowSize]    = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [modal,         setModal]         = useState(null);
-  const [guests,        setGuests]        = useState(2);
-  const [formData,      setFormData]      = useState(null);
-  const [refCode,       setRefCode]       = useState(null);
-  const [submitting,    setSubmitting]    = useState(false);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [referenceCode, setReferenceCode]     = useState("");
+  const [searching, setSearching]             = useState(false);
+  const [saving, setSaving]                   = useState(false);
+  const [cancelling, setCancelling]           = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [error, setError]                     = useState("");
+  const [booking, setBooking]                 = useState(null);
+  const [editing, setEditing]                 = useState(false);
+  const [editForm, setEditForm]               = useState({});
+  const [focused, setFocused]                 = useState(false);
 
-  const [rebookFrom,         setRebookFrom]         = useState(null);
-  const [lastBookingDetails, setLastBookingDetails] = useState(null);
+  // ── Format helpers ─────────────────────────────────────────────────────────
+  const fmtDate = (d) => {
+    if (!d) return "—";
+    const dateOnly = d.toString().split("T")[0];
+    const p = new Date(dateOnly + "T00:00:00");
+    return isNaN(p) ? d : p.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
+  };
 
-  const echoRef = useRef(null);
+  const fmtTime = (t) => {
+    if (!t) return "—";
+    const [h, m] = t.split(":");
+    const hr = parseInt(h) || 0;
+    const hr12 = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr;
+    return `${hr12}:${m || "00"} ${hr < 12 ? "AM" : "PM"}`;
+  };
 
-  const [tableData, setTableData] = useState(() => {
-    const raw = getRoomData(WING, ROOM, null);
-    if (!raw) return null;
-    if (Array.isArray(raw)) return raw.filter((t) => t.seats?.length > 0);
-    if (raw.seats?.length > 0) return raw;
-    return null;
-  });
+  // ── Search booking ─────────────────────────────────────────────────────────
+  const handleSearch = async () => {
+    const trimmed = referenceCode.trim();
+    if (!trimmed) { setError("Please enter your reference code."); return; }
 
-  useEffect(() => {
-    const unsub = subscribeToSeatMapChanges(({ wing, room, data }) => {
-      if (wing !== WING || room !== ROOM) return;
-      if (Array.isArray(data)) setTableData(data.filter((t) => t.seats?.length > 0));
-      else if (data?.seats?.length > 0) setTableData(data);
-      else setTableData(null);
-    });
-    return unsub;
-  }, []);
+    setError(""); setSearching(true); setBooking(null);
 
-  useEffect(() => {
-    const SEAT_KEY = `seatmap:${WING}:${ROOM}`;
-    const onStorage = (e) => {
-      if (e.key !== SEAT_KEY) return;
-      try {
-        const parsed = JSON.parse(e.newValue);
-        if (!parsed) return;
-        if (Array.isArray(parsed)) setTableData(parsed.filter((t) => t.seats?.length > 0));
-        else if (parsed.seats?.length > 0) setTableData(parsed);
-      } catch {}
-    };
-    const onSeatMapUpdate = (e) => {
-      const { wing, room, data } = e.detail || {};
-      if (wing !== WING || room !== ROOM) return;
-      try {
-        if (Array.isArray(data)) setTableData(data.filter((t) => t.seats?.length > 0));
-        else if (data?.seats?.length > 0) setTableData(data);
-        else setTableData(null);
-      } catch {}
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("seatmap-update", onSeatMapUpdate);
-    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap-update", onSeatMapUpdate); };
-  }, []);
+    try {
+      const response = await fetch(`${API_BASE_URL}/reservations?reference_code=${trimmed}`, {
+        headers: { Accept: "application/json" },
+      });
 
-  const hasSynced = useRef(false);
-  useEffect(() => {
-    if (hasSynced.current) return;
-    hasSynced.current = true;
-    const syncWithDatabase = async () => {
-      try {
-        const res = { success: true, data: [] };
-        if (!res.success) return;
-        setTableData((prev) => {
-          if (!prev) return prev;
-          const applyToTable = (tbl) => ({
-            ...tbl,
-            seats: (tbl.seats || []).map((seat) => {
-              const match = res.data.find((r) => {
-                if (r.table !== String(tbl.id)) return false;
-                const nums = String(r.seat || "").replace(/Seat\s*/gi, "").split(",").map((s) => parseInt(s.trim())).filter(Boolean);
-                return nums.includes(seat.num);
-              });
-              return match ? { ...seat, status: match.status } : seat;
-            }),
-          });
-          const result = Array.isArray(prev) ? prev.map(applyToTable) : applyToTable(prev);
-          dispatchSeatMapUpdate(WING, ROOM, result);
-          return result;
+      if (!response.ok) throw new Error("Failed to search booking");
+
+      const data = await response.json();
+      const bookings = Array.isArray(data) ? data : (data.data ? data.data : [data]);
+      const found = bookings.find((b) =>
+        b.reference_code === trimmed || b.id === trimmed || String(b.id) === trimmed
+      );
+
+      if (found) {
+        const normalized = normalizeBooking(found);
+        setBooking(normalized);
+        setEditForm({
+          name:            normalized.name,
+          email:           normalized.email,
+          phone:           normalized.phone || "+63",
+          eventDate:       (normalized.event_date || "").split("T")[0],
+          eventTime:       normalized.event_time || "",
+          specialRequests: normalized.special_requests,
         });
-      } catch (err) { console.warn("[AlabangReserve] Seat sync failed:", err.message); }
-    };
-    syncWithDatabase();
-    const interval = setInterval(syncWithDatabase, 30_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
-  }, []);
-
-  useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
-    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); }
-      catch (err) { console.log("WebSocket init failed:", err); return; }
-    }
-    const echo = echoRef.current;
-    if (!echo) return;
-    try {
-      const channel = echo.channel("reservations");
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) dispatchSeatMapUpdate(WING, ROOM, data.data); }
-        } catch (err) { console.error("Failed to sync seats:", err); }
-      };
-      ["ReservationCreated", "ReservationUpdated", "ReservationDeleted", "SeatReserved", "TableReserved"]
-        .forEach((e) => channel.listen(e, syncSeats));
-      return () => {
-        try { ["ReservationCreated", "ReservationUpdated", "ReservationDeleted", "SeatReserved", "TableReserved"].forEach((e) => channel.stopListening(e)); }
-        catch (_) {}
-      };
-    } catch (err) { console.log("WebSocket channel setup failed:", err); }
-  }, []);
-
-  const dispatchCancelSeat = (booking) => {
-    const key = `seatmap:${WING}:${ROOM}`;
-    const raw = localStorage.getItem(key);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      const tables = Array.isArray(parsed) ? parsed : [parsed];
-      const tableNum = String(booking.table_number || booking.table || "").replace(/^T/i, "");
-      const updated = tables.map((t) => {
-        if (tableNum && String(t.id).replace(/^T/i, "") !== tableNum) return t;
-        return { ...t, seats: t.seats.map((s) => s.status === "pending" ? { ...s, status: "available" } : s) };
-      });
-      const payload = Array.isArray(parsed) ? updated : updated[0];
-      localStorage.setItem(key, JSON.stringify(payload));
-      dispatchSeatMapUpdate(WING, ROOM, payload);
-      setTableData(Array.isArray(payload) ? payload.filter((t) => t.seats?.length > 0) : payload);
-    } catch (e) { console.warn("dispatchCancelSeat failed:", e); }
-  };
-
-  const resolveTableForSeat = (seat) => {
-    if (!seat || !tableData) return null;
-    if (Array.isArray(tableData)) return tableData.find((t) => t.seats?.some((s) => s.id === seat.id)) || tableData[0] || null;
-    return tableData;
-  };
-  const getActiveTable = () => selectedTable || (Array.isArray(tableData) ? tableData[0] : tableData) || null;
-
-  const handleTableClick    = (table) => { setSelectedTable(table); setModal("guestCount"); };
-  const handleSeatClick     = (seat)  => {
-    if (seat.status === "reserved") { return; }
-    setSelectedSeat(seat);
-    setSelectedTable(resolveTableForSeat(seat));
-  };
-  const handleGuestContinue = (g)    => { setGuests(g); setModal("details"); };
-  const handleReview        = (form) => { setFormData(form); setModal("review"); };
-  const handleEditDetails   = ()     => { setModal("details"); };
-
-  const handleSubmit = async () => {
-    if (!formData || submitting) return;
-    setSubmitting(true);
-    try {
-      const activeTable = getActiveTable();
-      const payload = {
-        name:             `${formData.firstName} ${formData.lastName}`,
-        email:            formData.email,
-        phone:            formData.phone,
-        venue_id:         1,
-        table_number:     String(activeTable?.id ?? "T1"),
-        seat_number:      mode === "individual"
-                          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
-                          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count:     guests,
-        event_date:       formData.eventDate,
-        event_time:       formData.eventTime ? formData.eventTime.substring(0, 5) : null,
-        special_requests: formData.specialRequests || "",
-        type:             mode,
-      };
-
-      const response   = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
-      const newRefCode = response.reference_code || "—";
-      setRefCode(newRefCode);
-
-      setLastBookingDetails({
-        room:  ROOM,
-        table: `Table ${activeTable?.id ?? "—"}`,
-        date:  formData.eventDate,
-        name:  `${formData.firstName} ${formData.lastName}`,
-      });
-
-      if (rebookFrom) {
-        try {
-          await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" });
-          dispatchCancelSeat(rebookFrom);
-        } catch (e) { console.warn("[AlabangReserve] Could not cancel old booking:", e.message); }
+      } else {
+        setError("No booking found with this reference code. Please check and try again.");
       }
-
-      if (activeTable) {
-        const markPending = (tbl) => {
-          if (mode === "individual") {
-            return { ...tbl, seats: (tbl.seats || []).map((s) => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
-          }
-          let marked = 0;
-          return { ...tbl, seats: (tbl.seats || []).map((s) => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
-        };
-        const updated = Array.isArray(tableData)
-          ? tableData.map((t) => t.id === activeTable.id ? markPending(t) : t)
-          : markPending(tableData);
-        setTableData(updated);
-        dispatchSeatMapUpdate(WING, ROOM, updated);
-      }
-      setModal("success");
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      console.error("Error searching booking:", err);
+      setError("Failed to search. Please try again.");
     } finally {
-      setSubmitting(false);
+      setSearching(false);
     }
   };
 
-  const handleBack = () => {
-    setModal(null); setSelectedSeat(null); setSelectedTable(null);
-    setRefCode(null); setFormData(null); setGuests(2);
-    setRebookFrom(null); setLastBookingDetails(null);
+  // ── Update booking ─────────────────────────────────────────────────────────
+  const handleUpdate = async () => {
+    setError("");
+    setSaving(true);
+
+    try {
+      const payload = {
+        name:             editForm.name,
+        email:            editForm.email,
+        phone:            editForm.phone,
+        event_date:       editForm.eventDate,
+        event_time:       editForm.eventTime,
+        special_requests: editForm.specialRequests,
+      };
+
+      const resourceId = booking.db_id ?? booking.id;
+
+      const response = await fetch(`${API_BASE_URL}/reservations/${resourceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || `HTTP ${response.status}`);
+      }
+
+      await response.json().catch(() => ({}));
+
+      setBooking((prev) => ({
+        ...prev,
+        name:             editForm.name,
+        email:            editForm.email,
+        phone:            editForm.phone,
+        event_date:       editForm.eventDate,
+        event_time:       editForm.eventTime,
+        special_requests: editForm.specialRequests,
+      }));
+
+      setEditing(false);
+    } catch (err) {
+      console.error("Error updating booking:", err);
+      setError(err.message || "Failed to update booking. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const isMobile  = windowSize.width < 640;
-  const isTablet  = windowSize.width < 960;
-  const activeTable = getActiveTable();
-  const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
+  // ── Cancel booking — PATCH status to "cancelled" ───────────────────────────
+  const handleCancelConfirm = async (reason) => {
+    setCancelling(true);
+    setError("");
 
-  const displayTable = mode === "whole"
-    ? (activeTable ? `Table ${activeTable.id}` : "—")
-    : (selectedTable ? `Table ${selectedTable.id}` : "—");
-  const displaySeat = mode === "individual"
-    ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "—")
-    : getWholeSeatLabel(guests, activeTable);
-  const seatRatio = activeTable ? getSeatRatio(activeTable) : null;
+    try {
+      const resourceId = booking.db_id ?? booking.id;
 
-  const detailsPrefill = formData ? {
-    firstName: formData.firstName || "", lastName: formData.lastName || "",
-    email: formData.email || "", phone: formData.phone || "+63",
-    eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00",
-    specialRequests: formData.specialRequests || "",
-  } : rebookFrom ? {
-    firstName: (rebookFrom.name || "").split(/\s+/)[0] || "",
-    lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "",
-    email: rebookFrom.email || "", phone: rebookFrom.phone || "+63",
-    eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00",
-    specialRequests: rebookFrom.special_requests || "",
-  } : null;
+      // Try PATCH first; fall back to PUT if the backend doesn't support PATCH
+      let response = await fetch(`${API_BASE_URL}/reservations/${resourceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          status:               "cancelled",
+          cancellation_reason:  reason || null,
+          cancelled_at:         new Date().toISOString(),
+        }),
+      });
 
+      // If PATCH not supported, fall back to PUT with all fields merged
+      if (response.status === 404 || response.status === 405) {
+        response = await fetch(`${API_BASE_URL}/reservations/${resourceId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            name:                 booking.name,
+            email:                booking.email,
+            phone:                booking.phone,
+            event_date:           booking.event_date,
+            event_time:           booking.event_time,
+            special_requests:     booking.special_requests,
+            status:               "cancelled",
+            cancellation_reason:  reason || null,
+            cancelled_at:         new Date().toISOString(),
+          }),
+        });
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || `HTTP ${response.status}`);
+      }
+
+      setShowCancelModal(false);
+      setBooking(null);
+      setReferenceCode("");
+    } catch (err) {
+      console.error("Cancel error:", err);
+      setError(`Failed to cancel booking: ${err.message}`);
+      setShowCancelModal(false);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  // ── Sub-components ─────────────────────────────────────────────────────────
+  function StatusBadge({ status }) {
+    const cfg =
+      status === "pending"  ? { ...C.badgePending,  label: "Pending"   } :
+      status === "reserved" ? { ...C.badgeApproved, label: "Confirmed" } :
+      status === "approved" ? { ...C.badgeApproved, label: "Approved"  } :
+      status === "rejected" ? { ...C.badgeRejected, label: "Cancelled" } :
+      { bg: "rgba(130,130,130,0.10)", color: "#888", dot: "#888", label: status ?? "Unknown" };
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        background: cfg.bg, color: cfg.color,
+        padding: "4px 10px 4px 8px", borderRadius: 4,
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+        textTransform: "uppercase", fontFamily: F.label,
+        border: `1px solid ${cfg.color}24`,
+      }}>
+        <span style={{ width: 4, height: 4, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
+        {cfg.label}
+      </span>
+    );
+  }
+
+  function NavBar() {
+    const { isDark: dark, toggle } = useTheme();
+    const colors = getTokens(dark);
+    return (
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000,
+        height: 64, display: "flex", alignItems: "center",
+        justifyContent: "space-between", padding: "0 clamp(20px,5vw,64px)",
+        background: colors.navBg, backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        borderBottom: `1px solid ${colors.navBorder}`,
+        boxSizing: "border-box", transition: "background 0.30s",
+      }}>
+        <img src={bellevueLogo} alt="The Bellevue Manila" onClick={() => navigate("/")}
+          style={{
+            height: 26, width: "auto", cursor: "pointer", display: "block", flexShrink: 0,
+            filter: dark
+              ? "brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)"
+              : "brightness(0) saturate(100%)",
+            transition: "filter 0.30s",
+          }} />
+        <ThemeToggle />
+      </nav>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         @keyframes spin    { to { transform: rotate(360deg) } }
-        @keyframes fadeUp  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes fadeUp  { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.97) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
       `}</style>
 
       <div style={{
         minHeight: "100vh", fontFamily: F.body,
-        background: C.pageBg, color: C.textPrimary,
-        transition: "background 0.30s, color 0.30s",
+        background: C.pageBg, position: "relative",
+        transition: "background 0.30s",
       }}>
+
         {/* Background */}
-        <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: "url('/src/assets/bg-login.jpeg')",
             backgroundSize: "cover", backgroundPosition: "center",
-            filter: isDark ? "blur(80px) brightness(0.18)" : "blur(80px) brightness(0.35) saturate(0.3)",
+            filter: isDark ? "blur(6px) brightness(0.35)" : "blur(6px) brightness(0.45) saturate(0.4)",
             transform: "scale(1.05)", transition: "filter 0.40s",
           }} />
-          <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(10,9,8,0.70)" : "rgba(247,244,238,0.72)", transition: "background 0.40s" }} />
+          <div style={{
+            position: "absolute", inset: 0,
+            background: isDark ? "rgba(12,11,10,0.75)" : "rgba(237,233,224,0.65)",
+            transition: "background 0.40s",
+          }} />
         </div>
 
-        <NavBar onBack={() => navigate("/venues")} />
+        <NavBar />
 
-        <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
-          <div style={{ maxWidth: 1280, margin: "0 auto", padding: isMobile ? "24px 16px" : isTablet ? "28px 24px" : "36px 48px" }}>
+        <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", paddingTop: 64 }}>
+          <div style={{
+            flex: 1, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: "clamp(40px,6vh,80px) clamp(20px,6vw,80px)",
+            minHeight: "calc(100vh - 64px)",
+          }}>
 
-            {/* Page header */}
-            <div style={{ marginBottom: isMobile ? 20 : 28, animation: "fadeUp 0.30s ease" }}>
-              {rebookFrom && (
-                <div style={{
-                  display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-                  flexWrap: "wrap", gap: 10,
-                  padding: "12px 16px", borderRadius: 10, marginBottom: 18,
-                  background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`,
-                }}>
-                  <div>
-                    <div style={{ fontFamily: F.label, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.08em", marginBottom: 3 }}>
-                      Rebooking Mode — Select your new {mode === "individual" ? "seat" : "table"}
+            {/* Back button */}
+            <div style={{ position: "absolute", top: 80, left: "clamp(16px,4vw,40px)" }}>
+              <button onClick={() => navigate("/")} title="Go back"
+                style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "transparent", border: `1px solid ${C.borderDefault}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", transition: "all 0.18s", padding: 0,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+            </div>
+
+            <div style={{ width: "100%", maxWidth: 440 }}>
+
+              {/* ── SEARCH STATE ─────────────────────────────────────────── */}
+              {!booking && (
+                <>
+                  <div style={{ marginBottom: 40, animation: "fadeUp 0.32s ease" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                      <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
+                      <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>
+                        Guest Services
+                      </span>
                     </div>
-                    <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary }}>
-                      Previous booking: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> · Old seat released on submit
+                    <h1 style={{ fontFamily: F.display, fontSize: "clamp(30px,5vw,44px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 12px", letterSpacing: "0.01em" }}>
+                      Manage Your<br />Booking
+                    </h1>
+                    <p style={{ fontFamily: F.body, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70 }}>
+                      Enter your reference code to view and manage your booking.
+                    </p>
+                  </div>
+
+                  <div style={{ animation: "fadeUp 0.36s ease" }}>
+                    <div style={{
+                      padding: "12px 14px", borderRadius: 8, marginBottom: 20,
+                      background: C.goldFaint, border: `1px solid ${C.borderAccent}`,
+                      display: "flex", gap: 12, alignItems: "flex-start",
+                    }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6, background: C.goldFaintest,
+                        border: `1px solid ${C.borderAccent}`, display: "flex",
+                        alignItems: "center", justifyContent: "center", flexShrink: 0,
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.gold, marginBottom: 3 }}>
+                          How it works
+                        </div>
+                        <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.65 }}>
+                          Enter your booking reference code to view, edit, or cancel your reservation.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em",
+                        color: focused ? C.gold : C.textSecondary,
+                        fontWeight: 700, textTransform: "uppercase", marginBottom: 8,
+                        transition: "color 0.18s",
+                      }}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                        </svg>
+                        Reference Code <span style={{ color: C.red, marginLeft: 2 }}>*</span>
+                      </label>
+                      <input
+                        value={referenceCode}
+                        onChange={(e) => { setReferenceCode(e.target.value); setError(""); }}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                        onFocus={() => setFocused(true)}
+                        onBlur={() => setFocused(false)}
+                        placeholder="e.g. 2024-001"
+                        autoComplete="off"
+                        style={{
+                          width: "100%", boxSizing: "border-box", padding: "14px 18px",
+                          border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+                          borderRadius: 10, background: C.surfaceInput,
+                          fontFamily: F.mono, fontSize: 17, fontWeight: 500, letterSpacing: "0.06em",
+                          color: C.textPrimary, outline: "none",
+                          transition: "border-color 0.18s, box-shadow 0.18s",
+                          boxShadow: focused ? C.inputFocusShadow : "none",
+                          colorScheme: isDark ? "dark" : "light",
+                        }}
+                      />
+                    </div>
+
+                    {error && (
+                      <div style={{
+                        padding: "10px 14px", borderRadius: 8, marginBottom: 14,
+                        background: C.redFaint, borderLeft: `3px solid ${C.red}`,
+                        fontSize: 12.5, color: C.red, lineHeight: 1.60,
+                        display: "flex", alignItems: "center", gap: 8,
+                      }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        {error}
+                      </div>
+                    )}
+
+                    <button onClick={handleSearch} disabled={searching}
+                      style={{
+                        width: "100%", padding: "14px",
+                        background: searching ? (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)") : C.gold,
+                        border: `1px solid ${searching ? C.borderDefault : "transparent"}`,
+                        borderRadius: 10,
+                        fontFamily: F.label, fontSize: 10, fontWeight: 700,
+                        letterSpacing: "0.18em", textTransform: "uppercase",
+                        color: searching ? C.textSecondary : C.textOnAccent,
+                        cursor: searching ? "not-allowed" : "pointer", transition: "all 0.20s",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                      }}
+                      onMouseEnter={(e) => { if (!searching) e.currentTarget.style.background = C.goldLight; }}
+                      onMouseLeave={(e) => { if (!searching) e.currentTarget.style.background = C.gold; }}
+                    >
+                      {searching
+                        ? <><span style={{ display: "inline-block", width: 13, height: 13, border: `1.5px solid ${C.textSecondary}40`, borderTopColor: C.textSecondary, borderRadius: "50%", animation: "spin 0.65s linear infinite" }} />Searching...</>
+                        : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>Find My Booking</>
+                      }
+                    </button>
+
+                    <div style={{ marginTop: 24, paddingTop: 22, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontFamily: F.body, fontSize: 12.5, color: C.textSecondary }}>Don't have your code?</span>
+                      <button onClick={() => navigate("/forgot-code")}
+                        style={{ background: "none", border: "none", fontFamily: F.label, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gold, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        Recover Code
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                      </button>
                     </div>
                   </div>
-                  <button onClick={() => setRebookFrom(null)}
-                    style={{
-                      background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6,
-                      padding: "5px 12px", fontFamily: F.label, fontSize: 10, fontWeight: 700,
-                      color: C.textSecondary, cursor: "pointer", letterSpacing: "0.06em", flexShrink: 0,
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
-                  >
-                    Cancel Rebook
-                  </button>
-                </div>
+                </>
               )}
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
-                <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>
-                  Main Wing
-                </span>
-              </div>
-              <h1 style={{
-                fontFamily: F.display, fontSize: isMobile ? 26 : isTablet ? 32 : 40,
-                fontWeight: 400, color: C.textPrimary, lineHeight: 1.12,
-                margin: "0 0 8px", letterSpacing: "0.01em",
-              }}>
-                Alabang Function Room
-              </h1>
-              <p style={{ fontFamily: F.body, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.65, maxWidth: 520 }}>
-                Select your preferred table or seat in the Main Wing. All reservations are subject to admin confirmation.
-              </p>
-            </div>
+              {/* ── BOOKING FOUND STATE ───────────────────────────────────── */}
+              {booking && (
+                <div style={{ animation: "fadeUp 0.28s ease" }}>
 
-            {/* Mode toggle */}
-            <div style={{
-              display: "flex", alignItems: isMobile ? "flex-start" : "center",
-              gap: isMobile ? 10 : 16, marginBottom: isMobile ? 18 : 24,
-              flexDirection: isMobile ? "column" : "row",
-              animation: "fadeUp 0.32s ease",
-            }}>
-              <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>
-                Reserve a:
-              </span>
-              <div style={{
-                display: "flex", alignItems: "center",
-                background: C.surfaceInput, borderRadius: 8,
-                border: `1px solid ${C.borderDefault}`, padding: 3, gap: 2,
-              }}>
-                {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label]) => (
-                  <button key={val}
-                    onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
-                    style={{
-                      padding: "8px 18px",
-                      background: mode === val ? C.gold : "transparent",
-                      color: mode === val ? C.textOnAccent : C.textSecondary,
-                      border: "none", borderRadius: 6,
-                      fontFamily: F.label, fontSize: 10, fontWeight: 700,
-                      letterSpacing: "0.14em", textTransform: "uppercase",
-                      cursor: "pointer", transition: "all 0.18s",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Main layout */}
-            <div style={{
-              display: "flex", gap: isMobile ? 16 : 24,
-              flexDirection: isMobile || isTablet ? "column" : "row",
-              alignItems: "flex-start",
-              animation: "fadeUp 0.34s ease",
-            }}>
-              {/* Seat map */}
-              <div style={{
-                flex: 1, minWidth: 0,
-                background: C.cardBg, borderRadius: 12,
-                border: `1px solid ${C.cardBorder}`,
-                overflow: "hidden",
-                boxShadow: isDark ? "0 2px 24px rgba(0,0,0,0.30)" : "0 2px 16px rgba(0,0,0,0.06)",
-              }}>
-                <div style={{
-                  padding: "14px 18px", borderBottom: `1px solid ${C.divider}`,
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                }}>
-                  <div>
-                    <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Seat Map</div>
-                    <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary }}>{ROOM}</div>
+                  <div style={{ marginBottom: 28 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: C.greenFaint, border: `1px solid ${C.greenBorder}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.green, fontWeight: 700, textTransform: "uppercase" }}>
+                        Booking Found
+                      </span>
+                    </div>
+                    <h1 style={{ fontFamily: F.display, fontSize: "clamp(30px,5vw,44px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 10px", letterSpacing: "0.01em" }}>
+                      Manage Your<br />Booking
+                    </h1>
+                    <p style={{ fontFamily: F.body, fontSize: 12.5, color: C.textSecondary, margin: 0 }}>
+                      {editing ? "Update your booking information below." : "View details, edit information, or cancel your reservation."}
+                    </p>
                   </div>
-                  {activeTable && seatRatio && (
-                    <div style={{
-                      padding: "4px 10px", borderRadius: 6,
-                      background: C.goldFaintest, border: `1px solid ${C.borderAccent}`,
-                      fontFamily: F.label, fontSize: 9, fontWeight: 700,
-                      letterSpacing: "0.14em", color: C.gold, textTransform: "uppercase",
-                    }}>
-                      {seatRatio} available
+
+                  {/* Card */}
+                  <div style={{
+                    background: C.surfaceBase, borderRadius: 14,
+                    border: `1px solid ${C.borderDefault}`,
+                    overflow: "hidden", marginBottom: 14,
+                  }}>
+                    <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}80 30%, ${C.gold}80 70%, transparent 100%)` }} />
+
+                    <div style={{ padding: "20px 22px" }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 18 }}>
+                        <div>
+                          <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                            Reference Code
+                          </div>
+                          <div style={{ fontFamily: F.mono, fontSize: 28, fontWeight: 500, color: C.textPrimary, letterSpacing: "0.06em", lineHeight: 1 }}>
+                            {booking.reference_code || booking.id || "—"}
+                          </div>
+                        </div>
+                        <StatusBadge status={booking.status} />
+                      </div>
+
+                      <div style={{ height: "1px", background: C.divider, marginBottom: 20 }} />
+
+                      {editing ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                          <EditField label="Full Name" required value={editForm.name} onChange={(v) => setEditForm({ ...editForm, name: v })} placeholder="Full name" C={C} isDark={isDark} />
+                          <EditField label="Email Address" type="email" required value={editForm.email} onChange={(v) => setEditForm({ ...editForm, email: v })} placeholder="email@example.com" C={C} isDark={isDark} />
+                          <EditField label="Phone Number" type="tel" required value={editForm.phone}
+                            onChange={(v) => {
+                              const digits = (v.startsWith("+63") ? v.slice(3) : v).replace(/[^0-9]/g, "").slice(0, 10);
+                              setEditForm({ ...editForm, phone: "+63" + digits });
+                            }}
+                            placeholder="+63XXXXXXXXXX" C={C} isDark={isDark}
+                          />
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                            <EditField label="Event Date" type="date" required value={editForm.eventDate} min={new Date().toISOString().split("T")[0]} onChange={(v) => setEditForm({ ...editForm, eventDate: v })} C={C} isDark={isDark} />
+                            <EditField label="Event Time" type="time" value={editForm.eventTime} onChange={(v) => setEditForm({ ...editForm, eventTime: v })} C={C} isDark={isDark} />
+                          </div>
+                          <EditField label="Special Requests" type="textarea" value={editForm.specialRequests} onChange={(v) => setEditForm({ ...editForm, specialRequests: v })} placeholder="Dietary needs, accessibility, preferences…" C={C} isDark={isDark} />
+
+                          {error && (
+                            <div style={{ padding: "10px 14px", borderRadius: 8, background: C.redFaint, border: `1px solid ${C.redBorder}`, color: C.red, fontSize: 12.5, lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8 }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                              {error}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 15, fontWeight: 600, color: C.textPrimary, marginBottom: 3 }}>{booking.name || "—"}</div>
+                            <div style={{ fontSize: 12.5, color: C.textSecondary }}>
+                              {booking.email}{booking.email && booking.phone ? " • " : ""}{booking.phone}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 20px", marginBottom: 14 }}>
+                            {[
+                              ["Date",         fmtDate(booking.event_date)],
+                              ["Time",         fmtTime(booking.event_time)],
+                              ["Guests",       booking.guests ? `${booking.guests} pax` : "—"],
+                              ["Table / Seat", [booking.table, booking.seat].filter(Boolean).join(" / ") || "—"],
+                            ].map(([label, val]) => (
+                              <div key={label}>
+                                <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary, fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                                <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.textPrimary }}>{val}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {booking.special_requests && (
+                            <div>
+                              <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary, fontWeight: 700, marginBottom: 3 }}>Special Requests</div>
+                              <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.textPrimary, lineHeight: 1.6 }}>{booking.special_requests}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── ACTION BUTTONS ──────────────────────────────────────── */}
+                  <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                    {editing ? (
+                      <>
+                        <button onClick={() => { setEditing(false); setError(""); }} disabled={saving}
+                          style={{ flex: 1, padding: "11px 16px", background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: saving ? "not-allowed" : "pointer", transition: "all 0.18s" }}
+                          onMouseEnter={(e) => { if (!saving) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
+                        >Cancel</button>
+                        <button onClick={handleUpdate} disabled={saving}
+                          style={{ flex: 1, padding: "11px 16px", background: saving ? C.goldDim : C.gold, border: "none", borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textOnAccent, cursor: saving ? "not-allowed" : "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                          onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = C.goldLight; }}
+                          onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = C.gold; }}
+                        >
+                          {saving ? <><Spinner C={C} size={12} />Saving…</> : <>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 0-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save Changes
+                          </>}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => { setBooking(null); setError(""); }}
+                          style={{ flex: 1, padding: "11px 16px", background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer", transition: "all 0.18s" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
+                        >Search Again</button>
+
+                        <button onClick={() => { setEditing(true); setError(""); }}
+                          style={{ flex: 1, padding: "11px 16px", background: C.gold, border: "none", borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textOnAccent, cursor: "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; }}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          Edit Details
+                        </button>
+
+                        {/* Cancel — now opens the modal instead of browser confirm */}
+                        <button onClick={() => { setError(""); setShowCancelModal(true); }}
+                          style={{ flex: 1, padding: "11px 16px", background: C.red, border: "none", borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: "#fff", cursor: "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#8C2E2E"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = C.red; }}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {!editing && error && (
+                    <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: C.redFaint, border: `1px solid ${C.redBorder}`, color: C.red, fontSize: 12.5, lineHeight: 1.5, display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      {error}
                     </div>
                   )}
                 </div>
-                <div style={{ padding: isMobile ? "12px" : "16px" }}>
-                  <SeatMap
-                    tableData={tableData}
-                    editMode={false}
-                    selectedSeat={selectedSeat}
-                    onSeatClick={handleSeatClick}
-                    onTableClick={handleTableClick}
-                    windowWidth={windowSize.width}
-                    wing={WING}
-                    room={ROOM}
-                  />
-                </div>
-              </div>
-
-              {/* Right panel */}
-              <div style={{ width: isMobile || isTablet ? "100%" : 268, flexShrink: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-
-                {/* Legend */}
-                <div style={{
-                  background: C.cardBg, borderRadius: 12,
-                  border: `1px solid ${C.cardBorder}`,
-                  padding: "16px 18px",
-                  boxShadow: isDark ? "0 2px 16px rgba(0,0,0,0.22)" : "0 1px 8px rgba(0,0,0,0.05)",
-                }}>
-                  <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>
-                    Status Legend
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? "6px 20px" : "8px 0", flexDirection: isMobile ? "row" : "column" }}>
-                    {Object.entries(STATUS_COLORS).map(([key, color]) => (
-                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <LegendDot color={color} />
-                        <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
-                          {key.charAt(0).toUpperCase() + key.slice(1)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Selection card */}
-                <div style={{
-                  background: C.cardBg, borderRadius: 12,
-                  border: `1px solid ${C.cardBorder}`,
-                  padding: "16px 18px",
-                  boxShadow: isDark ? "0 2px 16px rgba(0,0,0,0.22)" : "0 1px 8px rgba(0,0,0,0.05)",
-                }}>
-                  <SectionLabel C={C}>Your Selection</SectionLabel>
-
-                  {[
-                    ["Table",  displayTable,  null],
-                    ["Seat" + (mode === "whole" && guests > 1 ? "s" : ""), displaySeat, C.gold],
-                    ["Room",   ROOM,          null],
-                  ].map(([label, value, color]) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "7px 0", borderBottom: `1px solid ${C.divider}` }}>
-                      <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary, flexShrink: 0 }}>{label}</span>
-                      <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: color || C.textPrimary, textAlign: "right", maxWidth: "62%", lineHeight: 1.4 }}>{value}</span>
-                    </div>
-                  ))}
-
-                  <div style={{ marginTop: 14 }}>
-                    {mode === "whole" && (
-                      <button
-                        onClick={() => setModal("guestCount")}
-                        style={{
-                          width: "100%", padding: "12px", border: "none", borderRadius: 8,
-                          background: C.gold, color: C.textOnAccent,
-                          fontFamily: F.label, fontSize: 10, fontWeight: 700,
-                          letterSpacing: "0.16em", textTransform: "uppercase",
-                          cursor: "pointer", transition: "background 0.18s",
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; }}
-                      >
-                        {rebookFrom ? "Move to This Table" : "Reserve This Table"}
-                      </button>
-                    )}
-                    {mode === "individual" && (
-                      <button
-                        onClick={canProceed ? () => setModal("guestCount") : undefined}
-                        style={{
-                          width: "100%", padding: "12px", border: `1px solid ${canProceed ? "transparent" : C.borderDefault}`,
-                          borderRadius: 8,
-                          background: canProceed ? C.gold : "transparent",
-                          color: canProceed ? C.textOnAccent : C.textTertiary,
-                          fontFamily: F.label, fontSize: 10, fontWeight: 700,
-                          letterSpacing: "0.16em", textTransform: "uppercase",
-                          cursor: canProceed ? "pointer" : "default",
-                          transition: "all 0.18s",
-                        }}
-                        onMouseEnter={(e) => { if (canProceed) e.currentTarget.style.background = C.goldLight; }}
-                        onMouseLeave={(e) => { if (canProceed) e.currentTarget.style.background = C.gold; }}
-                      >
-                        {selectedSeat
-                          ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat")
-                          : "Select a Seat First"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Policy */}
-                <div style={{
-                  background: C.cardBg, borderRadius: 12,
-                  border: `1px solid ${C.cardBorder}`,
-                  padding: "16px 18px",
-                  boxShadow: isDark ? "0 2px 16px rgba(0,0,0,0.22)" : "0 1px 8px rgba(0,0,0,0.05)",
-                }}>
-                  <SectionLabel C={C}>Venue Policy</SectionLabel>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.70 }}>
-                    Pending seats are held for <strong style={{ color: C.textPrimary, fontWeight: 600 }}>24 hours</strong>. After expiry, the seat returns to available.
-                    <br /><br />
-                    All reservations require <strong style={{ color: C.textPrimary, fontWeight: 600 }}>admin approval</strong> before confirmation.
-                  </div>
-                </div>
-
-                {/* Manage existing */}
-                <div style={{
-                  background: C.cardBg, borderRadius: 12,
-                  border: `1px solid ${C.cardBorder}`,
-                  padding: "14px 18px",
-                  boxShadow: isDark ? "0 2px 16px rgba(0,0,0,0.22)" : "0 1px 8px rgba(0,0,0,0.05)",
-                }}>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, marginBottom: 10, lineHeight: 1.55 }}>
-                    Have an existing booking?
-                  </div>
-                  <button onClick={() => navigate("/manage-booking")}
-                    style={{
-                      width: "100%", padding: "10px 14px",
-                      background: "transparent", border: `1px solid ${C.borderDefault}`,
-                      borderRadius: 8, fontFamily: F.label, fontSize: 9, fontWeight: 700,
-                      letterSpacing: "0.16em", textTransform: "uppercase",
-                      color: C.textSecondary, cursor: "pointer", transition: "all 0.18s",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
-                  >
-                    Manage Reservation
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
-
-        {/* ── Modals ── */}
-        {modal === "guestCount" && (
-          <ModalGuestCount
-            seatData={mode === "individual" ? selectedSeat : null}
-            tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable}
-            mode={mode}
-            onContinue={handleGuestContinue}
-            onCancel={() => setModal(null)}
-            C={C} isDark={isDark}
-          />
-        )}
-        {modal === "details" && (
-          <ModalDetails
-            tableData={activeTable}
-            seatData={selectedSeat}
-            mode={mode}
-            guests={guests}
-            onReview={handleReview}
-            onCancel={() => setModal(null)}
-            prefill={detailsPrefill}
-            C={C} isDark={isDark}
-          />
-        )}
-        {modal === "review" && formData && (
-          <ModalReview
-            form={formData}
-            guests={guests}
-            mode={mode}
-            tableData={activeTable}
-            seatData={selectedSeat}
-            onSubmit={handleSubmit}
-            onEdit={handleEditDetails}
-            submitting={submitting}
-            isRebook={!!rebookFrom}
-            rebookFrom={rebookFrom}
-            C={C}
-          />
-        )}
-        {modal === "success" && (
-          <ModalSuccess
-            refCode={refCode}
-            onBack={handleBack}
-            mode={mode}
-            guests={guests}
-            isRebook={!!rebookFrom}
-            bookingDetails={lastBookingDetails}
-            C={C} isDark={isDark}
-          />
-        )}
       </div>
+
+      {/* Cancel Reason Modal */}
+      {showCancelModal && (
+        <CancelReasonModal
+          onConfirm={handleCancelConfirm}
+          onDismiss={() => setShowCancelModal(false)}
+          cancelling={cancelling}
+          C={C}
+        />
+      )}
     </ThemeContext.Provider>
   );
 }

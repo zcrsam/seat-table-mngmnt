@@ -10,7 +10,8 @@ import BusinessCenter from "../features/client/pages/BusinessCenter";
 import AdminReserve from "../features/admin/pages/AdminReserve";
 import ReservationDashboard from "../features/admin/pages/ReservationDashboard";
 import SeatMapEditor from "../features/admin/pages/SeatMapEditor";
-import NotificationDashboard from "../features/admin/pages/Notifications";  
+import NotificationDashboard from "../features/admin/pages/Notifications";
+import CancelledDashboard from "../features/admin/pages/CancelledDashboard";
 import ForgotCode from "../features/client/pages/ForgotCode";
 
 export default function AppRoutes() {
@@ -29,6 +30,7 @@ export default function AppRoutes() {
         <Route path="/business-center" element={<BusinessCenter />} />
         <Route path="/admin" element={<AdminReserve />} />
         <Route path="/admin/reservations" element={<ReservationDashboard />} />
+        <Route path="/admin/cancelled" element={<CancelledDashboard />} />
         <Route path="/admin/seatmap" element={<SeatMapEditor />} />
         <Route path="/admin/notifications" element={<NotificationDashboard />} />  
         <Route path="/forgotcode" element={<ForgotCode />} />  

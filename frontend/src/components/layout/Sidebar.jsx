@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const F = { body: "Montserrat, sans-serif" };
+const F = { body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
 
 const NAV_ITEMS = [
   { id: "reservations", label: "Reservations", icon: "📋" },
-  { id: "seat-map",     label: "Seat Map",      icon: "🗺️" },
+  { id: "cancelled",    label: "Cancelled",    icon: "✕",  iconStyle: "text" },
+  { id: "seat-map",     label: "Seat Map",     icon: "🗺️" },
 ];
 
 // ─── Hamburger Toggle Button ──────────────────────────────────────────────────
@@ -19,35 +20,23 @@ function HamburgerBtn({ onClick, isOpen }) {
       onMouseLeave={() => setHovered(false)}
       title={isOpen ? "Collapse sidebar" : "Expand sidebar"}
       style={{
-        width: 36,
-        height: 36,
+        width: 36, height: 36,
         background: hovered ? "rgba(201,168,76,0.12)" : "transparent",
-        border: "none",
-        cursor: "pointer",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        gap: 5,
-        padding: 6,
-        borderRadius: 6,
-        transition: "background 0.2s",
-        flexShrink: 0,
+        border: "none", cursor: "pointer",
+        display: "flex", flexDirection: "column",
+        justifyContent: "center", alignItems: "center",
+        gap: 5, padding: 6, borderRadius: 6,
+        transition: "background 0.2s", flexShrink: 0,
       }}
     >
       {[0, 1, 2].map(i => (
-        <span
-          key={i}
-          style={{
-            display: "block",
-            width: i === 1 && isOpen ? 12 : 18,
-            height: 2,
-            background: "#C9A84C",
-            borderRadius: 2,
-            transition: "width 0.2s",
-            marginLeft: i === 1 && isOpen ? "auto" : 0,
-          }}
-        />
+        <span key={i} style={{
+          display: "block",
+          width: i === 1 && isOpen ? 12 : 18,
+          height: 2, background: "#C9A84C", borderRadius: 2,
+          transition: "width 0.2s",
+          marginLeft: i === 1 && isOpen ? "auto" : 0,
+        }} />
       ))}
     </button>
   );
@@ -57,16 +46,38 @@ function HamburgerBtn({ onClick, isOpen }) {
 function NavItem({ item, isActive, isOpen, onClick }) {
   const [hovered, setHovered] = useState(false);
   const navigate = useNavigate();
-  
+
+  const isCancelled = item.id === "cancelled";
+
+  const activeColor  = isCancelled ? "#D05252" : "#C9A84C";
+  const hoverColor   = isCancelled ? "#D05252" : "#C9A84C";
+  const activeBg     = isCancelled ? "rgba(208,82,82,0.10)"  : "rgba(201,168,76,0.10)";
+  const hoverBg      = isCancelled ? "rgba(208,82,82,0.06)"  : "rgba(201,168,76,0.05)";
+  const borderColor  = isCancelled ? "#D05252" : "#C9A84C";
+
   const handleClick = () => {
     const routes = {
       "reservations": "/admin/reservations",
-      "seat-map": "/admin/seatmap"
+      "cancelled":    "/admin/cancelled",
+      "seat-map":     "/admin/seatmap",
     };
     navigate(routes[item.id] || "/admin/dashboard");
-    onClick(item.id);
+    onClick?.(item.id);
   };
-  
+
+  // Custom "✕" icon for cancelled — rendered as SVG for crispness
+  const CancelIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke={isActive ? activeColor : hovered ? hoverColor : "#888"}
+      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+      style={{ flexShrink: 0, transition: "stroke 0.15s" }}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="15" y1="9" x2="9" y2="15" />
+      <line x1="9" y1="9" x2="15" y2="15" />
+    </svg>
+  );
+
   return (
     <div
       onClick={handleClick}
@@ -74,20 +85,15 @@ function NavItem({ item, isActive, isOpen, onClick }) {
       onMouseLeave={() => setHovered(false)}
       title={!isOpen ? item.label : undefined}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
+        display: "flex", alignItems: "center", gap: 10,
         padding: isOpen ? "11px 20px" : "11px 0",
         justifyContent: isOpen ? "flex-start" : "center",
-        fontFamily: F.body,
-        fontSize: 12,
-        color: isActive ? "#C9A84C" : hovered ? "#C9A84C" : "#555",
-        background: isActive
-          ? "rgba(201,168,76,0.10)"
-          : hovered
-          ? "rgba(201,168,76,0.05)"
-          : "transparent",
-        borderLeft: isActive ? "3px solid #C9A84C" : "3px solid transparent",
+        fontFamily: F.body, fontSize: 12,
+        color: isActive ? activeColor : hovered ? hoverColor : "#555",
+        background: isActive ? activeBg : hovered ? hoverBg : "transparent",
+        borderLeft: isActive
+          ? `3px solid ${borderColor}`
+          : "3px solid transparent",
         cursor: "pointer",
         fontWeight: isActive ? 700 : 400,
         transition: "all 0.15s",
@@ -95,7 +101,10 @@ function NavItem({ item, isActive, isOpen, onClick }) {
         borderRadius: isOpen ? "0 6px 6px 0" : 0,
       }}
     >
-      <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
+      {isCancelled
+        ? <CancelIcon />
+        : <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
+      }
       {isOpen && (
         <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>
           {item.label}
@@ -110,23 +119,15 @@ function StatRow({ label, value, color, isOpen }) {
   if (!isOpen) return null;
   return (
     <div style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "7px 20px",
-      fontFamily: F.body,
-      fontSize: 11,
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      padding: "7px 20px", fontFamily: F.body, fontSize: 11,
     }}>
       <span style={{ color: "#777" }}>{label}</span>
       <span style={{
-        color,
-        fontWeight: 700,
+        color, fontWeight: 700,
         background: `${color}18`,
-        padding: "2px 8px",
-        borderRadius: 10,
-        fontSize: 11,
-        minWidth: 24,
-        textAlign: "center",
+        padding: "2px 8px", borderRadius: 10, fontSize: 11,
+        minWidth: 24, textAlign: "center",
       }}>{value}</span>
     </div>
   );
@@ -139,6 +140,7 @@ export default function Sidebar({
   pending,
   approved,
   rejected,
+  cancelled,
   isOpen = true,
   onToggle = () => {},
 }) {
@@ -146,10 +148,9 @@ export default function Sidebar({
     <aside style={{
       width: isOpen ? 220 : 52,
       height: "calc(100vh - 60px)",
-      background: "#FAF6F0", // Light cream background/ sidebar background
+      background: "#FAF6F0",
       borderRight: "1px solid rgba(201,168,76,0.18)",
-      display: "flex",
-      flexDirection: "column",
+      display: "flex", flexDirection: "column",
       flexShrink: 0,
       transition: "width 0.25s ease",
       overflow: "hidden",
@@ -157,8 +158,7 @@ export default function Sidebar({
 
       {/* ── Top: logo area + hamburger ── */}
       <div style={{
-        display: "flex",
-        alignItems: "center",
+        display: "flex", alignItems: "center",
         justifyContent: isOpen ? "space-between" : "center",
         padding: isOpen ? "20px 16px 20px 20px" : "20px 0",
         borderBottom: "1px solid rgba(201,168,76,0.12)",
@@ -166,17 +166,14 @@ export default function Sidebar({
       }}>
         {isOpen && (
           <div style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: 15,
-            fontWeight: 700,
-            color: "#1B2A4A",
-            letterSpacing: 0.5,
-            lineHeight: 1.2,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
+            fontFamily: F.body, fontSize: 16, fontWeight: 700,
+            color: "#1B2A4A", letterSpacing: 0.5, lineHeight: 1.3,
+            whiteSpace: "nowrap", overflow: "hidden",
           }}>
-            Bellevue<br />
-            <span style={{ color: "#C9A84C", fontSize: 10, fontFamily: F.body, letterSpacing: 2, fontWeight: 700 }}>ADMIN PANEL</span>
+            <span style={{
+              color: "#C9A84C", fontSize: 10, fontFamily: F.body,
+              letterSpacing: 2, fontWeight: 700,
+            }}>ADMIN PANEL</span>
           </div>
         )}
         <HamburgerBtn isOpen={isOpen} onClick={onToggle} />
@@ -186,14 +183,9 @@ export default function Sidebar({
       <div style={{ paddingTop: 16, flexShrink: 0 }}>
         {isOpen && (
           <div style={{
-            padding: "0 20px",
-            marginBottom: 8,
-            fontSize: 9,
-            letterSpacing: 2,
-            color: "#BBBBBB",
-            fontFamily: F.body,
-            fontWeight: 700,
-            textTransform: "uppercase",
+            padding: "0 20px", marginBottom: 8,
+            fontSize: 9, letterSpacing: 2, color: "#BBBBBB",
+            fontFamily: F.body, fontWeight: 700, textTransform: "uppercase",
           }}>
             Navigation
           </div>
@@ -216,27 +208,28 @@ export default function Sidebar({
       {isOpen && (
         <div style={{ paddingBottom: 16 }}>
           <div style={{
-            padding: "0 20px",
-            marginBottom: 10,
-            fontSize: 9,
-            letterSpacing: 2,
-            color: "#BBBBBB",
-            fontFamily: F.body,
-            fontWeight: 700,
-            textTransform: "uppercase",
+            padding: "0 20px", marginBottom: 10,
+            fontSize: 9, letterSpacing: 2, color: "#BBBBBB",
+            fontFamily: F.body, fontWeight: 700, textTransform: "uppercase",
           }}>
             Quick Stats
           </div>
-          <StatRow label="Pending"  value={pending}  color="#E8A838" isOpen={isOpen} />
-          <StatRow label="Approved" value={approved} color="#4CAF79" isOpen={isOpen} />
-          <StatRow label="Rejected" value={rejected} color="#E05252" isOpen={isOpen} />
+          <StatRow label="Pending"   value={pending}   color="#E8A838" isOpen={isOpen} />
+          <StatRow label="Approved"  value={approved}  color="#4CAF79" isOpen={isOpen} />
+          <StatRow label="Rejected"  value={rejected}  color="#E05252" isOpen={isOpen} />
+          <StatRow label="Cancelled" value={cancelled} color="#D05252" isOpen={isOpen} />
         </div>
       )}
 
       {/* ── Collapsed: dot indicators for stats ── */}
       {!isOpen && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, paddingTop: 8 }}>
-          {[["#E8A838", pending], ["#4CAF79", approved], ["#E05252", rejected]].map(([color, val], i) => (
+          {[
+            ["#E8A838", pending],
+            ["#4CAF79", approved],
+            ["#E05252", rejected],
+            ["#D05252", cancelled],
+          ].map(([color, val], i) => (
             val > 0 && (
               <div key={i} style={{
                 width: 8, height: 8, borderRadius: "50%",
