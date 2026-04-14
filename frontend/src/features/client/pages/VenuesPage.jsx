@@ -53,9 +53,7 @@ function getTokens(isDark) {
     shadowHov:    "0 20px 56px rgba(0,0,0,0.60)",
     tagBg:        "rgba(201,168,76,0.10)",
     overlayBg:    "rgba(6,5,3,0.78)",
-    // ellipsis button specific
     dotsBg:       "#2A2720",
-    dotsBorder:   "#C9A84C",
     dotsColor:    "#C9A84C",
     dotsBgHov:    "rgba(201,168,76,0.18)",
   } : {
@@ -82,9 +80,7 @@ function getTokens(isDark) {
     shadowHov:    "0 20px 56px rgba(100,80,30,0.18)",
     tagBg:        "rgba(154,110,28,0.08)",
     overlayBg:    "rgba(20,16,8,0.55)",
-    // ellipsis button specific
     dotsBg:       "#F0EBE0",
-    dotsBorder:   "#9A6E1C",
     dotsColor:    "#9A6E1C",
     dotsBgHov:    "rgba(154,110,28,0.14)",
   };
@@ -115,8 +111,7 @@ function useResponsive() {
 }
 
 // ─────────────────────────────────────────────
-// STATIC VENUE DATA — descriptions & highlights
-// Images and identity stay static; seats/tables get overridden by API
+// STATIC VENUE DATA
 // ─────────────────────────────────────────────
 import alabangImg        from "../../../assets/afc.jpeg";
 import lagunaImg         from "../../../assets/laguna.jpeg";
@@ -128,8 +123,6 @@ import qsinaImg          from "../../../assets/qsina.jpeg";
 import hanakazuImg       from "../../../assets/hanakazu.jpeg";
 import phoenixCourtImg   from "../../../assets/phoenix-court.jpeg";
 
-// Each entry carries static fallback values for seats/tables that get
-// replaced by live API data once it loads.
 const STATIC_VENUES = {
   "Main Wing": [
     {
@@ -138,10 +131,9 @@ const STATIC_VENUES = {
       img: alabangImg,
       seats: 150,
       tables: 14,
-      rooms: [],
+      rooms: ["Alabang A", "Alabang B"],
       description: "The Alabang Function Room is an elegantly appointed venue ideal for intimate corporate events, private dinners, and social gatherings. Featuring refined interiors and flexible seating configurations, it offers a warm yet professional atmosphere suited to discerning guests.",
-      // which room names in the seat-map data map to this venue
-      seatMapKeys: ["Alabang Function Room"],
+      seatMapKeys: ["Alabang Function Room", "Alabang A", "Alabang B"],
     },
     {
       id: "laguna",
@@ -161,7 +153,7 @@ const STATIC_VENUES = {
       tables: 12,
       rooms: ["20/20 A", "20/20 B", "20/20 C"],
       description: "A versatile multi-use function room with a contemporary aesthetic, the 20/20 offers three configurable sub-sections suited to seminars, product launches, and board meetings.",
-     seatMapKeys: ["20/20 Function Room", "20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C"],
+      seatMapKeys: ["20/20 Function Room", "20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C"],
     },
     {
       id: "business-center",
@@ -231,7 +223,7 @@ const STATIC_VENUES = {
 };
 
 // ─────────────────────────────────────────────
-// SEAT MAP STORAGE KEY HELPERS (mirrors Dashboard logic)
+// WING / ROOM MAPPING
 // ─────────────────────────────────────────────
 const WING_FOR_ROOM = {};
 Object.entries({
@@ -240,43 +232,60 @@ Object.entries({
   "Dining":     ["Qsina", "Hanakazu", "Phoenix Court"],
 }).forEach(([wing, rooms]) => rooms.forEach(r => { WING_FOR_ROOM[r] = wing; }));
 
-/**
- * Reads seat-map data from localStorage for a given wing+room key,
- * then returns { seats: number, tables: number } counted from saved layout.
- * Returns null if no saved data exists.
- */
+// ─────────────────────────────────────────────
+// FIX 1: Corrected storage key — matches AlabangReserve's write key
+// was: `seatmap:${wing}:${room}`
+// now: `seatmap_layout:${wing}:${room}`
+// ─────────────────────────────────────────────
 function readSeatMapCounts(wing, room) {
   try {
-    const raw = localStorage.getItem(`seatmap:${wing}:${room}`);
+    const raw = localStorage.getItem(`seatmap_layout:${wing}:${room}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    const tableArr = Array.isArray(parsed) ? parsed : [parsed];
-    const validTables = tableArr.filter(t => t && Array.isArray(t.seats) && t.seats.length > 0);
-    const totalSeats  = validTables.reduce((sum, t) => sum + t.seats.length, 0);
-    return { seats: totalSeats, tables: validTables.length };
+
+    let tableArr, standaloneArr = [];
+
+    if (parsed?.v === 2 && Array.isArray(parsed.tables)) {
+      tableArr      = parsed.tables;
+      standaloneArr = Array.isArray(parsed.standaloneSeats) ? parsed.standaloneSeats : [];
+    } else if (Array.isArray(parsed)) {
+      tableArr = parsed;
+    } else if (parsed && Array.isArray(parsed.tables)) {
+      tableArr      = parsed.tables;
+      standaloneArr = Array.isArray(parsed.standaloneSeats) ? parsed.standaloneSeats : [];
+    } else {
+      return null;
+    }
+
+    const validTables  = tableArr.filter(t => t && Array.isArray(t.seats) && t.seats.length > 0);
+    const tableSeats   = validTables.reduce((sum, t) => sum + t.seats.length, 0);
+    const soloSeats    = standaloneArr.length;   // each entry is one standalone seat
+
+    return {
+      seats:  tableSeats + soloSeats,
+      tables: validTables.length,
+    };
   } catch {
     return null;
   }
 }
 
-/**
- * For a venue, aggregate seat/table counts across all its seatMapKeys.
- * Picks the key with the most data as the "canonical" count,
- * then sums sub-rooms if the venue is divisible.
- */
 function aggregateCounts(venue) {
   const keys = venue.seatMapKeys || [];
   let totalSeats = 0, totalTables = 0, found = false;
 
-  // First try the primary key (first in list, usually the parent room name)
-  const primary = readSeatMapCounts(WING_FOR_ROOM[keys[0]], keys[0]);
-  if (primary) {
-    totalSeats  = primary.seats;
-    totalTables = primary.tables;
-    found = true;
+  // Try the primary key first
+  const primaryRoom = keys[0];
+  if (primaryRoom) {
+    const primary = readSeatMapCounts(WING_FOR_ROOM[primaryRoom], primaryRoom);
+    if (primary) {
+      totalSeats  = primary.seats;
+      totalTables = primary.tables;
+      found = true;
+    }
   }
 
-  // Then try sub-rooms — if they have data and primary didn't, use sub-room sum
+  // Try sub-rooms — use their sum if larger than the primary
   if (!found || totalSeats === 0) {
     let subSeats = 0, subTables = 0, subFound = false;
     for (let i = 1; i < keys.length; i++) {
@@ -295,11 +304,10 @@ function aggregateCounts(venue) {
 
 // ─────────────────────────────────────────────
 // API: fetch reservation stats per venue
-// Counts approved/reserved bookings to show available vs reserved seats
 // ─────────────────────────────────────────────
 async function fetchVenueStats() {
   try {
-    const res  = await fetch(`${API_BASE}/reservations?per_page=500&page=1`, {
+    const res = await fetch(`${API_BASE}/reservations?per_page=500&page=1`, {
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return {};
@@ -309,7 +317,6 @@ async function fetchVenueStats() {
       : Array.isArray(json.reservations) ? json.reservations
       : [];
 
-    // Build a map: venue/room name → { reserved, pending }
     const stats = {};
     list.forEach(r => {
       const room   = r.room || r.venue || "";
@@ -318,7 +325,7 @@ async function fetchVenueStats() {
       if (!stats[room]) stats[room] = { reserved: 0, pending: 0, total: 0 };
       stats[room].total++;
       if (status === "reserved" || status === "approved") stats[room].reserved++;
-      if (status === "pending")  stats[room].pending++;
+      if (status === "pending") stats[room].pending++;
     });
     return stats;
   } catch {
@@ -338,20 +345,30 @@ function BackButton({ onClick, C }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        width: 52, height: 52, borderRadius: "50%",
-        background: "transparent",
-        border: `1px solid ${hov ? C.gold : C.textMuted}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        background: hov ? C.goldFaint : "transparent",
+        border: `1px solid ${hov ? C.goldBorder : C.border}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         cursor: "pointer",
-        transition: "border-color 0.3s, transform 0.3s",
-        transform: hov ? "scale(1.06)" : "scale(1)",
-        padding: 0, flexShrink: 0,
+        transition: "all 0.22s",
+        flexShrink: 0,
       }}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-        stroke={hov ? C.gold : C.textMuted} strokeWidth="1.5"
-        strokeLinecap="round" strokeLinejoin="round"
-        style={{ transition: "stroke 0.3s", display: "block" }}>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={hov ? C.gold : C.textMuted}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ transition: "stroke 0.22s", display: "block" }}
+      >
         <polyline points="15 18 9 12 15 6" />
       </svg>
     </button>
@@ -360,21 +377,52 @@ function BackButton({ onClick, C }) {
 
 // ─────────────────────────────────────────────
 // SUB-ROOM DROPDOWN
+// Uses a portal-style fixed positioning to escape card overflow clipping
 // ─────────────────────────────────────────────
 function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const [open, setOpen]         = useState(false);
+  const [dropPos, setDropPos]   = useState({ top: 0, left: 0, width: 180 });
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
 
+  // Recalculate dropdown position whenever it opens
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setDropPos({
+      top:   rect.bottom + window.scrollY + 5,
+      left:  rect.left   + window.scrollX,
+      width: Math.max(rect.width, 180),
+    });
+  }, [open]);
+
+  // Close on outside click
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (
+        btnRef.current  && !btnRef.current.contains(e.target) &&
+        panelRef.current && !panelRef.current.contains(e.target)
+      ) setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  // Close on scroll (repositioning is expensive; just close)
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => setOpen(false);
+    window.addEventListener("scroll", handler, true);
+    return () => window.removeEventListener("scroll", handler, true);
+  }, [open]);
+
+  const validRooms = rooms.filter(r => r && typeof r === "string" && r.trim() !== "");
+
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <>
       <button
+        ref={btnRef}
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
         style={{
@@ -385,29 +433,56 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
           fontSize: 11, fontWeight: 600,
           color: open ? C.gold : C.textMuted,
           cursor: "pointer", transition: "all 0.18s",
-          fontFamily: FONT, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap",
+          fontFamily: FONT, letterSpacing: "0.08em",
+          textTransform: "uppercase", whiteSpace: "nowrap",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = C.goldFaint; e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = C.gold; }}
-        onMouseLeave={(e) => { if (!open) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.goldBorder; } }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background   = C.goldFaint;
+          e.currentTarget.style.color        = C.gold;
+          e.currentTarget.style.borderColor  = C.gold;
+        }}
+        onMouseLeave={(e) => {
+          if (!open) {
+            e.currentTarget.style.background  = "transparent";
+            e.currentTarget.style.color       = C.textMuted;
+            e.currentTarget.style.borderColor = C.goldBorder;
+          }
+        }}
       >
-        <span>Sub-rooms ({rooms.length})</span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
+        <span>Sub-rooms ({validRooms.length})</span>
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
 
+      {/* Portal-style panel rendered at document root level via fixed positioning */}
       {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 5px)", left: 0, zIndex: 999,
-          background: C.surface, border: `1px solid ${C.goldBorder}`,
-          borderRadius: 6, boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
-          minWidth: 172, overflow: "hidden",
-        }}>
-          {rooms.filter(r => r && typeof r === "string" && r.trim() !== "").map((r, i) => {
+        <div
+          ref={panelRef}
+          style={{
+            position: "fixed",
+            top:   dropPos.top,
+            left:  dropPos.left,
+            zIndex: 99999,
+            background: C.surface,
+            border: `1px solid ${C.goldBorder}`,
+            borderRadius: 6,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.22)",
+            minWidth: dropPos.width,
+            overflow: "hidden",
+          }}
+        >
+          {validRooms.map((r, i) => {
             const roomId = `${venueId}__${String(r).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
             return (
-              <button key={r} type="button"
+              <button
+                key={r}
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setOpen(false); onRoomClick(roomId); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
@@ -415,10 +490,17 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
                   background: "transparent", border: "none",
                   borderTop: i === 0 ? "none" : `1px solid ${C.divider}`,
                   textAlign: "left", fontSize: 13, color: C.text,
-                  cursor: "pointer", fontFamily: FONT, fontWeight: 400, transition: "background 0.12s, color 0.12s",
+                  cursor: "pointer", fontFamily: FONT,
+                  fontWeight: 400, transition: "background 0.12s, color 0.12s",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = C.goldFaint; e.currentTarget.style.color = C.gold; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.text; }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = C.goldFaint;
+                  e.currentTarget.style.color      = C.gold;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color      = C.text;
+                }}
               >
                 <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.goldDim, flexShrink: 0 }} />
                 {r}
@@ -427,7 +509,7 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
           })}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -449,7 +531,7 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const liveCounts = aggregateCounts(venue);
+  const liveCounts    = aggregateCounts(venue);
   const displaySeats  = liveCounts?.seats  ?? venue.seats;
   const displayTables = liveCounts?.tables ?? venue.tables;
 
@@ -491,7 +573,7 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.70) 100%)" }} />
 
-          {/* Close btn */}
+          {/* Close button */}
           <button
             onClick={onClose}
             style={{
@@ -511,7 +593,7 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
             </svg>
           </button>
 
-          {/* Venue name */}
+          {/* Venue name overlay */}
           <div style={{ position: "absolute", bottom: 20, left: 24, right: 60 }}>
             <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.20em", textTransform: "uppercase", margin: "0 0 6px 0" }}>
               Venue Details
@@ -525,10 +607,10 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
         {/* Scrollable body */}
         <div style={{ overflowY: "auto", padding: isMobile ? "22px 20px 28px" : "28px 32px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
 
-          {/* Stats row — uses live counts */}
+          {/* Stats row — live counts from seatmap storage */}
           <div style={{ display: "flex", gap: 0, border: `1px solid ${C.divider}`, borderRadius: 8, overflow: "hidden" }}>
             {[
-              { label: "Capacity",  value: displaySeats > 0  ? `${displaySeats} guests`  : `${venue.seats} guests` },
+              { label: "Capacity",  value: displaySeats  > 0 ? `${displaySeats} guests`  : `${venue.seats} guests`   },
               { label: "Tables",    value: displayTables > 0 ? `${displayTables} tables` : `${venue.tables} tables` },
               { label: "Sub-rooms", value: venue.rooms.length > 0 ? `${venue.rooms.length} available` : "Open hall" },
             ].map((stat, i) => (
@@ -547,7 +629,7 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
             ))}
           </div>
 
-          {/* Availability pill — if we have reservation stats */}
+          {/* Reservation status pills */}
           {venue._stats && (venue._stats.reserved > 0 || venue._stats.pending > 0) && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {venue._stats.reserved > 0 && (
@@ -635,7 +717,6 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
             </div>
           )}
 
-          {/* Divider */}
           <div style={{ height: 1, background: C.divider }} />
 
           {/* Reserve CTA */}
@@ -663,13 +744,14 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
 
 // ─────────────────────────────────────────────
 // VENUE CARD
+// FIX 2: overflow changed to "visible" so dropdown escapes the card
+// FIX 3: ellipsis button border removed
 // ─────────────────────────────────────────────
 function VenueCard({ venue, onClick, onDetails, C }) {
-  const [hov, setHov] = useState(false);
+  const [hov,     setHov]     = useState(false);
   const [dotsHov, setDotsHov] = useState(false);
 
-  // Use live counts from seatmap if available, fall back to static
-  const liveCounts = aggregateCounts(venue);
+  const liveCounts    = aggregateCounts(venue);
   const displaySeats  = liveCounts?.seats  ?? venue.seats;
   const displayTables = liveCounts?.tables ?? venue.tables;
 
@@ -678,7 +760,8 @@ function VenueCard({ venue, onClick, onDetails, C }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        borderRadius: 10, overflow: "hidden",
+        borderRadius: 10,
+        overflow: "visible",          // ← FIX 2: was "hidden"; allows dropdown to escape
         background: C.cardBg,
         border: `1px solid ${hov ? C.borderHov : C.border}`,
         boxShadow: hov ? C.shadowHov : C.shadow,
@@ -687,10 +770,17 @@ function VenueCard({ venue, onClick, onDetails, C }) {
         display: "flex", flexDirection: "column", height: "100%",
       }}
     >
-      {/* Image */}
+      {/* Image — explicit border-radius to compensate for parent overflow:visible */}
       <div
         onClick={() => onClick(venue.id)}
-        style={{ height: 210, position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
+        style={{
+          height: 210,
+          position: "relative",
+          overflow: "hidden",
+          cursor: "pointer",
+          flexShrink: 0,
+          borderRadius: "10px 10px 0 0",   // ← keep top corners rounded
+        }}
       >
         <img
           src={venue.img} alt={venue.name}
@@ -702,12 +792,12 @@ function VenueCard({ venue, onClick, onDetails, C }) {
         />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.72) 100%)" }} />
 
-        {/* Capacity badge — top right on image */}
+        {/* Capacity badge */}
         <div style={{
           position: "absolute", top: 12, right: 12,
           background: "rgba(0,0,0,0.56)",
           backdropFilter: "blur(6px)",
-          border: `1px solid rgba(201,168,76,0.35)`,
+          border: "1px solid rgba(201,168,76,0.35)",
           borderRadius: 5,
           padding: "4px 9px",
           display: "flex", alignItems: "center", gap: 5,
@@ -728,8 +818,14 @@ function VenueCard({ venue, onClick, onDetails, C }) {
         </div>
       </div>
 
-      {/* Card body */}
-      <div style={{ padding: "16px 18px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
+      {/* Card body — bottom corners rounded to match card */}
+      <div style={{
+        padding: "16px 18px 20px",
+        display: "flex", flexDirection: "column", gap: 14,
+        flex: 1,
+        borderRadius: "0 0 10px 10px",   // ← keep bottom corners rounded
+        background: C.cardBg,
+      }}>
 
         {/* Live stats row */}
         <div style={{ display: "flex", gap: 0, border: `1px solid ${C.divider}`, borderRadius: 6, overflow: "hidden" }}>
@@ -750,8 +846,14 @@ function VenueCard({ venue, onClick, onDetails, C }) {
           ))}
         </div>
 
+        {/* Sub-room dropdown */}
         {venue.rooms && Array.isArray(venue.rooms) && venue.rooms.length > 0 && (
-          <RoomDropdown rooms={venue.rooms} venueId={venue.id} onRoomClick={onClick} C={C} />
+          <RoomDropdown
+            rooms={venue.rooms}
+            venueId={venue.id}
+            onRoomClick={onClick}
+            C={C}
+          />
         )}
 
         <div style={{ height: 1, background: C.divider }} />
@@ -775,7 +877,7 @@ function VenueCard({ venue, onClick, onDetails, C }) {
             View & Reserve
           </button>
 
-          {/* ··· Details button — high-contrast, always visible */}
+          {/* ··· Details button — FIX 3: border removed */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDetails(venue); }}
@@ -786,19 +888,15 @@ function VenueCard({ venue, onClick, onDetails, C }) {
               width: 40, height: 40, flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
               background: dotsHov ? C.dotsBgHov : C.dotsBg,
-              border: `1.5px solid ${C.dotsBorder}`,
+              border: "none",                   // ← FIX 3: was 1.5px solid ${C.dotsBorder}
               borderRadius: 8,
               cursor: "pointer",
               transition: "all 0.20s",
             }}
           >
-            {/* Three horizontal dots using SVG — guaranteed visible */}
             <svg
-              width="18"
-              height="4"
-              viewBox="0 0 18 4"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+              width="18" height="4" viewBox="0 0 18 4"
+              fill="none" xmlns="http://www.w3.org/2000/svg"
               style={{ display: "block", flexShrink: 0 }}
             >
               <circle cx="2"  cy="2" r="2" fill={C.dotsColor} />
@@ -844,13 +942,11 @@ export default function VenuesPage() {
   const { isDark, toggle } = useThemeMode();
   const C = getTokens(isDark);
 
-  const [modalVenue,   setModalVenue]   = useState(null);
-  // venues state holds the merged static+live data
+  const [modalVenue,    setModalVenue]    = useState(null);
   const [subcategories, setSubcategories] = useState(STATIC_VENUES);
   const [loadingStats,  setLoadingStats]  = useState(true);
 
   // ── Pull live seat-map counts from localStorage on mount ──────────────────
-  // Also poll for storage changes (in case admin saves a layout in another tab)
   useEffect(() => {
     const merge = () => {
       setSubcategories(prev => {
@@ -871,6 +967,7 @@ export default function VenuesPage() {
     };
 
     merge();
+    // Re-merge if another tab saves a layout
     window.addEventListener("storage", merge);
     return () => window.removeEventListener("storage", merge);
   }, []);
@@ -883,7 +980,6 @@ export default function VenuesPage() {
         const next = {};
         for (const [wing, venues] of Object.entries(prev)) {
           next[wing] = venues.map(v => {
-            // Aggregate stats across all room keys for this venue
             const combined = { reserved: 0, pending: 0, total: 0 };
             v.seatMapKeys.forEach(key => {
               if (stats[key]) {
@@ -892,7 +988,6 @@ export default function VenuesPage() {
                 combined.total    += stats[key].total;
               }
             });
-            // Also check by venue name directly
             if (stats[v.name]) {
               combined.reserved += stats[v.name].reserved;
               combined.pending  += stats[v.name].pending;
@@ -949,7 +1044,6 @@ export default function VenuesPage() {
   return (
     <div style={{ background: C.pageBg, minHeight: "100vh", fontFamily: FONT }}>
 
-      {/* Navbar */}
       <SharedNavbar
         isDark={isDark}
         toggle={toggle}
@@ -958,7 +1052,6 @@ export default function VenuesPage() {
         height={58}
       />
 
-      {/* Modal */}
       {modalVenue && (
         <VenueModal
           venue={modalVenue}
@@ -969,7 +1062,6 @@ export default function VenuesPage() {
         />
       )}
 
-      {/* Content */}
       <div style={{ paddingTop: 58 }}>
         <div style={{
           padding: isMobile ? "36px 20px 28px" : "52px clamp(32px, 5vw, 72px) 36px",

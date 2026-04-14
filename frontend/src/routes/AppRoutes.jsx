@@ -33,7 +33,7 @@ export default function AppRoutes() {
         <Route path="/admin/cancelled" element={<CancelledDashboard />} />
         <Route path="/admin/seatmap" element={<SeatMapEditor />} />
         <Route path="/admin/notifications" element={<NotificationDashboard />} />  
-        <Route path="/forgotcode" element={<ForgotCode />} />  
+        <Route path="/forgot-code" element={<ForgotCode />} />  
 
       </Routes>
     </BrowserRouter>

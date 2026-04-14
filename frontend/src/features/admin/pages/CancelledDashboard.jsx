@@ -21,13 +21,13 @@ const C = {
   textSecondary: "#7A7060",
   textTertiary: "rgba(24,20,14,0.35)",
   textOnAccent: "#FFFFFF",
-  red: "#A03838",
-  redFaint: "rgba(160,56,56,0.07)",
-  redBorder: "rgba(160,56,56,0.18)",
+  red: "#8C6B2A",
+  redFaint: "rgba(140,107,42,0.07)",
+  redBorder: "rgba(140,107,42,0.18)",
   green: "#2E7A5A",
   greenFaint: "rgba(46,122,90,0.07)",
   greenBorder: "rgba(46,122,90,0.18)",
-  badgeCancelled: { bg: "rgba(160,56,56,0.09)", color: "#A03838", dot: "#A03838" },
+  badgeCancelled: { bg: "rgba(140,107,42,0.09)", color: "#8C6B2A", dot: "#8C6B2A" },
   navBg: "rgba(247,244,238,0.97)",
   navBorder: "rgba(140,107,42,0.14)",
   divider: "rgba(0,0,0,0.05)",
@@ -46,6 +46,10 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
   mono:    "'Inter','Helvetica Neue',Arial,sans-serif",
 };
+
+// ─── Normalise status — treat "canceled" and "cancelled" identically ──────────
+const isCancelledStatus = (status) =>
+  ["cancelled", "canceled"].includes((status ?? "").toLowerCase());
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function Spinner({ size = 13 }) {
@@ -91,43 +95,71 @@ function CancelledBadge() {
   );
 }
 
+// ─── Date formatters (both handle full ISO strings and plain YYYY-MM-DD) ──────
+// Strip any time component first so new Date() always gets a clean date string
+const fmtDate = (d) => {
+  if (!d) return "—";
+  try {
+    const dateOnly = String(d).split("T")[0];
+    return new Date(dateOnly + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+    });
+  } catch { return d; }
+};
+
+const fmtDateLong = (d) => {
+  if (!d) return "—";
+  try {
+    const dateOnly = String(d).split("T")[0];
+    return new Date(dateOnly + "T00:00:00").toLocaleDateString("en-US", {
+      year: "numeric", month: "long", day: "numeric",
+    });
+  } catch { return d; }
+};
+
+const fmtDateTime = (dt) => {
+  if (!dt) return "—";
+  try {
+    return new Date(dt).toLocaleDateString("en-US", {
+      year: "numeric", month: "long", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch { return dt; }
+};
+
+const fmtDateTimeShort = (dt) => {
+  if (!dt) return "—";
+  try {
+    return new Date(dt).toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch { return dt; }
+};
+
+const fmtTime = (t) => {
+  if (!t) return "—";
+  const [h, m] = t.split(":");
+  const hr = parseInt(h);
+  return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
+};
+
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 function DetailModal({ reservation, onClose }) {
-  const fmtDate = (d) => {
-    if (!d) return "—";
-    try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }); }
-    catch { return d; }
-  };
-  const fmtTime = (t) => {
-    if (!t) return "—";
-    const [h, m] = t.split(":");
-    const hr = parseInt(h);
-    return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
-  };
-  const fmtDateTime = (dt) => {
-    if (!dt) return "—";
-    try {
-      return new Date(dt).toLocaleDateString("en-US", {
-        year: "numeric", month: "long", day: "numeric",
-        hour: "numeric", minute: "2-digit",
-      });
-    } catch { return dt; }
-  };
-
   const resRows = [
     ["Reference",  reservation.reference_code || "—"],
     ["Room",       reservation.room || "—"],
     ["Table",      reservation.table_number ? `Table ${reservation.table_number}` : "—"],
     ["Seat",       (reservation.seat || reservation.seat_number) ? `Seat ${reservation.seat || reservation.seat_number}` : "—"],
     ["Guests",     (reservation.guests_count || reservation.guests) ? `${reservation.guests_count || reservation.guests} guest${(reservation.guests_count || reservation.guests) !== 1 ? "s" : ""}` : "—"],
-    ["Event Date", fmtDate(reservation.event_date)],
+    ["Event Date", fmtDateLong(reservation.event_date)],
     ["Event Time", fmtTime(reservation.event_time)],
   ];
 
   const guestRows = [
-    ["Full Name",  reservation.name || "—"],
-    ["Email",      reservation.email || "—"],
-    ["Phone",      reservation.phone || "—"],
+    ["Full Name",        reservation.name || "—"],
+    ["Email",            reservation.email || "—"],
+    ["Phone",            reservation.phone || "—"],
     ["Special Requests", reservation.special_requests || "None"],
   ];
 
@@ -199,9 +231,7 @@ function DetailModal({ reservation, onClose }) {
             background: C.redFaint,
             border: `1px solid ${C.redBorder}`,
           }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 7, marginBottom: 8,
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
               <div style={{
                 width: 22, height: 22, borderRadius: 5,
                 background: `${C.red}15`,
@@ -299,17 +329,17 @@ function Toast({ message, type, onClose }) {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function CancelledDashboard() {
-  const [reservations, setReservations] = useState([]);
+  const [reservations, setReservations]           = useState([]);
   const [filteredReservations, setFilteredReservations] = useState([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch]                       = useState("");
   const [selectedReservation, setSelectedReservation] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [toast, setToast] = useState(null);
-  const [pagination, setPagination] = useState({ currentPage: 1, lastPage: 1, totalItems: 0 });
-  const [loading, setLoading] = useState(true);
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [stats, setStats] = useState({ total: 0, today: 0, thisWeek: 0 });
+  const [showModal, setShowModal]                 = useState(false);
+  const [sidebarOpen, setSidebarOpen]             = useState(true);
+  const [toast, setToast]                         = useState(null);
+  const [pagination, setPagination]               = useState({ currentPage: 1, lastPage: 1, totalItems: 0 });
+  const [loading, setLoading]                     = useState(true);
+  const [searchFocused, setSearchFocused]         = useState(false);
+  const [stats, setStats]                         = useState({ total: 0, today: 0, thisWeek: 0 });
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
@@ -321,38 +351,46 @@ export default function CancelledDashboard() {
   const isMobile = windowWidth < 640;
   const isTablet = windowWidth < 960;
 
-  // ── Load cancelled reservations ───────────────────────────────────────────
+  // ── Load cancelled reservations ─────────────────────────────────────────────
+  // We pass ?status=cancelled so the server returns only cancelled records.
+  // The client-side isCancelledStatus() guard is a safety net in case the
+  // API returns mixed data (e.g. the index() filter is not yet deployed).
   const loadReservations = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/reservations?status=cancelled&per_page=500`, {
         headers: { Accept: "application/json" },
       });
-      const data = await res.json();
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json().catch(() => ({}));
       const list = Array.isArray(data) ? data :
         Array.isArray(data.data) ? data.data :
         Array.isArray(data.reservations) ? data.reservations : [];
 
-      // Accept both "cancelled" and "canceled" spellings from the backend
-      const cancelled = list.filter(r =>
-        ["cancelled", "canceled"].includes((r.status || "").toLowerCase())
-      );
+      // Safety filter: keep only cancelled records even if server sends more
+      const cancelled = list.filter(r => isCancelledStatus(r.status));
       setReservations(cancelled);
 
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
-      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+      const weekAgo  = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
       const todayCount = cancelled.filter(r => {
         if (!r.cancelled_at) return false;
         return new Date(r.cancelled_at).toISOString().split("T")[0] === todayStr;
       }).length;
+
       const weekCount = cancelled.filter(r => {
         if (!r.cancelled_at) return false;
         return new Date(r.cancelled_at) >= weekAgo;
       }).length;
+
       setStats({ total: cancelled.length, today: todayCount, thisWeek: weekCount });
     } catch (e) {
       console.error("[CancelledDashboard] Failed to load:", e);
+      setToast({ message: "Failed to load cancelled reservations.", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -360,7 +398,13 @@ export default function CancelledDashboard() {
 
   useEffect(() => { loadReservations(); }, []);
 
-  // ── Filter ────────────────────────────────────────────────────────────────
+  // Auto-refresh every 10 seconds (reduced from 5s to lower server load)
+  useEffect(() => {
+    const interval = setInterval(loadReservations, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Filter ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     let filtered = reservations;
     if (search.trim()) {
@@ -373,7 +417,12 @@ export default function CancelledDashboard() {
       );
     }
     setFilteredReservations(filtered);
-    setPagination(p => ({ ...p, lastPage: Math.ceil(filtered.length / 10) || 1, totalItems: filtered.length, currentPage: 1 }));
+    setPagination(p => ({
+      ...p,
+      lastPage: Math.ceil(filtered.length / 10) || 1,
+      totalItems: filtered.length,
+      currentPage: 1,
+    }));
   }, [reservations, search]);
 
   const handlePageChange = (page) => {
@@ -385,27 +434,12 @@ export default function CancelledDashboard() {
     const { currentPage, lastPage } = pagination;
     if (lastPage <= 5) return Array.from({ length: lastPage }, (_, i) => i + 1);
     const start = Math.max(1, currentPage - 1);
-    const end = Math.min(lastPage, currentPage + 1);
+    const end   = Math.min(lastPage, currentPage + 1);
     const pages = [];
     if (start > 1) { pages.push(1); if (start > 2) pages.push("..."); }
     for (let i = start; i <= end; i++) pages.push(i);
     if (end < lastPage) { if (end < lastPage - 1) pages.push("..."); pages.push(lastPage); }
     return pages;
-  };
-
-  const fmtDate = (d) => {
-    if (!d) return "—";
-    try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
-    catch { return d; }
-  };
-  const fmtDateTime = (dt) => {
-    if (!dt) return "—";
-    try {
-      return new Date(dt).toLocaleDateString("en-US", {
-        month: "short", day: "numeric", year: "numeric",
-        hour: "numeric", minute: "2-digit",
-      });
-    } catch { return dt; }
   };
 
   const pagedReservations = filteredReservations.slice(
@@ -414,9 +448,9 @@ export default function CancelledDashboard() {
   );
 
   const statCards = [
-    { label: "Total Cancelled", count: stats.total,    icon: "total" },
-    { label: "Cancelled Today", count: stats.today,    icon: "today" },
-    { label: "This Week",       count: stats.thisWeek, icon: "week"  },
+    { label: "Total Cancelled", count: stats.total    },
+    { label: "Cancelled Today", count: stats.today    },
+    { label: "This Week",       count: stats.thisWeek },
   ];
 
   return (
@@ -463,7 +497,7 @@ export default function CancelledDashboard() {
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.14em", color: C.textSecondary, fontWeight: 600, textTransform: "uppercase" }}>Cancelled Reservations</span>
               </div>
 
-              {/* Right side: refresh button + search */}
+              {/* Right side: refresh + search */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   onClick={loadReservations}
@@ -714,7 +748,7 @@ export default function CancelledDashboard() {
                               )}
                               {reservation.cancelled_at && (
                                 <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.red, opacity: 0.7, padding: "2px 6px", background: C.redFaint, border: `1px solid ${C.redBorder}`, borderRadius: 4 }}>
-                                  Cancelled: {fmtDateTime(reservation.cancelled_at)}
+                                  Cancelled: {fmtDateTimeShort(reservation.cancelled_at)}
                                 </span>
                               )}
                             </div>

@@ -622,9 +622,26 @@ export default function NotificationDashboard() {
     const wsUrl=`${protocol}//${wsHost}:${wsPort}`;
     const connect=()=>{
       const ws=new WebSocket(wsUrl);
-      ws.onopen=()=>{setWsStatus("connected");reconnectDelay.current=2000;};
-      ws.onclose=()=>{setWsStatus("connecting");if(isMounted.current){reconnectTimer.current=setTimeout(()=>{connect();reconnectDelay.current=Math.min(reconnectDelay.current*2,30000);},reconnectDelay.current);}};
-      ws.onerror=()=>{setWsStatus("connecting");if(isMounted.current)setTimeout(connect,reconnectDelay.current);};
+      ws.onopen=()=>{
+        setWsStatus("connected");
+        reconnectDelay.current=2000;
+        console.log('[Notifications] WebSocket connected');
+      };
+      ws.onclose=()=>{
+        setWsStatus("disconnected");
+        if(isMounted.current){
+          reconnectTimer.current=setTimeout(()=>{
+            connect();
+            reconnectDelay.current=Math.min(reconnectDelay.current*2,30000);
+          },reconnectDelay.current);
+        }
+      };
+      ws.onerror=()=>{
+        setWsStatus("error");
+        if(isMounted.current){
+          setTimeout(connect,reconnectDelay.current);
+        }
+      };
       ws.onmessage=event=>{
   try{
     const data=JSON.parse(event.data);
@@ -671,7 +688,7 @@ export default function NotificationDashboard() {
 
   const handlePopupView=useCallback(p=>{dismissPopup();const items=p.items||[];if(items.length===1){const full=allCards.find(r=>(r.id??r.db_id)===items[0].id);if(full)setDetailRes(full);}else setPickerItems(items);},[allCards,dismissPopup]);
 
-  const wsColor=wsStatus==="connected"?C.green:wsStatus==="connecting"?C.gold:C.red;
+  const wsColor=wsStatus==="connected"?C.green:wsStatus==="connecting"?C.gold:C.textMuted;
   const wsLabel=wsStatus==="connected"?"Live":wsStatus==="connecting"?"Connecting":"Offline";
 
   return (
@@ -743,7 +760,7 @@ export default function NotificationDashboard() {
               <div>
                 
                 <h1 style={{ fontFamily:F.display,fontSize:"clamp(30px,4.5vw,44px)",fontWeight:400,color:C.textPrimary,lineHeight:1.12,margin:"0 0 12px",letterSpacing:"0.01em" }}>
-                  Notification<br/>Monitor
+                  Notification Monitor
                 </h1>
                 <p style={{ fontFamily:F.body,fontSize:13.5,color:C.textSecondary,margin:0,lineHeight:1.70 }}>
                   Real-time reservation tracking · {allCards.length} total · {pendingCards.length} pending approval

@@ -490,12 +490,13 @@ function ToolBtn({ active, onClick, label, accentColor }) {
   );
 }
 
+
 // Wing/Room Sidebar
 function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
   const DEFAULT_WINGS = [
-    { id: "main-wing",  label: "Main Wing",  rooms: ["Alabang Function Room", "Grand Ballroom", "Poolside Terrace"] },
-    { id: "tower-wing", label: "Tower Wing", rooms: ["Tower Suite A", "Tower Suite B", "Executive Lounge"] },
-    { id: "dining",     label: "Dining",     rooms: ["The Café", "Lobby Lounge", "Rooftop Restaurant"] },
+    { id: "main-wing",  label: "Main Wing",  rooms: ["Alabang Function Room", "Grand Ballroom", "20/20 Function Room", "Business Center"] },
+    { id: "tower-wing", label: "Tower Wing", rooms: ["Tower Ballroom", "Grand Ballroom"] },
+    { id: "dining",     label: "Dining",     rooms: ["Qsina", "Hanakazu", "Phoenix Court"] },
   ];
 
   const [expanded, setExpanded] = useState(() => Object.fromEntries(DEFAULT_WINGS.map(w => [w.id, true])));
@@ -747,6 +748,7 @@ export default function SeatMap({
   }, [editMode, labels]);
 
   const startTableDrag          = useCallback((e, id) => { e.preventDefault(); const t = tables.find(t => t.id === id); dragging.current = { type: "table", id, startX: e.clientX, startY: e.clientY, originX: t?.x || 0, originY: t?.y || 0 }; setActiveDragId(id); }, [tables]);
+  const startTableResize        = useCallback((e, id) => { e.preventDefault(); setActiveDragId(id); }, []);
   const startLabelDrag          = useCallback((e, id) => { e.preventDefault(); const l = labels.find(l => l.id === id); dragging.current = { type: "label", id, startX: e.clientX, startY: e.clientY, originX: l?.x || 0, originY: l?.y || 0 }; setActiveDragId(id); }, [labels]);
   const startStandaloneSeatDrag = useCallback((e, id) => { e.preventDefault(); const ss = standaloneSeats.find(s => s.id === id); dragging.current = { type: "standaloneSeat", id, startX: e.clientX, startY: e.clientY, originX: ss?.x || 0, originY: ss?.y || 0 }; setActiveDragId(id); }, [standaloneSeats]);
 
@@ -924,21 +926,23 @@ export default function SeatMap({
                 <TableNode key={t.id} table={t} editMode={true}
                   isTableSelected={selected?.tableId === t.id}
                   selectedSeatId={selected?.type === "seat" && selected?.tableId === t.id ? selected.seatId : null}
-                  onSelectTable={handleTableSelect} onDragStart={startTableDrag} onResizeStart={() => {}}
-                  onSeatClick={handleSeatClick} onLabelEdit={handleLabelEdit}
-                  isDragging={activeDragId === t.id} onSeatMove={handleSeatMove} />
+                  onDragStart={startTableDrag} onResizeStart={startTableResize}
+                  onSeatClick={handleSeatClick} onLabelEdit={handleLabelEdit} isDragging={activeDragId === t.id} onSeatMove={handleSeatMove} />
               ))}
-
               {tables.length === 0 && standaloneSeats.length === 0 && (
-                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", gap: 10, animation: "sm-fadeUp 0.3s ease" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, border: `1.5px dashed ${C.borderStrong}`, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.35 }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
-                  </div>
-                  <p style={{ fontFamily: F, fontSize: 12, color: C.textTertiary, textAlign: "center", maxWidth: 240, lineHeight: 1.65, margin: 0 }}>
-                    Empty canvas — use the toolbar to add tables or seats
-                  </p>
-                </div>
-              )}
+  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", gap: 10, animation: "sm-fadeUp 0.3s ease" }}>
+    <div style={{ width: 44, height: 44, borderRadius: 10, border: `1.5px dashed ${C.borderStrong}`, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.35 }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="1.5">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <line x1="12" y1="8" x2="12" y2="16" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+      </svg>
+    </div>
+    <p style={{ color: C.textSecondary, fontSize: 12, fontFamily: F, margin: 0 }}>
+      Empty canvas — use the toolbar to add tables or seats
+    </p>
+  </div>
+)}
             </ScaledCanvas>
           </div>
         </div>

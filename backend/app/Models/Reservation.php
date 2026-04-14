@@ -22,21 +22,19 @@ class Reservation extends Model
         'status',
         'type',
         'submitted_at',
-        'rejection_reason'
+        'rejection_reason',
+        'cancellation_reason',
+        'cancelled_at',
     ];
 
     protected $casts = [
-        'event_date' => 'datetime',
-        'submitted_at' => 'datetime'
+        'event_date'   => 'date:Y-m-d',   // ← fixed: was 'datetime', now serialises as YYYY-MM-DD
+        'submitted_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function venue(): BelongsTo
     {
         return $this->belongsTo(Venue::class);
     }
-
-    // public function seats()
-//     {
-//         return $this->hasMany(Seat::class);
-//     }
 }

@@ -5,6 +5,9 @@ class LocalWebSocket {
     this.channels = new Map();
     this.connected = false;
     this.connection = null;
+    this.retryCount = 0;
+    this.maxRetries = 3;
+    this.retryDelay = 5000;
     
     this.connect();
   }
@@ -21,6 +24,7 @@ class LocalWebSocket {
       this.connection.onopen = () => {
         console.log('[WebSocket] Connected to local WebSocket server');
         this.connected = true;
+        this.retryCount = 0; // Reset retry count on successful connection
         this.emit('connected');
       };
       
@@ -29,7 +33,7 @@ class LocalWebSocket {
           const data = JSON.parse(event.data);
           this.handleMessage(data);
         } catch (error) {
-          console.error('[WebSocket] Error parsing message:', error);
+          console.error('[WebSocket] Failed to parse message:', error);
         }
       };
       
@@ -38,13 +42,26 @@ class LocalWebSocket {
         this.connected = false;
         this.emit('disconnected');
         
-        // Attempt to reconnect after 3 seconds
-        setTimeout(() => this.connect(), 3000);
+        // Attempt to reconnect with backoff, but limit retries
+        if (this.retryCount < this.maxRetries) {
+          this.retryCount++;
+          const delay = this.retryDelay * Math.pow(2, this.retryCount - 1);
+          setTimeout(() => this.connect(), delay);
+        }
       };
       
       this.connection.onerror = (error) => {
-        console.error('[WebSocket] Connection error:', error);
+        if (this.retryCount === 0) {
+          console.error('[WebSocket] Connection error:', error);
+        }
         this.emit('error', error);
+        
+        // Attempt to reconnect with backoff, but limit retries
+        if (this.retryCount < this.maxRetries) {
+          this.retryCount++;
+          const delay = this.retryDelay * Math.pow(2, this.retryCount - 1);
+          setTimeout(() => this.connect(), delay);
+        }
       };
     } catch (error) {
       console.error('[WebSocket] Failed to create connection:', error);

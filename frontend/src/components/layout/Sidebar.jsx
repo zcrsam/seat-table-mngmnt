@@ -1,13 +1,14 @@
 // src/components/admin/Sidebar.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { X, ClipboardList, Map } from "lucide-react";
 
 const F = { body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
 
 const NAV_ITEMS = [
-  { id: "reservations", label: "Reservations", icon: "📋" },
-  { id: "cancelled",    label: "Cancelled",    icon: "✕",  iconStyle: "text" },
-  { id: "seat-map",     label: "Seat Map",     icon: "🗺️" },
+  { id: "reservations", label: "Reservations", icon: ClipboardList, iconStyle: "lucide" },
+  { id: "cancelled",    label: "Cancelled",    icon: X,           iconStyle: "lucide" },
+  { id: "seat-map",     label: "Seat Map",     icon: Map,         iconStyle: "lucide" },
 ];
 
 // ─── Hamburger Toggle Button ──────────────────────────────────────────────────
@@ -49,11 +50,11 @@ function NavItem({ item, isActive, isOpen, onClick }) {
 
   const isCancelled = item.id === "cancelled";
 
-  const activeColor  = isCancelled ? "#D05252" : "#C9A84C";
-  const hoverColor   = isCancelled ? "#D05252" : "#C9A84C";
-  const activeBg     = isCancelled ? "rgba(208,82,82,0.10)"  : "rgba(201,168,76,0.10)";
-  const hoverBg      = isCancelled ? "rgba(208,82,82,0.06)"  : "rgba(201,168,76,0.05)";
-  const borderColor  = isCancelled ? "#D05252" : "#C9A84C";
+  const activeColor  = isCancelled ? "#8C6B2A" : "#C9A84C";
+  const hoverColor   = isCancelled ? "#8C6B2A" : "#C9A84C";
+  const activeBg     = isCancelled ? "rgba(140,107,42,0.10)"  : "rgba(201,168,76,0.10)";
+  const hoverBg      = isCancelled ? "rgba(140,107,42,0.06)"  : "rgba(201,168,76,0.05)";
+  const borderColor  = isCancelled ? "#8C6B2A" : "#C9A84C";
 
   const handleClick = () => {
     const routes = {
@@ -65,17 +66,14 @@ function NavItem({ item, isActive, isOpen, onClick }) {
     onClick?.(item.id);
   };
 
-  // Custom "✕" icon for cancelled — rendered as SVG for crispness
-  const CancelIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke={isActive ? activeColor : hovered ? hoverColor : "#888"}
-      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ flexShrink: 0, transition: "stroke 0.15s" }}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="15" y1="9" x2="9" y2="15" />
-      <line x1="9" y1="9" x2="15" y2="15" />
-    </svg>
+  // Lucide icon renderer
+  const LucideIcon = ({ icon: Icon }) => (
+    <Icon 
+      size={14}
+      color={isActive ? activeColor : hovered ? hoverColor : "#888"}
+      strokeWidth={2.5}
+      style={{ flexShrink: 0, transition: "color 0.15s" }}
+    />
   );
 
   return (
@@ -101,8 +99,8 @@ function NavItem({ item, isActive, isOpen, onClick }) {
         borderRadius: isOpen ? "0 6px 6px 0" : 0,
       }}
     >
-      {isCancelled
-        ? <CancelIcon />
+      {item.iconStyle === "lucide"
+        ? <LucideIcon icon={item.icon} />
         : <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
       }
       {isOpen && (
@@ -216,8 +214,8 @@ export default function Sidebar({
           </div>
           <StatRow label="Pending"   value={pending}   color="#E8A838" isOpen={isOpen} />
           <StatRow label="Approved"  value={approved}  color="#4CAF79" isOpen={isOpen} />
-          <StatRow label="Rejected"  value={rejected}  color="#E05252" isOpen={isOpen} />
-          <StatRow label="Cancelled" value={cancelled} color="#D05252" isOpen={isOpen} />
+          <StatRow label="Rejected"  value={rejected}  color="#8C6B2A" isOpen={isOpen} />
+          <StatRow label="Cancelled" value={cancelled} color="#8C6B2A" isOpen={isOpen} />
         </div>
       )}
 
@@ -227,8 +225,8 @@ export default function Sidebar({
           {[
             ["#E8A838", pending],
             ["#4CAF79", approved],
-            ["#E05252", rejected],
-            ["#D05252", cancelled],
+            ["#8C6B2A", rejected],
+            ["#8C6B2A", cancelled],
           ].map(([color, val], i) => (
             val > 0 && (
               <div key={i} style={{
