@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('reservations') || Schema::hasColumn('reservations', 'rejection_reason')) {
+            return;
+        }
+
         Schema::table('reservations', function (Blueprint $table) {
             $table->text('rejection_reason')->nullable()->after('special_requests');
         });
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('reservations') || !Schema::hasColumn('reservations', 'rejection_reason')) {
+            return;
+        }
+
         Schema::table('reservations', function (Blueprint $table) {
             $table->dropColumn('rejection_reason');
         });
