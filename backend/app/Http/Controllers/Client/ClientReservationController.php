@@ -12,36 +12,16 @@ use App\Events\TableReserved;
 use App\Mail\ReservationStatusMail;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 
 class ClientReservationController extends Controller
 {
-    // ─── Index ────────────────────────────────────────────────────────────────
-    // Now supports ?status=cancelled (and any other status) as a query filter
-    // so CancelledDashboard gets only what it needs from the server.
     public function index(): JsonResponse
     {
-        $query = Reservation::orderBy('event_date', 'asc');
-
-        if (request()->filled('status')) {
-            // Normalise "canceled" → "cancelled" for safety
-            $status = strtolower(request('status'));
-            if ($status === 'canceled') {
-                $status = 'cancelled';
-            }
-            $query->where('status', $status);
-        }
-
-        if (request()->filled('reference_code')) {
-            $query->where('reference_code', request('reference_code'));
-        }
-
-        $reservations = $query->get();
+        $reservations = Reservation::orderBy('event_date', 'asc')->get();
         return response()->json($reservations);
     }
 
-    // ─── Store ────────────────────────────────────────────────────────────────
     public function store(Request $request): JsonResponse
     {
         \Log::info('Store called, email: ' . $request->email);
@@ -97,23 +77,21 @@ class ClientReservationController extends Controller
         return response()->json($reservation, 201);
     }
 
-    // ─── Show ─────────────────────────────────────────────────────────────────
     public function show(Reservation $reservation): JsonResponse
     {
         $reservation->load(['venue']);
         return response()->json($reservation);
     }
 
-    // ─── Update ───────────────────────────────────────────────────────────────
     public function update(Request $request, $id): JsonResponse
     {
         $reservation = Reservation::findOrFail($id);
-
+        
         $validated = $request->validate([
             'name'             => 'sometimes|required|string|max:255',
             'email'            => 'sometimes|required|email|max:255',
             'phone'            => 'sometimes|required|string|max:20',
-            'contact_number'   => 'sometimes|required|string|max:20',
+            'contact_number'    => 'sometimes|required|string|max:20',
             'mobile'           => 'sometimes|required|string|max:20',
             'guests_count'     => 'sometimes|required|integer|min:1',
             'guests'           => 'sometimes|required|integer|min:1',
@@ -125,109 +103,110 @@ class ClientReservationController extends Controller
             'eventTime'        => 'sometimes|required|string|max:50',
             'time'             => 'sometimes|required|string|max:50',
             'special_requests' => 'sometimes|nullable|string',
-            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved,cancelled',
+            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved',
         ]);
 
         $updateData = [];
 
-        if (isset($validated['name']))  $updateData['name']  = $validated['name'];
-        if (isset($validated['email'])) $updateData['email'] = $validated['email'];
-
-        // Phone — use first available
-        if (isset($validated['phone']))              $updateData['phone'] = $validated['phone'];
-        elseif (isset($validated['contact_number'])) $updateData['phone'] = $validated['contact_number'];
-        elseif (isset($validated['mobile']))         $updateData['phone'] = $validated['mobile'];
-
-        // Guest count — use first available
-        if (isset($validated['guests_count']))          $updateData['guests_count'] = $validated['guests_count'];
-        elseif (isset($validated['guests']))            $updateData['guests_count'] = $validated['guests'];
-        elseif (isset($validated['number_of_guests'])) $updateData['guests_count'] = $validated['number_of_guests'];
-
-        // Event date — use first available
-        if (isset($validated['event_date']))    $updateData['event_date'] = $validated['event_date'];
-        elseif (isset($validated['eventDate'])) $updateData['event_date'] = $validated['eventDate'];
-        elseif (isset($validated['date']))      $updateData['event_date'] = $validated['date'];
-
-        // Event time — use first available
-        if (isset($validated['event_time']))    $updateData['event_time'] = $validated['event_time'];
-        elseif (isset($validated['eventTime'])) $updateData['event_time'] = $validated['eventTime'];
-        elseif (isset($validated['time']))      $updateData['event_time'] = $validated['time'];
-
-        if (isset($validated['special_requests'])) $updateData['special_requests'] = $validated['special_requests'];
-        if (isset($validated['status']))           $updateData['status'] = $validated['status'];
+        if (isset($validated['name'])) {
+            $updateData['name'] = $validated['name'];
+        }
+        if (isset($validated['email'])) {
+            $updateData['email'] = $validated['email'];
+        }
+        
+        // Phone numbers - use first available
+        if (isset($validated['phone'])) {
+            $updateData['phone'] = $validated['phone'];
+        } elseif (isset($validated['contact_number'])) {
+            $updateData['phone'] = $validated['contact_number'];
+        } elseif (isset($validated['mobile'])) {
+            $updateData['phone'] = $validated['mobile'];
+        }
+        
+        // Guest count - use first available
+        if (isset($validated['guests_count'])) {
+            $updateData['guests_count'] = $validated['guests_count'];
+        } elseif (isset($validated['guests'])) {
+            $updateData['guests_count'] = $validated['guests'];
+        } elseif (isset($validated['number_of_guests'])) {
+            $updateData['guests_count'] = $validated['number_of_guests'];
+        }
+        
+        // Event date - use first available
+        if (isset($validated['event_date'])) {
+            $updateData['event_date'] = $validated['event_date'];
+        } elseif (isset($validated['eventDate'])) {
+            $updateData['event_date'] = $validated['eventDate'];
+        } elseif (isset($validated['date'])) {
+            $updateData['event_date'] = $validated['date'];
+        }
+        
+        // Event time - use first available
+        if (isset($validated['event_time'])) {
+            $updateData['event_time'] = $validated['event_time'];
+        } elseif (isset($validated['eventTime'])) {
+            $updateData['event_time'] = $validated['eventTime'];
+        } elseif (isset($validated['time'])) {
+            $updateData['event_time'] = $validated['time'];
+        }
+        
+        // Special requests
+        if (isset($validated['special_requests'])) {
+            $updateData['special_requests'] = $validated['special_requests'];
+        }
+        
+        // Status
+        if (isset($validated['status'])) {
+            $updateData['status'] = $validated['status'];
+        }
 
         $reservation->update($updateData);
+        
+        // Load relationships and return with all aliases for frontend compatibility
         $reservation->load(['venue']);
-
+        
+        // Build response with all field aliases so frontend can pick them up
         $response = [
             'data' => [
-                'id'               => $reservation->reference_code ?? $reservation->id,
-                'db_id'            => $reservation->id,
-                'reference_code'   => $reservation->reference_code,
-                'name'             => $reservation->name,
-                'email'            => $reservation->email,
-                'phone'            => $reservation->phone,
-                'contact_number'   => $reservation->phone,
-                'mobile'           => $reservation->phone,
-                'event_date'       => $reservation->event_date,
-                'eventDate'        => $reservation->event_date,
-                'date'             => $reservation->event_date,
-                'event_time'       => $reservation->event_time,
-                'eventTime'        => $reservation->event_time,
-                'time'             => $reservation->event_time,
-                'guests_count'     => $reservation->guests_count,
-                'guests'           => $reservation->guests_count,
-                'number_of_guests' => $reservation->guests_count,
+                'id' => $reservation->reference_code ?? $reservation->id,
+                'db_id' => $reservation->id,
+                'reference_code' => $reservation->reference_code,
+                'name' => $reservation->name,
+                'email' => $reservation->email,
+                'phone' => $reservation->phone,
+                'contact_number' => $reservation->phone, // Alias
+                'mobile' => $reservation->phone, // Alias
+                'event_date' => $reservation->event_date,
+                'eventDate' => $reservation->event_date, // Alias
+                'date' => $reservation->event_date, // Alias
+                'event_time' => $reservation->event_time,
+                'eventTime' => $reservation->event_time, // Alias
+                'time' => $reservation->event_time, // Alias
+                'guests_count' => $reservation->guests_count,
+                'guests' => $reservation->guests_count, // Alias
+                'number_of_guests' => $reservation->guests_count, // Alias
                 'special_requests' => $reservation->special_requests,
-                'status'           => $reservation->status,
-                'venue'            => $reservation->venue,
-                'room'             => $reservation->venue?->name ?? $reservation->room,
-                'table_number'     => $reservation->table_number,
-                'seat_number'      => $reservation->seat_number,
-                'type'             => $reservation->type,
-                'created_at'       => $reservation->created_at,
-                'updated_at'       => $reservation->updated_at,
+                'status' => $reservation->status,
+                'venue' => $reservation->venue,
+                'room' => $reservation->venue?->name ?? $reservation->room,
+                'table_number' => $reservation->table_number,
+                'seat_number' => $reservation->seat_number,
+                'type' => $reservation->type,
+                'created_at' => $reservation->created_at,
+                'updated_at' => $reservation->updated_at,
             ]
         ];
-
+        
         return response()->json($response);
     }
 
-    // ─── Destroy (soft-cancel) ────────────────────────────────────────────────
-    // Marks the reservation as "cancelled" with reason + timestamp.
-    // Does NOT hard-delete so the admin Cancelled dashboard can display it.
     public function destroy(Reservation $reservation): JsonResponse
     {
-        $reservation->update([
-            'status'              => 'cancelled',
-            'cancellation_reason' => request()->input('cancellation_reason'),
-            'cancelled_at'        => now(),
-        ]);
-
-        // Send cancellation email to client (silently ignore mail errors)
-        try {
-            Mail::to($reservation->email)
-                ->send(new ReservationStatusMail($reservation, 'rejected', 'Cancelled by guest'));
-        } catch (\Exception $e) {
-            \Log::error('Failed to send cancellation email: ' . $e->getMessage());
-        }
-
-        // Broadcast seat map update
-        try {
-            broadcast(new \App\Events\ReservationUpdated($reservation))->toOthers();
-            WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
-                'reservation' => $reservation
-            ]);
-        } catch (\Throwable $broadcastError) {
-            \Log::warning('Reservation cancel broadcast failed: ' . $broadcastError->getMessage());
-        }
-
-        return response()->json([
-            'message' => 'Booking cancelled successfully',
-        ]);
+        $reservation->delete();
+        return response()->json(null, 204);
     }
 
-    // ─── Venue reservations ───────────────────────────────────────────────────
     public function getVenueReservations(Venue $venue): JsonResponse
     {
         $reservations = $venue->reservations()
@@ -236,27 +215,46 @@ class ClientReservationController extends Controller
         return response()->json($reservations);
     }
 
-    // ─── Approve ──────────────────────────────────────────────────────────────
     public function approve(Reservation $reservation): JsonResponse
     {
         $reservation->update(['status' => 'approved']);
         return response()->json($reservation);
     }
 
-    // ─── Reject ───────────────────────────────────────────────────────────────
-    public function reject($id): JsonResponse
+    public function reject(Request $request, $id): JsonResponse
     {
         try {
-            $reservation = Reservation::findOrFail($id);
-            $reservation->update(['status' => 'rejected', 'rejection_reason' => 'Cancelled by guest']);
+            $validated = $request->validate([
+                'reason' => 'sometimes|nullable|string|max:1000',
+            ]);
 
+            $reservation = Reservation::findOrFail($id);
+            if (!in_array($reservation->status, ['pending', 'approved', 'reserved'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only pending or approved reservations can be cancelled.',
+                ], 422);
+            }
+
+            $cancelReason = trim((string)($validated['reason'] ?? ''));
+            $cancelReason = $cancelReason !== '' ? $cancelReason : null;
+
+            $reservation->update([
+                'status' => 'rejected',
+                'rejection_reason' => 'Cancelled by guest',
+                'cancellation_reason' => $cancelReason,
+                'cancelled_at' => now(),
+            ]);
+
+            // Send cancellation email to client
             try {
                 Mail::to($reservation->email)
-                    ->send(new ReservationStatusMail($reservation, 'rejected', 'Cancelled by guest'));
+                    ->send(new ReservationStatusMail($reservation, 'rejected', $cancelReason ?: 'Cancelled by guest'));
             } catch (\Exception $e) {
                 \Log::error('Failed to send cancellation email: ' . $e->getMessage());
             }
 
+            // Broadcast update
             try {
                 broadcast(new \App\Events\ReservationUpdated($reservation))->toOthers();
                 WebsocketBroadcaster::broadcast('reservations', 'ReservationUpdated', [
@@ -267,27 +265,29 @@ class ClientReservationController extends Controller
             }
 
             return response()->json([
-                'success'        => true,
-                'message'        => 'Booking cancelled successfully',
+                'success' => true,
+                'message' => 'Booking cancelled successfully',
                 'reservation_id' => $reservation->reference_code,
-                'data'           => [
-                    'id'               => $reservation->reference_code,
-                    'db_id'            => $reservation->id,
-                    'reference_code'   => $reservation->reference_code,
-                    'status'           => $reservation->status,
-                    'name'             => $reservation->name,
-                    'email'            => $reservation->email,
-                    'phone'            => $reservation->phone,
-                    'event_date'       => $reservation->event_date,
-                    'event_time'       => $reservation->event_time,
-                    'guests_count'     => $reservation->guests_count,
+                'data' => [
+                    'id' => $reservation->reference_code,
+                    'db_id' => $reservation->id,
+                    'reference_code' => $reservation->reference_code,
+                    'status' => $reservation->status,
+                    'name' => $reservation->name,
+                    'email' => $reservation->email,
+                    'phone' => $reservation->phone,
+                    'event_date' => $reservation->event_date,
+                    'event_time' => $reservation->event_time,
+                    'guests_count' => $reservation->guests_count,
                     'special_requests' => $reservation->special_requests,
-                    'venue'            => $reservation->venue,
-                    'room'             => $reservation->venue?->name ?? $reservation->room,
-                    'table_number'     => $reservation->table_number,
-                    'seat_number'      => $reservation->seat_number,
-                    'type'             => $reservation->type,
-                    'updated_at'       => $reservation->updated_at,
+                    'cancellation_reason' => $reservation->cancellation_reason,
+                    'cancelled_at' => $reservation->cancelled_at,
+                    'venue' => $reservation->venue,
+                    'room' => $reservation->venue?->name ?? $reservation->room,
+                    'table_number' => $reservation->table_number,
+                    'seat_number' => $reservation->seat_number,
+                    'type' => $reservation->type,
+                    'updated_at' => $reservation->updated_at,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -295,7 +295,13 @@ class ClientReservationController extends Controller
         }
     }
 
-    // ─── Notify ───────────────────────────────────────────────────────────────
+    /**
+     * Send a status notification email for a reservation.
+     * Called after approve or reject from the admin dashboard.
+     *
+     * POST /api/reservations/{reservation}/notify
+     * Body: { status: "approved"|"rejected", rejection_reason?: string }
+     */
     public function notify(Request $request, Reservation $reservation)
     {
         $status          = $request->input('status');
@@ -306,8 +312,8 @@ class ClientReservationController extends Controller
         }
 
         try {
-            Mail::to($reservation->email)->send(
-                new ReservationStatusMail($reservation, $status, $rejectionReason)
+            \Mail::to($reservation->email)->send(
+                new \App\Mail\ReservationStatusMail($reservation, $status, $rejectionReason)
             );
             return response()->json(['success' => true, 'message' => 'Email sent.']);
         } catch (\Exception $e) {
