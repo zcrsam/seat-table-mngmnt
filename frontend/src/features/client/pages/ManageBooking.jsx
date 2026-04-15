@@ -132,7 +132,7 @@ const normalizeBooking = (b) => ({
   name:             b.name ?? b.guest_name ?? b.full_name ?? b.guest ?? "",
   email:            b.email ?? b.guest_email ?? "",
   phone:            b.phone ?? b.phone_number ?? b.contact ?? "",
-  room:             b.room ?? b.venue ?? b.room_name ?? b.venue_name ?? ROOM,
+  room:             b.room ?? b.venue?.name ?? b.venue ?? b.room_name ?? b.venue_name ?? ROOM,
   table_number:     b.table_number ?? b.table ?? b.table_no ?? "",
   table:            b.table_number ?? b.table ?? b.table_no ?? "",
   seat:             b.seat_number ?? b.seat ?? b.seats ?? "",
@@ -1497,9 +1497,20 @@ export default function ManageBooking() {
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 18 9 12 15 6" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="lucide lucide-chevron-left-icon lucide-chevron-left"
+                  style={{ color: C.textSecondary }}
+                >
+                  <path d="m15 18-6-6 6-6" />
                 </svg>
               </button>
             </div>

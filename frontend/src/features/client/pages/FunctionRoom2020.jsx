@@ -1,6 +1,6 @@
 // src/features/client/pages/FunctionRoom2020.jsx
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import MainWingNavbar from "../components/MainWingNavbar";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence.js";
@@ -20,17 +20,19 @@ const F = {
 function ChevronLeftIcon({ size = 18 }) {
   return (
     <svg
+      xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.5"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      className="lucide lucide-chevron-left-icon lucide-chevron-left"
       style={{ display: "block", flexShrink: 0 }}
     >
-      <polyline points="15 18 9 12 15 6" />
+      <path d="m15 18-6-6 6-6" />
     </svg>
   );
 }
@@ -98,6 +100,8 @@ const getSeatRatio = (table) => {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function FunctionRoom2020() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedRoom = location.state?.selectedSubRoom || ROOM;
   const [mode,          setMode]          = useState("whole");
   const [selectedSeat,  setSelectedSeat]  = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
@@ -225,6 +229,7 @@ export default function FunctionRoom2020() {
         email:            formData.email,
         phone:            formData.phone,
         venue_id:         3, // 20/20 Function Room venue_id
+        room:             selectedRoom,
         table_number:     String(activeTable?.id ?? "T1"),
         seat_number:      mode === "individual"
                           ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
@@ -385,7 +390,7 @@ export default function FunctionRoom2020() {
               </div>
               <div style={s.selRow}>
                 <span style={{ ...s.selLabel, fontSize: 9 }}>ROOM:</span>
-                <span style={{ ...s.selVal, fontSize: 11, color: "#666" }}>{ROOM}</span>
+                <span style={{ ...s.selVal, fontSize: 11, color: "#666" }}>{selectedRoom}</span>
               </div>
 
               {mode === "whole" && (
@@ -430,7 +435,7 @@ export default function FunctionRoom2020() {
           guests={guests}
           table={displayTable}
           seat={displaySeat}
-          room={ROOM}
+          room={selectedRoom}
           onBack={() => setModal("guestCount")}
           onSubmit={handleReview}
         />
@@ -443,7 +448,7 @@ export default function FunctionRoom2020() {
           guests={guests}
           table={displayTable}
           seat={displaySeat}
-          room={ROOM}
+          room={selectedRoom}
           form={formData}
           submitting={submitting}
           onEdit={() => setModal("details")}

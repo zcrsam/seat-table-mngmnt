@@ -1,6 +1,6 @@
 // src/pages/AlabangReserve.jsx
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import SharedNavbar from "../../../components/SharedNavbar.jsx";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import Echo from "../../../utils/websocket.js";
@@ -804,6 +804,8 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function AlabangReserve() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedRoom = location.state?.selectedSubRoom || ROOM;
 
   const [isDark, setIsDark] = useState(() => {
     try { const s = localStorage.getItem("bellevue-theme"); if (s !== null) return s === "dark"; } catch {}
@@ -938,11 +940,11 @@ export default function AlabangReserve() {
     setSubmitting(true);
     try {
       const activeTable = getActiveTable();
-      const payload = { name: `${formData.firstName} ${formData.lastName}`, email: formData.email, phone: formData.phone, venue_id: 1, table_number: String(activeTable?.id ?? "T1"), seat_number: mode === "individual" ? String(selectedSeat?.num ?? selectedSeat?.id ?? "") : Array.from({ length: guests }, (_, i) => i + 1).join(","), guests_count: guests, event_date: formData.eventDate, event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null, special_requests: formData.specialRequests || "", type: mode };
+      const payload = { name: `${formData.firstName} ${formData.lastName}`, email: formData.email, phone: formData.phone, venue_id: 1, room: selectedRoom, table_number: String(activeTable?.id ?? "T1"), seat_number: mode === "individual" ? String(selectedSeat?.num ?? selectedSeat?.id ?? "") : Array.from({ length: guests }, (_, i) => i + 1).join(","), guests_count: guests, event_date: formData.eventDate, event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null, special_requests: formData.specialRequests || "", type: mode };
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
+      setLastBookingDetails({ room: selectedRoom, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
       if (activeTable) {
         setTableData(prev => {
@@ -1023,7 +1025,7 @@ export default function AlabangReserve() {
             }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left-icon lucide-chevron-left" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
               </button>
 
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1155,7 +1157,7 @@ export default function AlabangReserve() {
                   style={{ width: 36, height: 36, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s", padding: 0, flexShrink: 0 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left-icon lucide-chevron-left" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
                 </button>
                 <span style={{ display: "inline-block", width: 20, height: "1px", background: C.gold, opacity: 0.5 }} />
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>

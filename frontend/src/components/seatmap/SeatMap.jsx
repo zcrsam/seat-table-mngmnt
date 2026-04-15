@@ -494,7 +494,7 @@ function ToolBtn({ active, onClick, label, accentColor }) {
 // Wing/Room Sidebar
 function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
   const DEFAULT_WINGS = [
-    { id: "main-wing",  label: "Main Wing",  rooms: ["Alabang Function Room", "Grand Ballroom", "20/20 Function Room", "Business Center"] },
+    { id: "main-wing",  label: "Main Wing",  rooms: ["Alabang Function Room", "Laguna Ballroom", "20/20 Function Room", "Business Center"] },
     { id: "tower-wing", label: "Tower Wing", rooms: ["Tower Ballroom", "Grand Ballroom"] },
     { id: "dining",     label: "Dining",     rooms: ["Qsina", "Hanakazu", "Phoenix Court"] },
   ];

@@ -128,7 +128,7 @@ export default function ReservationTable({ reservations, onApprove, onReject, on
                     <div style={{ fontSize: "12px", color: C.muted }}>{reservation.email}</div>
                   </div>
                 </td>
-                <td style={{ padding: "12px" }}>{reservation.venue}</td>
+                <td style={{ padding: "12px" }}>{reservation.room || reservation.venue?.name || reservation.venue || "—"}</td>
                 <td style={{ padding: "12px" }}>{reservation.eventDate}</td>
                 <td style={{ padding: "12px" }}>
                   <div>{reservation.dateSubmitted}</div>

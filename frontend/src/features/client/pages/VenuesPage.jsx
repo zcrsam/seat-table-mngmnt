@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SharedNavbar from "../../../components/SharedNavbar.jsx";
-
 // ─────────────────────────────────────────────
 // THEME HOOK
 // ─────────────────────────────────────────────
@@ -338,6 +337,7 @@ async function fetchVenueStats() {
 // ─────────────────────────────────────────────
 function BackButton({ onClick, C }) {
   const [hov, setHov] = useState(false);
+  const iconColor = hov ? C.goldLight : C.gold;
   return (
     <button
       onClick={onClick}
@@ -348,8 +348,8 @@ function BackButton({ onClick, C }) {
         width: 40,
         height: 40,
         borderRadius: "50%",
-        background: hov ? C.goldFaint : "transparent",
-        border: `1px solid ${hov ? C.goldBorder : C.border}`,
+        background: hov ? C.goldFaint : C.goldFaint,
+        border: `1px solid ${hov ? C.gold : C.goldBorder}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -358,50 +358,40 @@ function BackButton({ onClick, C }) {
         flexShrink: 0,
       }}
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke={hov ? C.gold : C.textMuted}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ transition: "stroke 0.22s", display: "block" }}
+      <span
+        aria-hidden="true"
+        style={{
+          color: iconColor,
+          fontSize: 18,
+          fontWeight: 600,
+          lineHeight: 1,
+          transform: "translateX(-0.5px)",
+          textShadow: "0 0 0.5px rgba(0,0,0,0.35)",
+          transition: "color 0.22s",
+          userSelect: "none",
+        }}
       >
-        <polyline points="15 18 9 12 15 6" />
-      </svg>
+        {"<"}
+      </span>
     </button>
   );
 }
 
 // ─────────────────────────────────────────────
 // SUB-ROOM DROPDOWN
-// Uses a portal-style fixed positioning to escape card overflow clipping
+// Anchored absolute menu to avoid fixed/transform positioning bugs
 // ─────────────────────────────────────────────
-function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
+function RoomDropdown({ rooms, onRoomClick, C }) {
   const [open, setOpen]         = useState(false);
-  const [dropPos, setDropPos]   = useState({ top: 0, left: 0, width: 180 });
-  const btnRef = useRef(null);
+  const wrapRef = useRef(null);
   const panelRef = useRef(null);
-
-  // Recalculate dropdown position whenever it opens
-  useEffect(() => {
-    if (!open || !btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    setDropPos({
-      top:   rect.bottom + window.scrollY + 5,
-      left:  rect.left   + window.scrollX,
-      width: Math.max(rect.width, 180),
-    });
-  }, [open]);
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
       if (
-        btnRef.current  && !btnRef.current.contains(e.target) &&
+        wrapRef.current && !wrapRef.current.contains(e.target) &&
         panelRef.current && !panelRef.current.contains(e.target)
       ) setOpen(false);
     };
@@ -409,20 +399,11 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Close on scroll (repositioning is expensive; just close)
-  useEffect(() => {
-    if (!open) return;
-    const handler = () => setOpen(false);
-    window.addEventListener("scroll", handler, true);
-    return () => window.removeEventListener("scroll", handler, true);
-  }, [open]);
-
   const validRooms = rooms.filter(r => r && typeof r === "string" && r.trim() !== "");
 
   return (
-    <>
+    <div ref={wrapRef} style={{ position: "relative" }}>
       <button
-        ref={btnRef}
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
         style={{
@@ -435,6 +416,7 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
           cursor: "pointer", transition: "all 0.18s",
           fontFamily: FONT, letterSpacing: "0.08em",
           textTransform: "uppercase", whiteSpace: "nowrap",
+          outline: "none",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background   = C.goldFaint;
@@ -460,30 +442,29 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
         </svg>
       </button>
 
-      {/* Portal-style panel rendered at document root level via fixed positioning */}
+      {/* Anchored panel */}
       {open && (
         <div
           ref={panelRef}
           style={{
-            position: "fixed",
-            top:   dropPos.top,
-            left:  dropPos.left,
-            zIndex: 99999,
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            zIndex: 120,
             background: C.surface,
             border: `1px solid ${C.goldBorder}`,
             borderRadius: 6,
             boxShadow: "0 12px 40px rgba(0,0,0,0.22)",
-            minWidth: dropPos.width,
+            minWidth: "100%",
             overflow: "hidden",
           }}
         >
           {validRooms.map((r, i) => {
-            const roomId = `${venueId}__${String(r).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
             return (
               <button
                 key={r}
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setOpen(false); onRoomClick(roomId); }}
+                onClick={(e) => { e.stopPropagation(); setOpen(false); onRoomClick(r); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   width: "100%", padding: "10px 14px",
@@ -509,7 +490,7 @@ function RoomDropdown({ rooms, venueId, onRoomClick, C }) {
           })}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -850,8 +831,7 @@ function VenueCard({ venue, onClick, onDetails, C }) {
         {venue.rooms && Array.isArray(venue.rooms) && venue.rooms.length > 0 && (
           <RoomDropdown
             rooms={venue.rooms}
-            venueId={venue.id}
-            onRoomClick={onClick}
+            onRoomClick={(roomName) => onClick(venue.id, { subRoom: roomName })}
             C={C}
           />
         )}
@@ -1024,7 +1004,8 @@ export default function VenuesPage() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.search]);
 
-  const handleVenueClick = (id) => {
+  const handleVenueClick = (id, options = {}) => {
+    const roomState = options?.subRoom ? { selectedSubRoom: options.subRoom } : {};
     const routes = {
       "alabang":         "/alabang-reserve",
       "laguna":          "/laguna-ballroom",
@@ -1036,10 +1017,13 @@ export default function VenuesPage() {
       "hanakazu":        "/hanakazu",
       "phoenix-court":   "/phoenix-court",
     };
-    navigate(routes[id] ?? `/reserve/${id}`);
+    const target = routes[id] ?? `/reserve/${id}`;
+    navigate(target, { state: roomState });
   };
 
-  const handleBack = () => navigate("/", { state: { scrollTo: "event" } });
+  const handleBack = () => {
+    navigate("/", { state: { scrollTo: "event" } });
+  };
 
   return (
     <div style={{ background: C.pageBg, minHeight: "100vh", fontFamily: FONT }}>

@@ -13,6 +13,7 @@ class Reservation extends Model
         'email',
         'phone',
         'venue_id',
+        'room',
         'table_number',
         'seat_number',
         'guests_count',

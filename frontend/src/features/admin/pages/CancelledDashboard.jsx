@@ -116,7 +116,7 @@ function DetailModal({ reservation, onClose }) {
 
   const resRows = [
     ["Reference",  reservation.reference_code || "—"],
-    ["Room",       reservation.room || "—"],
+    ["Room",       reservation.room || reservation.venue?.name || "No room assigned"],
     ["Table",      reservation.table_number ? `Table ${reservation.table_number}` : "—"],
     ["Seat",       (reservation.seat || reservation.seat_number) ? `Seat ${reservation.seat || reservation.seat_number}` : "—"],
     ["Guests",     (reservation.guests_count || reservation.guests) ? `${reservation.guests_count || reservation.guests} guest${(reservation.guests_count || reservation.guests) !== 1 ? "s" : ""}` : "—"],

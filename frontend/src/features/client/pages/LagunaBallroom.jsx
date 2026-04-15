@@ -1,6 +1,6 @@
 // src/features/client/pages/LagunaBallroom.jsx
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import MainWingNavbar from "../components/MainWingNavbar";
 // ── FIX: import SeatMap (the actual file), not the non-existent ClientSeatMap ──
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
@@ -20,10 +20,20 @@ const F = {
 // ─── Inline ChevronLeft SVG ───────────────────────────────────────────────────
 function ChevronLeftIcon({ size = 18 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: "block", flexShrink: 0 }}>
-      <polyline points="15 18 9 12 15 6" />
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="lucide lucide-chevron-left-icon lucide-chevron-left"
+      style={{ display: "block", flexShrink: 0 }}
+    >
+      <path d="m15 18-6-6 6-6" />
     </svg>
   );
 }
@@ -110,6 +120,8 @@ const getSeatRatio = (table) => {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function LagunaBallroom() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedRoom = location.state?.selectedSubRoom || ROOM;
   const [mode,          setMode]          = useState("whole");
   const [selectedSeat,  setSelectedSeat]  = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
@@ -224,6 +236,7 @@ export default function LagunaBallroom() {
         email:            formData.email,
         phone:            formData.phone,
         venue_id:         2,
+        room:             selectedRoom,
         table_number:     String(activeTable?.id ?? "T1"),
         seat_number:      mode === "individual"
                             ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
@@ -375,7 +388,7 @@ export default function LagunaBallroom() {
               </div>
               <div style={s.selRow}>
                 <span style={{ ...s.selLabel, fontSize: 9 }}>ROOM:</span>
-                <span style={{ ...s.selVal, fontSize: 11, color: "#666" }}>{ROOM}</span>
+                <span style={{ ...s.selVal, fontSize: 11, color: "#666" }}>{selectedRoom}</span>
               </div>
 
               {mode === "whole" && (
@@ -408,11 +421,11 @@ export default function LagunaBallroom() {
         <ModalGuestCount mode={mode} guests={guests} onContinue={handleGuestContinue} onCancel={() => setModal(null)} />
       )}
       {modal === "details" && (
-        <ModalDetails mode={mode} guests={guests} table={displayTable} seat={displaySeat} room={ROOM}
+        <ModalDetails mode={mode} guests={guests} table={displayTable} seat={displaySeat} room={selectedRoom}
           onBack={() => setModal("guestCount")} onSubmit={handleReview} />
       )}
       {modal === "review" && formData && (
-        <ModalReview mode={mode} guests={guests} table={displayTable} seat={displaySeat} room={ROOM}
+        <ModalReview mode={mode} guests={guests} table={displayTable} seat={displaySeat} room={selectedRoom}
           form={formData} submitting={submitting} onEdit={() => setModal("details")} onSubmit={handleSubmit} />
       )}
       {modal === "success" && (
