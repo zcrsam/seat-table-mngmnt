@@ -831,9 +831,15 @@ export default function SeatMap({
       <div style={{ width: "100%" }}>
         <ScaledCanvas virtualW={VIRTUAL_W} virtualH={VIRTUAL_H} fitMode="contain" remountKey={0}>
           <div style={{ position: "absolute", top: oy, left: ox, width: VIRTUAL_W, height: VIRTUAL_H }}>
+<<<<<<< HEAD
             {labels.map((l, index) => <StaticLabel key={`${l.id}-${index}`} item={l} />)}
             {mode === "individual" && standaloneSeats.map(s => (
               <StandaloneSeat key={`${s.id}-${s.num ?? 0}`} seat={s} editMode={false}
+=======
+            {labels.map(l => <StaticLabel key={l.id} item={l} />)}
+            {mode === "individual" && standaloneSeats.map(s => (
+              <StandaloneSeat key={s.id} seat={s} editMode={false}
+>>>>>>> 2926fa9 (ui updates)
                 isSelected={selectedSeat ? selectedSeat.id === s.id : false}
                 isDragging={false} onDragStart={() => {}} onSelect={() => {}} onSeatClick={onSeatClick} />
             ))}

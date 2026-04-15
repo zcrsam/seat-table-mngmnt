@@ -510,6 +510,12 @@ export default function ReservationDashboard() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // ─── Selection state ────────────────────────────────────────────────────────
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const [windowWidth,setWindowWidth]=useState(window.innerWidth);
   useEffect(()=>{
     const h=()=>setWindowWidth(window.innerWidth);
@@ -523,7 +529,28 @@ export default function ReservationDashboard() {
   const refreshDashboardData = useCallback(async (silent = true) => {
     if (!silent) {
       setLoading(true);
+<<<<<<< HEAD
     }
+=======
+      try{
+        const [reservationsResult, statsResult] = await Promise.all([
+          fetchReservations(1,100,filterStatus,search),
+          getReservationStats()
+        ]);
+        if(reservationsResult.data){
+          setReservations(reservationsResult.data);
+        } else {
+          const stored=localStorage.getItem(RESERVATIONS_KEY);
+          if(stored)setReservations(JSON.parse(stored));
+        }
+        if(statsResult) setStats(statsResult);
+      }catch{
+        try{const stored=localStorage.getItem(RESERVATIONS_KEY);if(stored)setReservations(JSON.parse(stored));}catch{}
+      }finally{setLoading(false);}
+    };
+    load();
+  },[]);
+>>>>>>> 2926fa9 (ui updates)
 
     try {
       const [reservationsResult, statsResult] = await Promise.all([
