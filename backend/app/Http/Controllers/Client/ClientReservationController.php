@@ -31,6 +31,7 @@ class ClientReservationController extends Controller
             'email'            => 'required|email|max:255',
             'phone'            => 'required|string|max:20',
             'venue_id'         => 'required|exists:venues,id',
+            'room'             => 'nullable|string|max:255',
             'table_number'     => 'nullable|string|max:50',
             'seat_number'      => 'nullable|string|max:50',
             'guests_count'     => 'required|integer|min:1',
@@ -39,6 +40,10 @@ class ClientReservationController extends Controller
             'special_requests' => 'nullable|string',
             'type'             => 'required|in:whole,individual',
         ]);
+
+        if (empty($validated['room'])) {
+            $validated['room'] = Venue::find($validated['venue_id'])?->name;
+        }
 
         $validated['reference_code'] = date('Y') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
         $validated['status']         = 'pending';
@@ -93,6 +98,7 @@ class ClientReservationController extends Controller
             'phone'            => 'sometimes|required|string|max:20',
             'contact_number'    => 'sometimes|required|string|max:20',
             'mobile'           => 'sometimes|required|string|max:20',
+            'room'             => 'sometimes|nullable|string|max:255',
             'guests_count'     => 'sometimes|required|integer|min:1',
             'guests'           => 'sometimes|required|integer|min:1',
             'number_of_guests' => 'sometimes|required|integer|min:1',
@@ -155,6 +161,11 @@ class ClientReservationController extends Controller
         if (isset($validated['special_requests'])) {
             $updateData['special_requests'] = $validated['special_requests'];
         }
+
+        // Selected room / sub-room
+        if (array_key_exists('room', $validated)) {
+            $updateData['room'] = $validated['room'];
+        }
         
         // Status
         if (isset($validated['status'])) {
@@ -189,7 +200,7 @@ class ClientReservationController extends Controller
                 'special_requests' => $reservation->special_requests,
                 'status' => $reservation->status,
                 'venue' => $reservation->venue,
-                'room' => $reservation->venue?->name ?? $reservation->room,
+                'room' => $reservation->room ?? $reservation->venue?->name,
                 'table_number' => $reservation->table_number,
                 'seat_number' => $reservation->seat_number,
                 'type' => $reservation->type,
@@ -283,7 +294,7 @@ class ClientReservationController extends Controller
                     'cancellation_reason' => $reservation->cancellation_reason,
                     'cancelled_at' => $reservation->cancelled_at,
                     'venue' => $reservation->venue,
-                    'room' => $reservation->venue?->name ?? $reservation->room,
+                    'room' => $reservation->room ?? $reservation->venue?->name,
                     'table_number' => $reservation->table_number,
                     'seat_number' => $reservation->seat_number,
                     'type' => $reservation->type,

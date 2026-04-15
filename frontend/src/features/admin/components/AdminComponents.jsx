@@ -132,7 +132,7 @@ function DetailModal({ res, onClose, onApprove, onReject }) {
 
         {[
           ["BOOKING INFORMATION", [
-            ["Room",        res.venue?.name || res.room],
+            ["Room",        res.room || res.venue?.name],
             ["Table",       res.table],
             ["Seat(s)",     seatDisplay],
             ["Guests",      `${res.guests} guest${res.guests > 1 ? "s" : ""}`],

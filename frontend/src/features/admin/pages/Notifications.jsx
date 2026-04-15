@@ -117,7 +117,7 @@ function normaliseRow(r) {
       ...r,
       db_id: Number(r.db_id ?? r.id),
       id: r.reference_code ?? String(r.id),
-      room: r.venue?.name || r.venue || r.room || "Alabang Function Room",
+      room: r.room || r.venue?.name || r.venue || "Alabang Function Room",
       table: r.table_number || r.table,
       seat: r.seat_number || r.seat,
       guests: r.guests_count || r.guests || r.guests_number,
@@ -279,7 +279,7 @@ function ApproveConfirmModal({ res, onConfirm, onCancel, isApproving, C }) {
       <div style={{ padding:"20px 24px 26px" }}>
         <div style={{ padding:"14px 16px",borderRadius:10,marginBottom:18,background:C.goldFaintest,border:`1px solid ${C.borderAccent}` }}>
           <div style={{ fontFamily:F.body,fontSize:14,fontWeight:600,color:C.textPrimary,marginBottom:4 }}>{res.guest_name||res.name||"Unknown Guest"}</div>
-          <div style={{ fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.6 }}>{res.venue?.name||res.room||res.venue||"—"} · {fmtDate(res.event_date||res.eventDate)} · {fmtTime(res.event_time||res.eventTime)}</div>
+          <div style={{ fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.6 }}>{res.room||res.venue?.name||res.venue||"—"} · {fmtDate(res.event_date||res.eventDate)} · {fmtTime(res.event_time||res.eventTime)}</div>
           <div style={{ fontFamily:F.mono,fontSize:11,color:C.textTertiary,marginTop:4 }}>Ref: {res.reference_code||res.id||"—"}</div>
         </div>
         <div style={{ padding:"10px 14px",borderRadius:8,marginBottom:20,background:C.greenFaint,border:`1px solid ${C.greenBorder}`,fontFamily:F.body,fontSize:12.5,color:C.textSecondary,lineHeight:1.65 }}>
@@ -315,7 +315,7 @@ function DetailModal({ res, onClose, onApprove, approvingIds, C }) {
         <DetailRow icon={<Users/>} label="Guests"     value={(res.guests_count??res.guests)?`${res.guests_count??res.guests} pax`:"1 pax"} C={C}/>
         <SectionLabel C={C} style={{ marginTop:18 }}>Reservation Details</SectionLabel>
         <DetailRow icon={<Hash/>}         label="Reference"  value={res.reference_code||res.id} C={C} accent/>
-        <DetailRow icon={<MapPin/>}       label="Venue"      value={res.venue?.name||res.room||res.venue} C={C}/>
+        <DetailRow icon={<MapPin/>}       label="Venue"      value={res.room||res.venue?.name||res.venue} C={C}/>
         <DetailRow icon={<FileText/>}     label="Table"      value={res.table_number??res.table} C={C}/>
         <DetailRow icon={<FileText/>}     label="Seat"       value={res.seat_number??res.seat} C={C}/>
         <DetailRow icon={<CalendarDays/>} label="Event Date" value={fmtDate(res.event_date||res.eventDate||res.reservationDate)} C={C}/>
