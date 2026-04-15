@@ -18,7 +18,7 @@ class ClientReservationController extends Controller
 {
     public function index(): JsonResponse
     {
-        $reservations = Reservation::orderBy('event_date', 'asc')->get();
+        $reservations = Reservation::with('venue')->orderBy('event_date', 'asc')->get();
         return response()->json($reservations);
     }
 

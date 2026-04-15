@@ -662,7 +662,8 @@ export default function ForgotCode() {
                     // Covers both camelCase and snake_case API responses
                     const refCode    = r.reference_code  || r.referenceCode  || r.id       || "—";
                     const guestName  = r.name            || r.full_name      || r.fullName  || "—";
-                    const venueName  = r.room            || r.venue          || r.venue_name|| r.location || "—";
+                    // Try venue relationship first, then fallback to direct fields
+                    const venueName  = r.venue?.name     || r.room           || r.venue_name || r.location || "No room assigned";
                     const eventDate  = r.event_date      || r.eventDate      || r.date      || null;
                     const eventTime  = r.event_time      || r.eventTime      || r.time      || null;
                     const guestCount = r.guests_count    ?? r.guests         ?? r.pax       ?? null;

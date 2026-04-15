@@ -132,7 +132,7 @@ const normalizeBooking = (b) => ({
   name:             b.name ?? b.guest_name ?? b.full_name ?? b.guest ?? "",
   email:            b.email ?? b.guest_email ?? "",
   phone:            b.phone ?? b.phone_number ?? b.contact ?? "",
-  room:             b.room ?? b.venue ?? b.room_name ?? b.venue_name ?? ROOM,
+  room:             b.venue?.name ?? b.room ?? b.venue ?? b.room_name ?? b.venue_name ?? ROOM,
   table_number:     b.table_number ?? b.table ?? b.table_no ?? "",
   table:            b.table_number ?? b.table ?? b.table_no ?? "",
   seat:             b.seat_number ?? b.seat ?? b.seats ?? "",

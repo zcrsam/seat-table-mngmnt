@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { authAPI } from "../../../services/authAPI";
 import loginBg from "../../../assets/bg-login.jpeg";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
 function LoginScreen({ onLogin }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [error, setError] = useState("");
@@ -17,7 +19,11 @@ function LoginScreen({ onLogin }) {
       const response = await authAPI.login({ username: user, password: pass });
       
       if (response.success) {
-        onLogin(response.admin);
+        if (typeof onLogin === "function") {
+          onLogin(response.admin);
+        } else {
+          navigate("/admin/reservations", { replace: true });
+        }
       } else {
         setError(response.message || "Login failed");
       }
