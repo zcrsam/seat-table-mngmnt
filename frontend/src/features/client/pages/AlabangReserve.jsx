@@ -940,7 +940,7 @@ export default function AlabangReserve() {
     setSubmitting(true);
     try {
       const activeTable = getActiveTable();
-      const payload = { name: `${formData.firstName} ${formData.lastName}`, email: formData.email, phone: formData.phone, venue_id: 1, room: selectedRoom, table_number: String(activeTable?.id ?? "T1"), seat_number: mode === "individual" ? String(selectedSeat?.num ?? selectedSeat?.id ?? "") : Array.from({ length: guests }, (_, i) => i + 1).join(","), guests_count: guests, event_date: formData.eventDate, event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null, special_requests: formData.specialRequests || "", type: mode };
+      const payload = { name: `${formData.firstName} ${formData.lastName}`, email: formData.email, phone: formData.phone, venue_id: 1, room: selectedRoom, table_number: String(activeTable?.id ?? "T1"), seat_number: mode === "individual" ? String(selectedSeat?.num ?? selectedSeat?.id ?? "") : Array.from({ length: guests }, (_, i) => i + 1).join(","), guests_count: mode === "individual" ? 1 : guests, event_date: formData.eventDate, event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null, special_requests: formData.specialRequests || "", type: mode };
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
@@ -1016,25 +1016,26 @@ export default function AlabangReserve() {
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
 
             {/* Mobile top bar: back + title + theme toggle */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "12px 16px 8px",
-              background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)",
-              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-              borderBottom: `1px solid ${C.borderAccent}`,
-            }}>
-              <button onClick={() => navigate("/venues")} title="Back"
-                style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left-icon lucide-chevron-left" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
-              </button>
+            {/* Mobile top bar: back + title + theme toggle */}
+<div style={{
+  display: "flex", alignItems: "center", gap: 10,
+  padding: "12px 16px 8px",
+  background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)",
+  backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+  borderBottom: `1px solid ${C.borderAccent}`,
+}}>
+  <button onClick={() => navigate("/venues")} title="Back"
+    style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
+  </button>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
-                <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Alabang Function Room</div>
-              </div>
+  <div style={{ flex: 1, minWidth: 0 }}>
+    <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
+    <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Alabang Function Room</div>
+  </div>
 
-              <ThemeToggle />
-            </div>
+  {/* ThemeToggle REMOVED — already in SharedNavbar */}
+</div>
 
             {/* Mode toggle — horizontal pill tabs */}
             <div style={{
@@ -1076,60 +1077,103 @@ export default function AlabangReserve() {
             )}
 
             {/* ── THE MAP — full width, fixed height so it's always visible ── */}
-            <div style={{
-              width: "100%",
-              height: mobileMapHeight,
-              position: "relative",
-              overflow: "hidden",
-              background: C.surfaceBase,
-            }}>
-              {tableData ? (
-                <>
-                  {/* SeatMap fills the container — it should be responsive by nature */}
-                  <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch" }}>
-                    <SeatMap
-                      tableData={tableData}
-                      editMode={false}
-                      selectedSeat={selectedSeat}
-                      onSeatClick={handleSeatClick}
-                      onTableClick={handleTableClick}
-                      windowWidth={windowSize.width}
-                      wing={WING}
-                      room={ROOM}
-                    />
-                  </div>
+            {/* ── THE MAP — full-size scrollable/pannable ── */}
+<div style={{
+  width: "100%",
+  height: mobileMapHeight,
+  position: "relative",
+  background: C.surfaceBase,
+  overflow: "hidden",
+}}>
+  {tableData ? (
+    <>
+      {/* Scrollable pan container */}
+      <div style={{
+        width: "100%",
+        height: "100%",
+        overflow: "auto",
+        WebkitOverflowScrolling: "touch",
+        position: "relative",
+      }}>
+        {/* Natural-size map wrapper — min 700px wide so tables are legible */}
+        <div style={{
+          minWidth: 700,
+          minHeight: Math.max(mobileMapHeight, 520),
+          position: "relative",
+        }}>
+          <SeatMap
+            tableData={tableData}
+            editMode={false}
+            selectedSeat={selectedSeat}
+            onSeatClick={handleSeatClick}
+            onTableClick={handleTableClick}
+            windowWidth={700}
+            wing={WING}
+            room={ROOM}
+            mode={mode}
+          />
+        </div>
+      </div>
 
-                 
+      {/* Scroll hint — fades in on first render */}
+      {/* Scroll hint */}
+<div style={{
+  position: "absolute",
+  bottom: 10,  // ← changed from top: 10
+  right: 10,   // ← keep right, but now it sits above the bottom edge
+  background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
+  border: `1px solid ${C.borderAccent}`,
+  borderRadius: 20,
+  padding: "5px 12px",
+  backdropFilter: "blur(6px)",
+  WebkitBackdropFilter: "blur(6px)",
+  zIndex: 3,
+  display: "flex",
+  alignItems: "center",
+  gap: 5,
+  pointerEvents: "none",
+}}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        <span style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>
+          Scroll to explore
+        </span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </div>
 
-                  {/* Legend — compact strip floating bottom-left */}
-                  <div style={{
-                    position: "absolute", bottom: 10, left: 10,
-                    background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
-                    border: `1px solid ${C.borderDefault}`,
-                    borderRadius: 10, padding: "8px 10px",
-                    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-                    zIndex: 2, display: "flex", flexDirection: "column", gap: 3,
-                  }}>
-                    {Object.entries(STATUS_COLORS).map(([key, color]) => (
-                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-                        <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>{key}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 32 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
-                  </div>
-                  <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
-                    No seat layout published for this room.<br />
-                    <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span>
-                  </div>
-                </div>
-              )}
-            </div>
+      {/* Legend — compact strip floating bottom-left */}
+      <div style={{
+        position: "absolute", bottom: 10, left: 10,
+        background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
+        border: `1px solid ${C.borderDefault}`,
+        borderRadius: 10, padding: "8px 10px",
+        backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+        zIndex: 2, display: "flex", flexDirection: "column", gap: 3,
+        pointerEvents: "none",
+      }}>
+        {Object.entries(STATUS_COLORS).map(([key, color]) => (
+          <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
+            <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>{key}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  ) : (
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 32 }}>
+      <div style={{ width: 48, height: 48, borderRadius: 12, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
+      </div>
+      <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
+        No seat layout published for this room.<br />
+        <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span>
+      </div>
+    </div>
+  )}
+</div>
 
             {/* Fixed bottom sheet with selection + CTA */}
             <MobileBottomSheet
@@ -1218,6 +1262,7 @@ export default function AlabangReserve() {
                           windowWidth={windowSize.width}
                           wing={WING}
                           room={ROOM}
+                          mode={mode}
                         />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>

@@ -728,28 +728,28 @@ export default function NotificationDashboard() {
         </div>
 
         {/* NAV — identical to ManageBooking */}
-        <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(20px,5vw,64px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box",transition:"background 0.30s" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:20 }}>
-            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:26,width:"auto",display:"block",flexShrink:0,filter:isDark?"brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)":"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
-            <div style={{ width:1,height:18,background:C.borderDefault }}/>
-            <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.textSecondary,fontWeight:700,textTransform:"uppercase" }}>Notification Monitor</span>
-          </div>
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            
-            <div style={{ display:"flex",alignItems:"center",gap:6,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:20,padding:"5px 12px" }}>
-              {wsStatus==="connected"?<Wifi size={11} color={wsColor}/>:<WifiOff size={11} color={wsColor}/>}
-              <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor }}>{wsLabel}</span>
+        <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(12px,3vw,20px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box",transition:"background 0.30s" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:16,flex:1,minWidth:0 }}>
+            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:24,width:"auto",display:"block",flexShrink:0,filter:isDark?"brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)":"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
             </div>
-            <div style={{ width:36,height:36,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
-              {popup?<BellDot size={15} color={C.gold}/>:<Bell size={15} color={C.textSecondary}/>}
-              {popup&&<div style={{ position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
+          <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
+            {/* Show connection status and bell on mobile */}
+            <div style={{ display:"flex",alignItems:"center",gap:4,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:16,padding:"3px 8px" }}>
+              {wsStatus==="connected"?<Wifi size={10} color={wsColor}/>:<WifiOff size={10} color={wsColor}/>}
+              <span style={{ fontFamily:F.label,fontSize:7,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor,whiteSpace:"nowrap" }}>{wsLabel}</span>
             </div>
-            <div style={{ width:1,height:18,background:C.borderDefault }}/>
-            <div style={{ textAlign:"right",flexShrink:0 }}>
-              <div style={{ fontFamily:F.mono,fontWeight:700,fontSize:15,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
-              <div style={{ fontFamily:F.label,fontSize:9,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase",marginTop:2 }}>{date}</div>
+            <div style={{ width:32,height:32,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
+              {popup?<BellDot size={13} color={C.gold}/>:<Bell size={13} color={C.textSecondary}/>}
+              {popup&&<div style={{ position:"absolute",top:2,right:2,width:6,height:6,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
             </div>
-            <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
+            {/* Show theme toggle on larger screens only */}
+            <div style={{ display:"none","@media (min-width: 768px)": { display: "flex" } }}>
+              <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
+            </div>
+            {/* Show only theme toggle on mobile */}
+            <div style={{ display:"flex","@media (min-width: 768px)": { display: "none" } }}>
+              <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
+            </div>
           </div>
         </nav>
 
@@ -768,15 +768,13 @@ export default function NotificationDashboard() {
               {/* Page header — matches ManageBooking exactly */}
               <div>
                 
-                <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4vw,40px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 14px", letterSpacing: "0.01em" }}>
-  Notification Monitor
-</h1>
-
+                <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4vw,40px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 14px", letterSpacing: "0.01em" }}>  Notification Monitor</h1>
+                <div style={{ marginLeft:"5px", fontFamily:F.mono,fontWeight:700,fontSize:14,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
+                <div style={{ marginLeft:"5px", fontFamily:F.label,fontSize:8,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase" }}>{date}</div>
               </div>
 
               {/* Two-column layout */}
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,3fr) minmax(0,1.4fr)", gap: 14, flex: 1, minHeight: 0 }}
-  className="nd-grid">
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,3fr) minmax(0,1.4fr)", gap: 14, flex: 1, minHeight: 0 }} className="nd-grid">
 
                 {/* LEFT */}
                 <Panel C={C} style={{ maxHeight: "clamp(360px, calc(100vh - 280px), 700px)" }}>

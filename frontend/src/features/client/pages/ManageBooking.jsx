@@ -1490,27 +1490,31 @@ export default function ManageBooking() {
             <div style={{ position: "absolute", top: 80, left: "clamp(16px,4vw,40px)" }}>
               <button onClick={() => navigate("/")} title="Go back"
                 style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  background: "transparent", border: `1px solid ${C.borderDefault}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", transition: "all 0.18s", padding: 0,
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "transparent",
+                  border: `1.5px solid ${C.borderDefault}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.22s",
+                  flexShrink: 0,
+                  padding: 0,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
+                  width="16" height="16"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="currentColor"
+                  stroke={C.gold}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="lucide lucide-chevron-left-icon lucide-chevron-left"
-                  style={{ color: C.textSecondary }}
                 >
-                  <path d="m15 18-6-6 6-6" />
+                  <polyline points="15 18 9 12 15 6" />
                 </svg>
               </button>
             </div>

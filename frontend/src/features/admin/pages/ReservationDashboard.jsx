@@ -1,5 +1,5 @@
 // src/features/admin/pages/ReservationDashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import { fetchReservations, approveReservation, rejectReservation, getReservationStats } from "../../../utils/api";
@@ -100,27 +100,158 @@ function StatusBadge({ status }) {
   );
 }
 
+// ─── Checkbox ─────────────────────────────────────────────────────────────────
+function Checkbox({ checked, indeterminate = false, onChange, disabled = false }) {
+  return (
+    <span
+      onClick={(e) => { e.stopPropagation(); if (!disabled) onChange(!checked); }}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 17, height: 17, borderRadius: 4, flexShrink: 0,
+        border: `1.5px solid ${checked || indeterminate ? C.gold : C.borderStrong}`,
+        background: checked || indeterminate ? C.gold : C.surfaceBase,
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "all 0.15s ease",
+        opacity: disabled ? 0.45 : 1,
+        boxShadow: checked || indeterminate ? `0 0 0 2px rgba(140,107,42,0.12)` : "none",
+      }}
+    >
+      {indeterminate && !checked ? (
+        <svg width="9" height="2" viewBox="0 0 9 2" fill="none">
+          <rect x="0" y="0.5" width="9" height="1" rx="0.5" fill="white"/>
+        </svg>
+      ) : checked ? (
+        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+          <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : null}
+    </span>
+  );
+}
+
+// ─── Bulk Delete Confirmation Modal ───────────────────────────────────────────
+function BulkDeleteModal({ count, onConfirm, onCancel, loading }) {
+  return (
+    <div
+      style={{
+        position:"fixed",inset:0,
+        background:"rgba(0,0,0,0.55)",
+        zIndex:5500,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        padding:20,
+        backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",
+      }}
+      onClick={(e)=>{if(e.target===e.currentTarget&&!loading)onCancel();}}
+    >
+      <div style={{
+        background:C.surfaceBase,borderRadius:14,
+        width:"100%",maxWidth:400,
+        boxShadow:"0 20px 60px rgba(0,0,0,0.18)",
+        border:`1px solid ${C.borderDefault}`,
+        fontFamily:F.body,
+        animation:"modalIn 0.20s cubic-bezier(0.16,1,0.3,1)",
+        overflow:"hidden",
+      }}>
+        <div style={{height:2,background:`linear-gradient(90deg,transparent 0%,${C.red}90 30%,${C.red}90 70%,transparent 100%)`}}/>
+
+        {/* Header */}
+        <div style={{
+          background:C.headerGradient,
+          padding:"18px 22px 16px",
+          borderBottom:`1px solid ${C.divider}`,
+          display:"flex",alignItems:"flex-start",justifyContent:"space-between",
+        }}>
+          <div>
+            <div style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.red,fontWeight:700,textTransform:"uppercase",marginBottom:5,opacity:0.85}}>
+              Confirm Deletion
+            </div>
+            <div style={{fontFamily:F.display,fontSize:17,fontWeight:600,color:C.textPrimary,lineHeight:1.2}}>
+              Delete {count} Reservation{count !== 1 ? "s" : ""}?
+            </div>
+          </div>
+          <button onClick={onCancel} disabled={loading}
+            style={{
+              width:30,height:30,borderRadius:"50%",background:"transparent",
+              border:`1px solid ${C.borderDefault}`,cursor:loading?"not-allowed":"pointer",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              flexShrink:0,transition:"border-color 0.18s",padding:0,
+            }}
+            onMouseEnter={(e)=>{if(!loading)e.currentTarget.style.borderColor=C.red;}}
+            onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;}}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{padding:"20px 22px 24px"}}>
+          <div style={{
+            padding:"12px 14px",borderRadius:8,marginBottom:20,
+            background:C.redFaint,border:`1px solid ${C.redBorder}`,
+            fontFamily:F.body,fontSize:13,color:C.textSecondary,lineHeight:1.65,
+          }}>
+            You are about to permanently delete{" "}
+            <strong style={{color:C.red}}>{count} reservation{count !== 1 ? "s" : ""}</strong>.
+            This action <strong style={{color:C.textPrimary}}>cannot be undone</strong>.
+          </div>
+
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={onCancel} disabled={loading}
+              style={{
+                flex:1,padding:"11px",
+                background:"transparent",border:`1px solid ${C.borderDefault}`,
+                borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,
+                letterSpacing:"0.14em",textTransform:"uppercase",
+                color:C.textSecondary,cursor:loading?"not-allowed":"pointer",transition:"all 0.18s",
+              }}
+              onMouseEnter={(e)=>{if(!loading){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
+              onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}
+            >Cancel</button>
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              style={{
+                flex:2,padding:"11px",
+                background:loading?"rgba(160,56,56,0.35)":C.red,
+                border:"none",borderRadius:8,
+                fontFamily:F.label,fontSize:10,fontWeight:700,
+                letterSpacing:"0.14em",textTransform:"uppercase",
+                color:"#fff",cursor:loading?"not-allowed":"pointer",
+                transition:"all 0.18s",
+                display:"flex",alignItems:"center",justifyContent:"center",gap:7,
+              }}
+              onMouseEnter={(e)=>{if(!loading)e.currentTarget.style.background="#8a2e2e";}}
+              onMouseLeave={(e)=>{if(!loading)e.currentTarget.style.background=C.red;}}
+            >
+              {loading?<><Spinner/>Deleting…</>:<>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+                Delete {count} Record{count !== 1 ? "s" : ""}
+              </>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Email notification API call ──────────────────────────────────────────────
 async function sendStatusEmail(reservationId, status, rejectionReason="") {
   try {
-    console.log(`[Email] Sending ${status} email for reservation ${reservationId}`);
     const res=await fetch(`${API_BASE_URL}/reservations/${reservationId}/notify`,{
       method:"POST",
       headers:{"Content-Type":"application/json",Accept:"application/json"},
       body:JSON.stringify({status,rejection_reason:rejectionReason}),
     });
-    
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`[Email] Failed to send email: ${res.status} - ${errorText}`);
-      return false;
-    }
-    
+    if (!res.ok) return false;
     const result = await res.json();
-    console.log(`[Email] Email sent successfully:`, result);
     return result.success || true;
-  } catch (error) {
-    console.error(`[Email] Error sending email:`, error);
+  } catch {
     return false;
   }
 }
@@ -153,8 +284,6 @@ function RejectReasonModal({ reservation, onConfirm, onCancel, loading }) {
         overflow:"hidden",
       }}>
         <div style={{height:2,background:`linear-gradient(90deg,transparent 0%,${C.red}90 30%,${C.red}90 70%,transparent 100%)`}}/>
-
-        {/* Header */}
         <div style={{
           background:C.headerGradient,
           padding:"18px 22px 16px",
@@ -170,39 +299,22 @@ function RejectReasonModal({ reservation, onConfirm, onCancel, loading }) {
             </div>
           </div>
           <button onClick={onCancel} disabled={loading}
-            style={{
-              width:30,height:30,borderRadius:"50%",background:"transparent",
-              border:`1px solid ${C.borderDefault}`,cursor:loading?"not-allowed":"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              flexShrink:0,transition:"border-color 0.18s",padding:0,
-            }}
+            style={{width:30,height:30,borderRadius:"50%",background:"transparent",border:`1px solid ${C.borderDefault}`,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"border-color 0.18s",padding:0}}
             onMouseEnter={(e)=>{if(!loading)e.currentTarget.style.borderColor=C.red;}}
             onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;}}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-              stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
-
-        {/* Body */}
         <div style={{padding:"20px 22px 24px"}}>
-          <div style={{
-            padding:"10px 14px",borderRadius:8,marginBottom:18,
-            background:C.statusNote.rejected,border:`1px solid ${C.statusNoteBorder.rejected}`,
-            fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.65,
-          }}>
+          <div style={{padding:"10px 14px",borderRadius:8,marginBottom:18,background:C.statusNote.rejected,border:`1px solid ${C.statusNoteBorder.rejected}`,fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.65}}>
             A rejection email will be sent to{" "}
             <strong style={{color:C.textPrimary}}>{reservation.email}</strong>{" "}
             with your reason included.
           </div>
-
-          <label style={{
-            display:"block",fontFamily:F.label,fontSize:9,letterSpacing:"0.18em",
-            color:focused?C.gold:C.textSecondary,fontWeight:700,
-            textTransform:"uppercase",marginBottom:7,transition:"color 0.18s",
-          }}>
+          <label style={{display:"block",fontFamily:F.label,fontSize:9,letterSpacing:"0.18em",color:focused?C.gold:C.textSecondary,fontWeight:700,textTransform:"uppercase",marginBottom:7,transition:"color 0.18s"}}>
             Reason for Rejection <span style={{color:C.red,marginLeft:3}}>*</span>
           </label>
           <textarea
@@ -212,43 +324,18 @@ function RejectReasonModal({ reservation, onConfirm, onCancel, loading }) {
             onBlur={()=>setFocused(false)}
             placeholder="e.g. Venue fully booked for the requested date, capacity exceeded…"
             rows={4}
-            style={{
-              width:"100%",boxSizing:"border-box",
-              padding:"11px 14px",
-              border:`1.5px solid ${focused?C.borderAccent:C.borderDefault}`,
-              borderRadius:8,background:C.surfaceInput,
-              fontFamily:F.body,fontSize:13,color:C.textPrimary,
-              outline:"none",transition:"border-color 0.18s,box-shadow 0.18s",
-              boxShadow:focused?C.inputFocusShadow:"none",
-              resize:"vertical",minHeight:90,
-            }}
+            style={{width:"100%",boxSizing:"border-box",padding:"11px 14px",border:`1.5px solid ${focused?C.borderAccent:C.borderDefault}`,borderRadius:8,background:C.surfaceInput,fontFamily:F.body,fontSize:13,color:C.textPrimary,outline:"none",transition:"border-color 0.18s,box-shadow 0.18s",boxShadow:focused?C.inputFocusShadow:"none",resize:"vertical",minHeight:90}}
           />
-
           <div style={{display:"flex",gap:8,marginTop:16}}>
             <button onClick={onCancel} disabled={loading}
-              style={{
-                flex:1,padding:"11px",
-                background:"transparent",border:`1px solid ${C.borderDefault}`,
-                borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,
-                letterSpacing:"0.14em",textTransform:"uppercase",
-                color:C.textSecondary,cursor:loading?"not-allowed":"pointer",transition:"all 0.18s",
-              }}
+              style={{flex:1,padding:"11px",background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.textSecondary,cursor:loading?"not-allowed":"pointer",transition:"all 0.18s"}}
               onMouseEnter={(e)=>{if(!loading){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
               onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}
             >Cancel</button>
             <button
               onClick={()=>canSubmit&&onConfirm(reason.trim())}
               disabled={!canSubmit}
-              style={{
-                flex:2,padding:"11px",
-                background:canSubmit?C.red:"rgba(160,56,56,0.35)",
-                border:"none",borderRadius:8,
-                fontFamily:F.label,fontSize:10,fontWeight:700,
-                letterSpacing:"0.14em",textTransform:"uppercase",
-                color:"#fff",cursor:canSubmit?"pointer":"not-allowed",
-                transition:"all 0.18s",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:7,
-              }}
+              style={{flex:2,padding:"11px",background:canSubmit?C.red:"rgba(160,56,56,0.35)",border:"none",borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:"#fff",cursor:canSubmit?"pointer":"not-allowed",transition:"all 0.18s",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
               onMouseEnter={(e)=>{if(canSubmit)e.currentTarget.style.background="#8a2e2e";}}
               onMouseLeave={(e)=>{if(canSubmit)e.currentTarget.style.background=C.red;}}
             >
@@ -314,120 +401,53 @@ function DetailModal({ reservation, onClose, onApprove, onReject }) {
   return (
     <>
       <div
-        style={{
-          position:"fixed",inset:0,
-          background:C.modalOverlay,
-          zIndex:4000,
-          display:"flex",alignItems:"center",justifyContent:"center",
-          padding:20,
-          backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",
-        }}
+        style={{position:"fixed",inset:0,background:C.modalOverlay,zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)"}}
         onClick={(e)=>{if(e.target===e.currentTarget&&!actionLoading)onClose();}}
       >
-        <div style={{
-          background:C.surfaceBase,borderRadius:14,
-          width:"100%",maxWidth:520,
-          maxHeight:"92vh",
-          boxShadow:"0 24px 80px rgba(0,0,0,0.16)",
-          border:`1px solid ${C.borderDefault}`,
-          fontFamily:F.body,
-          animation:"modalIn 0.20s cubic-bezier(0.16,1,0.3,1)",
-          overflow:"hidden",
-          display:"flex",flexDirection:"column",
-        }}>
+        <div style={{background:C.surfaceBase,borderRadius:14,width:"100%",maxWidth:520,maxHeight:"92vh",boxShadow:"0 24px 80px rgba(0,0,0,0.16)",border:`1px solid ${C.borderDefault}`,fontFamily:F.body,animation:"modalIn 0.20s cubic-bezier(0.16,1,0.3,1)",overflow:"hidden",display:"flex",flexDirection:"column"}}>
           <div style={{height:2,background:`linear-gradient(90deg,transparent 0%,${C.gold}80 30%,${C.gold}80 70%,transparent 100%)`,flexShrink:0}}/>
-
-          {/* Header */}
-          <div style={{
-            background:C.headerGradient,
-            padding:"18px 22px 16px",
-            borderBottom:`1px solid ${C.divider}`,
-            display:"flex",alignItems:"flex-start",justifyContent:"space-between",
-            flexShrink:0,
-          }}>
+          <div style={{background:C.headerGradient,padding:"18px 22px 16px",borderBottom:`1px solid ${C.divider}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexShrink:0}}>
             <div style={{flex:1,paddingRight:14}}>
-              <div style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.gold,fontWeight:700,textTransform:"uppercase",marginBottom:5,opacity:0.80}}>
-                Reservation Detail
-              </div>
-              <div style={{fontFamily:F.display,fontSize:19,fontWeight:600,color:C.textPrimary,lineHeight:1.2,marginBottom:8}}>
-                {reservation.name||"—"}
-              </div>
+              <div style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.gold,fontWeight:700,textTransform:"uppercase",marginBottom:5,opacity:0.80}}>Reservation Detail</div>
+              <div style={{fontFamily:F.display,fontSize:19,fontWeight:600,color:C.textPrimary,lineHeight:1.2,marginBottom:8}}>{reservation.name||"—"}</div>
               <StatusBadge status={reservation.status}/>
             </div>
             <button onClick={onClose} disabled={!!actionLoading}
-              style={{
-                width:30,height:30,borderRadius:"50%",background:"transparent",
-                border:`1px solid ${C.borderDefault}`,cursor:actionLoading?"not-allowed":"pointer",
-                display:"flex",alignItems:"center",justifyContent:"center",
-                flexShrink:0,transition:"border-color 0.18s",padding:0,
-              }}
+              style={{width:30,height:30,borderRadius:"50%",background:"transparent",border:`1px solid ${C.borderDefault}`,cursor:actionLoading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"border-color 0.18s",padding:0}}
               onMouseEnter={(e)=>{if(!actionLoading)e.currentTarget.style.borderColor=C.gold;}}
               onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;}}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
             </button>
           </div>
-
-          {/* Body */}
           <div style={{padding:"18px 22px 24px",overflowY:"auto",flex:1}}>
             <SectionLabel>Reservation Details</SectionLabel>
             {resRows.map(([label,value],i,arr)=>(
-              <div key={label} style={{
-                display:"flex",justifyContent:"space-between",alignItems:"flex-start",
-                padding:"8px 0",
-                borderBottom:i<arr.length-1?`1px solid ${C.divider}`:"none",
-              }}>
+              <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"8px 0",borderBottom:i<arr.length-1?`1px solid ${C.divider}`:"none"}}>
                 <span style={{fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.textTertiary,minWidth:100,flexShrink:0}}>{label}</span>
                 <span style={{fontFamily:F.body,fontSize:12.5,color:label==="Reference"?C.gold:C.textPrimary,fontWeight:label==="Reference"?700:500,textAlign:"right",maxWidth:280,lineHeight:1.5,letterSpacing:label==="Reference"?"0.06em":"normal"}}>{value}</span>
               </div>
             ))}
-
             <SectionLabel style={{marginTop:18}}>Guest Information</SectionLabel>
             {guestRows.map(([label,value],i,arr)=>(
-              <div key={label} style={{
-                display:"flex",justifyContent:"space-between",alignItems:"flex-start",
-                padding:"8px 0",
-                borderBottom:i<arr.length-1?`1px solid ${C.divider}`:"none",
-              }}>
+              <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"8px 0",borderBottom:i<arr.length-1?`1px solid ${C.divider}`:"none"}}>
                 <span style={{fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.textTertiary,minWidth:100,flexShrink:0}}>{label}</span>
                 <span style={{fontFamily:F.body,fontSize:12.5,color:C.textPrimary,fontWeight:500,textAlign:"right",maxWidth:280,lineHeight:1.5}}>{value}</span>
               </div>
             ))}
-
             {isPending?(
               <div style={{display:"flex",gap:8,marginTop:22}}>
-                <button
-                  onClick={()=>setShowRejectModal(true)}
-                  disabled={!!actionLoading}
-                  style={{
-                    flex:1,padding:"11px",
-                    background:"transparent",border:`1px solid ${C.redBorder}`,
-                    borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,
-                    letterSpacing:"0.14em",textTransform:"uppercase",
-                    color:C.red,cursor:actionLoading?"not-allowed":"pointer",
-                    transition:"all 0.18s",
-                    display:"flex",alignItems:"center",justifyContent:"center",gap:7,
-                    opacity:actionLoading==="approve"?0.5:1,
-                  }}
+                <button onClick={()=>setShowRejectModal(true)} disabled={!!actionLoading}
+                  style={{flex:1,padding:"11px",background:"transparent",border:`1px solid ${C.redBorder}`,borderRadius:8,fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.red,cursor:actionLoading?"not-allowed":"pointer",transition:"all 0.18s",display:"flex",alignItems:"center",justifyContent:"center",gap:7,opacity:actionLoading==="approve"?0.5:1}}
                   onMouseEnter={(e)=>{if(!actionLoading)e.currentTarget.style.background=C.redFaint;}}
                   onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}}
                 >
                   {actionLoading==="reject"?<><Spinner/>Rejecting…</>:"Reject"}
                 </button>
-                <button
-                  onClick={handleApprove}
-                  disabled={!!actionLoading}
-                  style={{
-                    flex:2,padding:"11px",border:"none",borderRadius:8,
-                    background:actionLoading?"rgba(46,122,90,0.45)":C.green,
-                    color:"#fff",fontFamily:F.label,fontSize:10,fontWeight:700,
-                    letterSpacing:"0.14em",textTransform:"uppercase",
-                    cursor:actionLoading?"not-allowed":"pointer",transition:"all 0.18s",
-                    display:"flex",alignItems:"center",justifyContent:"center",gap:7,
-                  }}
+                <button onClick={handleApprove} disabled={!!actionLoading}
+                  style={{flex:2,padding:"11px",border:"none",borderRadius:8,background:actionLoading?"rgba(46,122,90,0.45)":C.green,color:"#fff",fontFamily:F.label,fontSize:10,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",cursor:actionLoading?"not-allowed":"pointer",transition:"all 0.18s",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
                   onMouseEnter={(e)=>{if(!actionLoading)e.currentTarget.style.background="#256648";}}
                   onMouseLeave={(e)=>{if(!actionLoading)e.currentTarget.style.background=C.green;}}
                 >
@@ -435,26 +455,15 @@ function DetailModal({ reservation, onClose, onApprove, onReject }) {
                 </button>
               </div>
             ):(
-              <div style={{
-                marginTop:18,padding:"10px 14px",borderRadius:8,
-                background:C.statusNote[(reservation.status||"pending").toLowerCase()]||C.goldFaintest,
-                border:`1px solid ${C.statusNoteBorder[(reservation.status||"pending").toLowerCase()]||C.borderAccent}`,
-                fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.6,
-              }}>
+              <div style={{marginTop:18,padding:"10px 14px",borderRadius:8,background:C.statusNote[(reservation.status||"pending").toLowerCase()]||C.goldFaintest,border:`1px solid ${C.statusNoteBorder[(reservation.status||"pending").toLowerCase()]||C.borderAccent}`,fontFamily:F.body,fontSize:12,color:C.textSecondary,lineHeight:1.6}}>
                 This reservation has been <strong style={{color:C.textPrimary}}>{(reservation.status||"").toLowerCase()}</strong> and cannot be modified.
               </div>
             )}
           </div>
         </div>
       </div>
-
       {showRejectModal&&(
-        <RejectReasonModal
-          reservation={reservation}
-          onConfirm={handleRejectConfirm}
-          onCancel={()=>setShowRejectModal(false)}
-          loading={actionLoading==="reject"}
-        />
+        <RejectReasonModal reservation={reservation} onConfirm={handleRejectConfirm} onCancel={()=>setShowRejectModal(false)} loading={actionLoading==="reject"}/>
       )}
     </>
   );
@@ -465,18 +474,7 @@ function Toast({ message, type, onClose }) {
   useEffect(()=>{const t=setTimeout(onClose,4500);return()=>clearTimeout(t);},[onClose]);
   const isSuccess=type==="success";
   return (
-    <div style={{
-      position:"fixed",bottom:24,right:24,zIndex:9999,
-      display:"flex",alignItems:"center",gap:10,
-      padding:"12px 18px",
-      background:C.surfaceBase,
-      border:`1px solid ${isSuccess?C.greenBorder:C.redBorder}`,
-      borderRadius:10,
-      boxShadow:"0 8px 28px rgba(0,0,0,0.12)",
-      fontFamily:F.body,fontSize:13,
-      animation:"fadeUp 0.22s ease",
-      maxWidth:400,
-    }}>
+    <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,display:"flex",alignItems:"center",gap:10,padding:"12px 18px",background:C.surfaceBase,border:`1px solid ${isSuccess?C.greenBorder:C.redBorder}`,borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,0.12)",fontFamily:F.body,fontSize:13,animation:"fadeUp 0.22s ease",maxWidth:400}}>
       <span style={{width:7,height:7,borderRadius:"50%",background:isSuccess?C.green:C.red,flexShrink:0}}/>
       <span style={{color:C.textPrimary,flex:1,lineHeight:1.5}}>{message}</span>
       <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",padding:0,color:C.textSecondary,display:"flex",alignItems:"center"}}>
@@ -503,6 +501,12 @@ export default function ReservationDashboard() {
   const [loading,setLoading]=useState(true);
   const [searchFocused,setSearchFocused]=useState(false);
 
+  // ─── Selection state ────────────────────────────────────────────────────────
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const [windowWidth,setWindowWidth]=useState(window.innerWidth);
   useEffect(()=>{
     const h=()=>setWindowWidth(window.innerWidth);
@@ -522,20 +526,13 @@ export default function ReservationDashboard() {
           fetchReservations(1,100,filterStatus,search),
           getReservationStats()
         ]);
-        
         if(reservationsResult.data){
-          console.log('[Dashboard] Loaded reservations:', reservationsResult.data);
           setReservations(reservationsResult.data);
-        }
-        else{
+        } else {
           const stored=localStorage.getItem(RESERVATIONS_KEY);
           if(stored)setReservations(JSON.parse(stored));
         }
-        
-        if(statsResult){
-          console.log('[Dashboard] Loaded stats:', statsResult);
-          setStats(statsResult);
-        }
+        if(statsResult) setStats(statsResult);
       }catch{
         try{const stored=localStorage.getItem(RESERVATIONS_KEY);if(stored)setReservations(JSON.parse(stored));}catch{}
       }finally{setLoading(false);}
@@ -573,7 +570,17 @@ export default function ReservationDashboard() {
     }
     setFilteredReservations(filtered);
     setPagination((p)=>({...p,lastPage:Math.ceil(filtered.length/10)||1,totalItems:filtered.length,currentPage:1}));
+    // Clear selections when filter changes
+    setSelectedIds(new Set());
   },[reservations,filterStatus,search]);
+
+  // Exit selection mode when no items are visible
+  useEffect(() => {
+    if (selectionMode && filteredReservations.length === 0) {
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+    }
+  }, [filteredReservations, selectionMode]);
 
   const handlePageChange=(page)=>{
     if(page<1||page>pagination.lastPage)return;
@@ -592,16 +599,105 @@ export default function ReservationDashboard() {
     return pages;
   };
 
+  // ─── Selection handlers ─────────────────────────────────────────────────────
+  const pagedReservations = filteredReservations.slice(
+    (pagination.currentPage-1)*10,
+    pagination.currentPage*10
+  );
+
+  const pagedIds = pagedReservations.map(r => r.id);
+  const allPageSelected = pagedIds.length > 0 && pagedIds.every(id => selectedIds.has(id));
+  const somePageSelected = pagedIds.some(id => selectedIds.has(id));
+  const isIndeterminate = somePageSelected && !allPageSelected;
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      // Deselect all on current page
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        pagedIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      // Select all on current page
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        pagedIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedIds(new Set(filteredReservations.map(r => r.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  // ─── Bulk Delete ────────────────────────────────────────────────────────────
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      const idsToDelete = Array.from(selectedIds);
+      // Call delete API for each selected reservation
+      const results = await Promise.allSettled(
+        idsToDelete.map(id => {
+          const reservation = reservations.find(r => r.id === id);
+          return fetch(`${API_BASE_URL}/admin/reservations/${reservation?.db_id || id}`, {
+            method: "DELETE",
+            headers: { Accept: "application/json" },
+          });
+        })
+      );
+
+      const successCount = results.filter(r => r.status === "fulfilled").length;
+      const failCount = results.length - successCount;
+
+      // Remove successfully deleted from local state
+      setReservations(prev => prev.filter(r => !selectedIds.has(r.id)));
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      setShowBulkDeleteModal(false);
+
+      if (failCount === 0) {
+        setToast({ message: `Successfully deleted ${successCount} reservation${successCount !== 1 ? "s" : ""}.`, type: "success" });
+      } else {
+        setToast({ message: `Deleted ${successCount}, failed ${failCount}. Please retry.`, type: "error" });
+      }
+    } catch {
+      setToast({ message: "Error deleting reservations. Please try again.", type: "error" });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   // Approve
   const handleApprove=async(reservation)=>{
     try{
       const result=await approveReservation(reservation.db_id);
       if(result.success){
         setReservations((prev)=>prev.map((r)=>r.id===reservation.id?{...r,status:"approved"}:r));
-        setToast({
-          message:`Approved! Confirmation email sent to ${reservation.email}.`,
-          type:"success",
-        });
+        setToast({message:`Approved! Confirmation email sent to ${reservation.email}.`,type:"success"});
       }else{
         setToast({message:result.message||"Failed to approve",type:"error"});
       }
@@ -616,10 +712,7 @@ export default function ReservationDashboard() {
       const result=await rejectReservation(reservation.db_id,reason);
       if(result.success){
         setReservations((prev)=>prev.map((r)=>r.id===reservation.id?{...r,status:"rejected"}:r));
-        setToast({
-          message:`Rejected. Notification email sent to ${reservation.email}.`,
-          type:"success",
-        });
+        setToast({message:`Rejected. Notification email sent to ${reservation.email}.`,type:"success"});
       }else{
         setToast({message:result.message||"Failed to reject",type:"error"});
       }
@@ -635,11 +728,6 @@ export default function ReservationDashboard() {
     {label:"Rejected", count:stats.rejected, filter:"REJECTED", color:C.badgeRejected.color, bg:C.statusNote.rejected, border:C.statusNoteBorder.rejected },
   ];
 
-  const pagedReservations=filteredReservations.slice(
-    (pagination.currentPage-1)*10,
-    pagination.currentPage*10
-  );
-
   return (
     <>
       <style>{`
@@ -648,6 +736,7 @@ export default function ReservationDashboard() {
         @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
         @keyframes modalIn {from{opacity:0;transform:scale(0.96) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
         @keyframes shimmer {0%{background-position:-200% 0}100%{background-position:200% 0}}
+        @keyframes slideDown {from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
         *{box-sizing:border-box;}
         ::-webkit-scrollbar{width:4px;}
         ::-webkit-scrollbar-track{background:transparent;}
@@ -658,13 +747,8 @@ export default function ReservationDashboard() {
         <AdminNavbar/>
 
         <div style={{display:"flex",minHeight:"100vh"}}>
-          <Sidebar
-            isOpen={sidebarOpen}
-            onToggle={()=>setSidebarOpen(!sidebarOpen)}
-            activeNav="reservations"
-          />
+          <Sidebar isOpen={sidebarOpen} onToggle={()=>setSidebarOpen(!sidebarOpen)} activeNav="reservations"/>
 
-          {/* Main — flex:1, no hardcoded marginLeft */}
           <div style={{flex:1,minWidth:0,height:"calc(100vh - 60px)",background:C.pageBg,overflow:"auto"}}>
 
             {/* Top bar */}
@@ -691,16 +775,7 @@ export default function ReservationDashboard() {
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
                 <input
-                  style={{
-                    padding:"7px 12px 7px 28px",
-                    background:C.surfaceInput,
-                    border:`1.5px solid ${searchFocused?C.borderAccent:C.borderDefault}`,
-                    borderRadius:8,color:C.textPrimary,
-                    fontFamily:F.body,fontSize:12,
-                    width:isMobile?"100%":220,outline:"none",
-                    transition:"border-color 0.18s,box-shadow 0.18s",
-                    boxShadow:searchFocused?C.inputFocusShadow:"none",
-                  }}
+                  style={{padding:"7px 12px 7px 28px",background:C.surfaceInput,border:`1.5px solid ${searchFocused?C.borderAccent:C.borderDefault}`,borderRadius:8,color:C.textPrimary,fontFamily:F.body,fontSize:12,width:isMobile?"100%":220,outline:"none",transition:"border-color 0.18s,box-shadow 0.18s",boxShadow:searchFocused?C.inputFocusShadow:"none"}}
                   placeholder="Search name, email or ref…"
                   value={search}
                   onChange={(e)=>setSearch(e.target.value)}
@@ -711,10 +786,7 @@ export default function ReservationDashboard() {
             </div>
 
             {/* Content */}
-            <div style={{
-              padding:isMobile?"20px 16px":isTablet?"24px 20px":"28px 32px",
-              animation:"fadeUp 0.28s ease",
-            }}>
+            <div style={{padding:isMobile?"20px 16px":isTablet?"24px 20px":"28px 32px",animation:"fadeUp 0.28s ease"}}>
 
               {/* Heading */}
               <div style={{marginBottom:isMobile?18:22}}>
@@ -731,32 +803,14 @@ export default function ReservationDashboard() {
               </div>
 
               {/* Stat cards */}
-              <div style={{
-                display:"grid",
-                gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",
-                gap:isMobile?10:12,
-                marginBottom:isMobile?18:22,
-              }}>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:12,marginBottom:isMobile?18:22}}>
                 {statCards.map(({label,count,filter,color,bg,border})=>{
                   const active=filterStatus===filter;
                   return(
                     <button key={filter} onClick={()=>setFilterStatus(filter)}
-                      style={{
-                        background:active?bg:C.cardBg,
-                        border:`1px solid ${active?border:C.cardBorder}`,
-                        borderRadius:10,
-                        padding:isMobile?"14px 12px":"18px 20px",
-                        textAlign:"left",cursor:"pointer",
-                        transition:"all 0.18s ease",outline:"none",
-                        boxShadow:active?`0 4px 18px ${color}1A`:"0 1px 4px rgba(0,0,0,0.05)",
-                        transform:active?"translateY(-1px)":"translateY(0)",
-                      }}
-                      onMouseEnter={(e)=>{
-                        if(!active){e.currentTarget.style.borderColor=border;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 18px ${color}14`;}
-                      }}
-                      onMouseLeave={(e)=>{
-                        if(!active){e.currentTarget.style.borderColor=C.cardBorder;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.05)";}
-                      }}
+                      style={{background:active?bg:C.cardBg,border:`1px solid ${active?border:C.cardBorder}`,borderRadius:10,padding:isMobile?"14px 12px":"18px 20px",textAlign:"left",cursor:"pointer",transition:"all 0.18s ease",outline:"none",boxShadow:active?`0 4px 18px ${color}1A`:"0 1px 4px rgba(0,0,0,0.05)",transform:active?"translateY(-1px)":"translateY(0)"}}
+                      onMouseEnter={(e)=>{if(!active){e.currentTarget.style.borderColor=border;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 18px ${color}14`;}}}
+                      onMouseLeave={(e)=>{if(!active){e.currentTarget.style.borderColor=C.cardBorder;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.05)";}}}
                     >
                       <div style={{fontFamily:F.display,fontSize:isMobile?28:36,fontWeight:700,color:color,lineHeight:1,marginBottom:isMobile?6:8,letterSpacing:"-0.02em"}}>
                         {loading?"—":count}
@@ -777,6 +831,7 @@ export default function ReservationDashboard() {
 
               {/* Table card */}
               <div style={{background:C.cardBg,borderRadius:12,border:`1px solid ${C.cardBorder}`,overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
+
                 {/* Card header */}
                 <div style={{
                   padding:isMobile?"12px 14px":"14px 22px",
@@ -787,53 +842,166 @@ export default function ReservationDashboard() {
                   gap:10,
                   background:C.headerGradient,
                 }}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flex:1,flexWrap:"wrap"}}>
+                    {/* Select All checkbox (only in selection mode) */}
+                    {selectionMode && (
+                      <Checkbox
+                        checked={allPageSelected}
+                        indeterminate={isIndeterminate}
+                        onChange={toggleSelectAll}
+                      />
+                    )}
+
                     <div style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.20em",color:C.gold,fontWeight:700,textTransform:"uppercase"}}>Reservations</div>
                     <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"2px 8px",background:C.goldFaint,border:`1px solid ${C.borderAccent}`,borderRadius:20,fontFamily:F.label,fontSize:9,fontWeight:700,color:C.gold,letterSpacing:"0.10em"}}>
                       {loading?"—":filteredReservations.length}
                     </span>
-                    {filterStatus!=="ALL"&&(
-                      <button onClick={()=>setFilterStatus("ALL")}
-                        style={{background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:6,padding:"3px 9px",fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",color:C.textSecondary,cursor:"pointer",transition:"all 0.15s",display:"flex",alignItems:"center",gap:5}}
-                        onMouseEnter={(e)=>{e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}
-                        onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}
+
+                    
+                    
+
+                    {/* Select mode toggle button */}
+                    {!loading && filteredReservations.length > 0 && (
+                      <button
+                        onClick={toggleSelectionMode}
+                        style={{
+                          background: selectionMode ? C.goldFaint : "transparent",
+                          border: `1px solid ${selectionMode ? C.borderAccent : C.borderDefault}`,
+                          borderRadius: 6, padding: "3px 10px",
+                          fontFamily: F.label, fontSize: 9, fontWeight: 700,
+                          letterSpacing: "0.10em", textTransform: "uppercase",
+                          color: selectionMode ? C.gold : C.textSecondary,
+                          cursor: "pointer", transition: "all 0.15s",
+                          display: "flex", alignItems: "center", gap: 5,
+                        }}
+                        onMouseEnter={(e) => { if (!selectionMode) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
+                        onMouseLeave={(e) => { if (!selectionMode) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
                       >
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                        Clear
+                        {selectionMode ? (
+                          <>
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                            Cancel
+                          </>
+                        ) : (
+                          <>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                            </svg>
+                            Select
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
 
-                  {pagination.lastPage>1&&(
-                    <div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"wrap"}}>
-                      <button onClick={()=>handlePageChange(pagination.currentPage-1)} disabled={pagination.currentPage<=1}
-                        style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",color:pagination.currentPage<=1?C.textTertiary:C.textSecondary,cursor:pagination.currentPage<=1?"not-allowed":"pointer",fontSize:14,transition:"all 0.15s",fontFamily:F.body}}
-                        onMouseEnter={(e)=>{if(pagination.currentPage>1){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
-                        onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=pagination.currentPage<=1?C.textTertiary:C.textSecondary;}}
-                      >‹</button>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    {pagination.lastPage>1&&(
+                      <div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"wrap"}}>
+                        <button onClick={()=>handlePageChange(pagination.currentPage-1)} disabled={pagination.currentPage<=1}
+                          style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",color:pagination.currentPage<=1?C.textTertiary:C.textSecondary,cursor:pagination.currentPage<=1?"not-allowed":"pointer",fontSize:14,transition:"all 0.15s",fontFamily:F.body}}
+                          onMouseEnter={(e)=>{if(pagination.currentPage>1){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
+                          onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=pagination.currentPage<=1?C.textTertiary:C.textSecondary;}}
+                        >‹</button>
+                        {getPageNumbers().map((p,idx)=>
+                          p==="..."?(
+                            <span key={`e-${idx}`} style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.textTertiary}}>…</span>
+                          ):(
+                            <button key={p} onClick={()=>handlePageChange(p)}
+                              style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",border:pagination.currentPage===p?`1px solid ${C.gold}`:`1px solid ${C.borderDefault}`,borderRadius:6,background:pagination.currentPage===p?C.gold:"transparent",color:pagination.currentPage===p?C.textOnAccent:C.textSecondary,cursor:"pointer",fontSize:11,fontWeight:pagination.currentPage===p?700:400,fontFamily:F.label,transition:"all 0.15s"}}
+                              onMouseEnter={(e)=>{if(pagination.currentPage!==p){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
+                              onMouseLeave={(e)=>{if(pagination.currentPage!==p){e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}}
+                            >{p}</button>
+                          )
+                        )}
+                        <button onClick={()=>handlePageChange(pagination.currentPage+1)} disabled={pagination.currentPage>=pagination.lastPage}
+                          style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",color:pagination.currentPage>=pagination.lastPage?C.textTertiary:C.textSecondary,cursor:pagination.currentPage>=pagination.lastPage?"not-allowed":"pointer",fontSize:14,transition:"all 0.15s",fontFamily:F.body}}
+                          onMouseEnter={(e)=>{if(pagination.currentPage<pagination.lastPage){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
+                          onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=pagination.currentPage>=pagination.lastPage?C.textTertiary:C.textSecondary;}}
+                        >›</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-                      {getPageNumbers().map((p,idx)=>
-                        p==="..."?(
-                          <span key={`e-${idx}`} style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.textTertiary}}>…</span>
-                        ):(
-                          <button key={p} onClick={()=>handlePageChange(p)}
-                            style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",border:pagination.currentPage===p?`1px solid ${C.gold}`:`1px solid ${C.borderDefault}`,borderRadius:6,background:pagination.currentPage===p?C.gold:"transparent",color:pagination.currentPage===p?C.textOnAccent:C.textSecondary,cursor:"pointer",fontSize:11,fontWeight:pagination.currentPage===p?700:400,fontFamily:F.label,transition:"all 0.15s"}}
-                            onMouseEnter={(e)=>{if(pagination.currentPage!==p){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
-                            onMouseLeave={(e)=>{if(pagination.currentPage!==p){e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=C.textSecondary;}}}
-                          >{p}</button>
-                        )
+                {/* ── Bulk Action Bar (slides in when items are selected) ─────── */}
+                {selectionMode && selectedIds.size > 0 && (
+                  <div style={{
+                    padding: "10px 22px",
+                    background: "rgba(140,107,42,0.04)",
+                    borderBottom: `1px solid ${C.borderAccent}`,
+                    display: "flex", alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10, flexWrap: "wrap",
+                    animation: "slideDown 0.18s ease",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        fontFamily: F.label, fontSize: 9, fontWeight: 700,
+                        letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold,
+                      }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.gold }} />
+                        {selectedIds.size} selected
+                      </span>
+
+                      {/* Select all filtered (if more exist than current page) */}
+                      {selectedIds.size < filteredReservations.length && (
+                        <button
+                          onClick={selectAllFiltered}
+                          style={{
+                            background: "transparent", border: "none", padding: "2px 0",
+                            fontFamily: F.label, fontSize: 9, fontWeight: 700,
+                            letterSpacing: "0.10em", textTransform: "uppercase",
+                            color: C.goldLight, cursor: "pointer",
+                            textDecoration: "underline", textDecorationStyle: "dotted",
+                            textUnderlineOffset: 2,
+                          }}
+                        >
+                          Select all {filteredReservations.length}
+                        </button>
                       )}
 
-                      <button onClick={()=>handlePageChange(pagination.currentPage+1)} disabled={pagination.currentPage>=pagination.lastPage}
-                        style={{width:29,height:29,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",color:pagination.currentPage>=pagination.lastPage?C.textTertiary:C.textSecondary,cursor:pagination.currentPage>=pagination.lastPage?"not-allowed":"pointer",fontSize:14,transition:"all 0.15s",fontFamily:F.body}}
-                        onMouseEnter={(e)=>{if(pagination.currentPage<pagination.lastPage){e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.color=C.gold;}}}
-                        onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.color=pagination.currentPage>=pagination.lastPage?C.textTertiary:C.textSecondary;}}
-                      >›</button>
+                      <button
+                        onClick={clearSelection}
+                        style={{
+                          background: "transparent", border: "none", padding: "2px 0",
+                          fontFamily: F.label, fontSize: 9, fontWeight: 700,
+                          letterSpacing: "0.10em", textTransform: "uppercase",
+                          color: C.textTertiary, cursor: "pointer",
+                          textDecoration: "underline", textDecorationStyle: "dotted",
+                          textUnderlineOffset: 2,
+                        }}
+                      >
+                        Clear
+                      </button>
                     </div>
-                  )}
-                </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={() => setShowBulkDeleteModal(true)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "7px 14px",
+                        background: C.red, border: "none",
+                        borderRadius: 7,
+                        fontFamily: F.label, fontSize: 9, fontWeight: 700,
+                        letterSpacing: "0.14em", textTransform: "uppercase",
+                        color: "#fff", cursor: "pointer",
+                        transition: "all 0.18s",
+                        boxShadow: "0 2px 8px rgba(160,56,56,0.22)",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#8a2e2e"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(160,56,56,0.30)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = C.red; e.currentTarget.style.boxShadow = "0 2px 8px rgba(160,56,56,0.22)"; }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                      </svg>
+                      Delete {selectedIds.size}
+                    </button>
+                  </div>
+                )}
 
                 {/* List */}
                 <div style={{padding:isMobile?"10px":"12px 18px",display:"flex",flexDirection:"column",gap:8}}>
@@ -847,52 +1015,88 @@ export default function ReservationDashboard() {
                       <div style={{fontFamily:F.body,fontSize:12,color:C.textTertiary,marginTop:6}}>{search?"Try adjusting your search":"No reservations match the current filter"}</div>
                     </div>
                   ):(
-                    pagedReservations.map((reservation,idx)=>(
-                      <div
-                        key={reservation.id}
-                        onClick={()=>{setSelectedReservation(reservation);setShowModal(true);}}
-                        style={{
-                          background:C.surfaceBase,
-                          border:`1px solid ${C.borderDefault}`,
-                          borderRadius:8,
-                          padding:isMobile?"12px":"14px 18px",
-                          cursor:"pointer",
-                          transition:"all 0.16s ease",
-                          animation:`fadeUp 0.22s ease both`,
-                          animationDelay:`${idx*0.025}s`,
-                        }}
-                        onMouseEnter={(e)=>{e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.boxShadow=`0 3px 12px rgba(140,107,42,0.10)`;e.currentTarget.style.transform="translateY(-1px)";}}
-                        onMouseLeave={(e)=>{e.currentTarget.style.borderColor=C.borderDefault;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)";}}
-                      >
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexWrap:"wrap"}}>
-                              <div style={{fontFamily:F.body,fontSize:14,fontWeight:600,color:C.textPrimary}}>{reservation.name||"—"}</div>
-                              {reservation.event_date&&(
-                                <span style={{fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",color:C.textTertiary,padding:"2px 6px",background:"rgba(0,0,0,0.04)",border:`1px solid rgba(0,0,0,0.06)`,borderRadius:4,flexShrink:0}}>
-                                  {new Date(reservation.event_date+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
-                                </span>
+                    pagedReservations.map((reservation,idx)=>{
+                      const isSelected = selectedIds.has(reservation.id);
+                      return (
+                        <div
+                          key={reservation.id}
+                          onClick={()=>{
+                            if (selectionMode) {
+                              toggleSelectOne(reservation.id);
+                            } else {
+                              setSelectedReservation(reservation);
+                              setShowModal(true);
+                            }
+                          }}
+                          style={{
+                            background: isSelected ? "rgba(140,107,42,0.04)" : C.surfaceBase,
+                            border: `1px solid ${isSelected ? C.borderAccent : C.borderDefault}`,
+                            borderRadius:8,
+                            padding:isMobile?"12px":"14px 18px",
+                            cursor:"pointer",
+                            transition:"all 0.16s ease",
+                            animation:`fadeUp 0.22s ease both`,
+                            animationDelay:`${idx*0.025}s`,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            boxShadow: isSelected ? `0 0 0 2px rgba(140,107,42,0.10)` : "none",
+                          }}
+                          onMouseEnter={(e)=>{
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor=C.borderAccent;
+                              e.currentTarget.style.boxShadow=`0 3px 12px rgba(140,107,42,0.10)`;
+                              e.currentTarget.style.transform="translateY(-1px)";
+                            }
+                          }}
+                          onMouseLeave={(e)=>{
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor=C.borderDefault;
+                              e.currentTarget.style.boxShadow="none";
+                              e.currentTarget.style.transform="translateY(0)";
+                            }
+                          }}
+                        >
+                          {/* Checkbox (selection mode) */}
+                          {selectionMode && (
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => toggleSelectOne(reservation.id)}
+                            />
+                          )}
+
+                          <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:isMobile?"wrap":"nowrap",minWidth:0}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexWrap:"wrap"}}>
+                                <div style={{fontFamily:F.body,fontSize:14,fontWeight:600,color:C.textPrimary}}>{reservation.name||"—"}</div>
+                                {reservation.event_date&&(
+                                  <span style={{fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",color:C.textTertiary,padding:"2px 6px",background:"rgba(0,0,0,0.04)",border:`1px solid rgba(0,0,0,0.06)`,borderRadius:4,flexShrink:0}}>
+                                    {new Date(reservation.event_date+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{fontFamily:F.body,fontSize:12,color:C.textSecondary,marginBottom:5,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                                <span>{reservation.email||"—"}</span>
+                                {reservation.phone&&<><span style={{color:C.textTertiary}}>·</span><span>{reservation.phone}</span></>}
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                                {reservation.room&&<span style={{fontFamily:F.body,fontSize:11,color:C.textTertiary}}>{reservation.room}</span>}
+                                {reservation.table_number&&<><span style={{color:C.textTertiary,fontSize:11}}>·</span><span style={{fontFamily:F.body,fontSize:11,color:C.textTertiary}}>Table {reservation.table_number}</span></>}
+                              </div>
+                            </div>
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:7,flexShrink:0}}>
+                              <StatusBadge status={reservation.status}/>
+                              {!selectionMode && (
+                                <div style={{display:"flex",alignItems:"center",gap:3,fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",color:C.textTertiary}}>
+                                  View
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                </div>
                               )}
-                            </div>
-                            <div style={{fontFamily:F.body,fontSize:12,color:C.textSecondary,marginBottom:5,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
-                              <span>{reservation.email||"—"}</span>
-                              {reservation.phone&&<><span style={{color:C.textTertiary}}>·</span><span>{reservation.phone}</span></>}
-                            </div>
-                            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                              {reservation.room&&<span style={{fontFamily:F.body,fontSize:11,color:C.textTertiary}}>{reservation.room}</span>}
-                              {reservation.table_number&&<><span style={{color:C.textTertiary,fontSize:11}}>·</span><span style={{fontFamily:F.body,fontSize:11,color:C.textTertiary}}>Table {reservation.table_number}</span></>}
-                            </div>
-                          </div>
-                          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:7,flexShrink:0}}>
-                            <StatusBadge status={reservation.status}/>
-                            <div style={{display:"flex",alignItems:"center",gap:3,fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",color:C.textTertiary}}>
-                              View
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
@@ -922,6 +1126,15 @@ export default function ReservationDashboard() {
             onClose={()=>{setShowModal(false);setSelectedReservation(null);}}
             onApprove={handleApprove}
             onReject={handleReject}
+          />
+        )}
+
+        {showBulkDeleteModal && (
+          <BulkDeleteModal
+            count={selectedIds.size}
+            onConfirm={handleBulkDelete}
+            onCancel={() => setShowBulkDeleteModal(false)}
+            loading={bulkDeleting}
           />
         )}
       </div>
