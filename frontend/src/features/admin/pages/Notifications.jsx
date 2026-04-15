@@ -475,20 +475,31 @@ function DoneCard({ res, onClick, C }) {
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
 function Pagination({ page, total, perPage, setPage, setPerPage, C }) {
-  const totalPages=Math.ceil(total/perPage);
-  if (total<=10) return null;
+  const totalPages = Math.ceil(total / perPage);
+  if (total <= 10) return null;
+  const from = Math.min((page - 1) * perPage + 1, total);
+  const to = Math.min(page * perPage, total);
   return (
-    <div style={{ padding:"12px 16px",borderTop:`1px solid ${C.divider}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
-      <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-        <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.12em",color:C.textTertiary,textTransform:"uppercase" }}>{Math.min((page-1)*perPage+1,total)}–{Math.min(page*perPage,total)} of {total}</span>
-        <select value={perPage} onChange={e=>{setPerPage(Number(e.target.value));setPage(1);}} style={{ padding:"4px 8px",border:`1px solid ${C.borderDefault}`,borderRadius:4,fontSize:10,fontFamily:F.label,color:C.textSecondary,background:C.surfaceInput,cursor:"pointer",colorScheme:"dark" }}>
-          {[10,20,50].map(n=><option key={n} value={n}>{n}/page</option>)}
+    <div style={{ padding: "10px 16px", borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontFamily: F.label, fontSize: 11, color: C.textSecondary }}>{from}–{to} of {total}</span>
+        <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "4px 6px", border: `1px solid ${C.borderDefault}`, borderRadius: 6, fontSize: 11, fontFamily: F.label, color: C.textSecondary, background: C.surfaceInput, cursor: "pointer", outline: "none" }}>
+          {[10, 20, 50].map(n => <option key={n} value={n}>{n} / page</option>)}
         </select>
       </div>
-      <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-        <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page<=1} style={{ width:28,height:28,border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:page<=1?"not-allowed":"pointer",opacity:page<=1?0.3:1,padding:0 }} onMouseEnter={e=>{if(page>1)e.currentTarget.style.borderColor=C.borderAccent;}} onMouseLeave={e=>{if(page>1)e.currentTarget.style.borderColor=C.borderDefault;}}><ChevronLeft size={12} color={C.textSecondary}/></button>
-        <span style={{ fontFamily:F.mono,fontSize:11,color:C.textSecondary,padding:"0 8px" }}>{page}/{totalPages}</span>
-        <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} style={{ width:28,height:28,border:`1px solid ${C.borderDefault}`,borderRadius:6,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:page>=totalPages?"not-allowed":"pointer",opacity:page>=totalPages?0.3:1,padding:0 }} onMouseEnter={e=>{if(page<totalPages)e.currentTarget.style.borderColor=C.borderAccent;}} onMouseLeave={e=>{if(page<totalPages)e.currentTarget.style.borderColor=C.borderDefault;}}><ChevronRight size={12} color={C.textSecondary}/></button>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={{ padding: "5px 10px", border: `1px solid ${C.borderDefault}`, borderRadius: 6, background: "transparent", fontFamily: F.label, fontSize: 11, color: page <= 1 ? C.textTertiary : C.textSecondary, cursor: page <= 1 ? "not-allowed" : "pointer", opacity: page <= 1 ? 0.4 : 1 }}>‹ Prev</button>
+        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+          let p;
+          if (totalPages <= 5) p = i + 1;
+          else if (page <= 3) p = i + 1;
+          else if (page >= totalPages - 2) p = totalPages - 4 + i;
+          else p = page - 2 + i;
+          return (
+            <button key={p} onClick={() => setPage(p)} style={{ width: 30, height: 30, border: `1px solid ${p === page ? C.gold : C.borderDefault}`, borderRadius: 6, background: p === page ? C.goldFaint : "transparent", fontFamily: F.mono, fontSize: 11, fontWeight: p === page ? 700 : 400, color: p === page ? C.gold : C.textSecondary, cursor: "pointer" }}>{p}</button>
+          );
+        })}
+        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={{ padding: "5px 10px", border: `1px solid ${C.borderDefault}`, borderRadius: 6, background: "transparent", fontFamily: F.label, fontSize: 11, color: page >= totalPages ? C.textTertiary : C.textSecondary, cursor: page >= totalPages ? "not-allowed" : "pointer", opacity: page >= totalPages ? 0.4 : 1 }}>Next ›</button>
       </div>
     </div>
   );
@@ -702,6 +713,9 @@ export default function NotificationDashboard() {
         @keyframes bellRing{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-16deg);}75%{transform:rotate(16deg);}}
         @keyframes dotPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.3;transform:scale(1.8);}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+        @media (max-width: 768px) {
+  .nd-grid { grid-template-columns: 1fr !important; }
+}
         ::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${C.borderDefault};border-radius:4px;}
       `}</style>
 
@@ -721,12 +735,7 @@ export default function NotificationDashboard() {
             <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.textSecondary,fontWeight:700,textTransform:"uppercase" }}>Notification Monitor</span>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            {pendingCards.length>0&&(
-              <div style={{ display:"flex",alignItems:"center",gap:5,background:C.goldFaint,border:`1px solid ${C.borderAccent}`,borderRadius:20,padding:"5px 12px" }}>
-                <span style={{ width:5,height:5,borderRadius:"50%",background:C.gold,animation:"dotPulse 1.2s ease infinite" }}/>
-                <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.gold }}>{pendingCards.length} Pending</span>
-              </div>
-            )}
+            
             <div style={{ display:"flex",alignItems:"center",gap:6,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:20,padding:"5px 12px" }}>
               {wsStatus==="connected"?<Wifi size={11} color={wsColor}/>:<WifiOff size={11} color={wsColor}/>}
               <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor }}>{wsLabel}</span>
@@ -759,19 +768,18 @@ export default function NotificationDashboard() {
               {/* Page header — matches ManageBooking exactly */}
               <div>
                 
-                <h1 style={{ fontFamily:F.display,fontSize:"clamp(30px,4.5vw,44px)",fontWeight:400,color:C.textPrimary,lineHeight:1.12,margin:"0 0 12px",letterSpacing:"0.01em" }}>
-                  Notification Monitor
-                </h1>
-                <p style={{ fontFamily:F.body,fontSize:13.5,color:C.textSecondary,margin:0,lineHeight:1.70 }}>
-                  Real-time reservation tracking · {allCards.length} total · {pendingCards.length} pending approval
-                </p>
+                <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4vw,40px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 14px", letterSpacing: "0.01em" }}>
+  Notification Monitor
+</h1>
+
               </div>
 
               {/* Two-column layout */}
-              <div style={{ display:"grid",gridTemplateColumns:"3fr 1.4fr",gap:14,flex:1,minHeight:0 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,3fr) minmax(0,1.4fr)", gap: 14, flex: 1, minHeight: 0 }}
+  className="nd-grid">
 
                 {/* LEFT */}
-                <Panel C={C} style={{ maxHeight:"calc(100vh - 310px)" }}>
+                <Panel C={C} style={{ maxHeight: "clamp(360px, calc(100vh - 280px), 700px)" }}>
                   <div style={{ padding:"12px 16px 10px",borderBottom:`1px solid ${C.divider}`,flexShrink:0 }}>
                     <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
                       <div style={{ display:"flex",gap:6 }}>
@@ -788,7 +796,7 @@ export default function NotificationDashboard() {
                 </Panel>
 
                 {/* RIGHT */}
-                <Panel accentColor={C.green} C={C} style={{ maxHeight:"calc(100vh - 310px)" }}>
+                <Panel accentColor={C.green} C={C} style={{ maxHeight: "clamp(360px, calc(100vh - 280px), 700px)" }}>
                   <div style={{ padding:"12px 16px 10px",borderBottom:`1px solid ${C.divider}`,flexShrink:0 }}>
                     <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
                       <div style={{ display:"flex",alignItems:"center",gap:7 }}>

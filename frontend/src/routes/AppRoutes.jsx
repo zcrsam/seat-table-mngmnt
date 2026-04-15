@@ -13,6 +13,7 @@ import SeatMapEditor from "../features/admin/pages/SeatMapEditor";
 import NotificationDashboard from "../features/admin/pages/Notifications";
 import CancelledDashboard from "../features/admin/pages/CancelledDashboard";
 import ForgotCode from "../features/client/pages/ForgotCode";
+import LoginPage from "../features/auth/pages/LoginPage";
 
 export default function AppRoutes() {
   return (
@@ -34,6 +35,7 @@ export default function AppRoutes() {
         <Route path="/admin/seatmap" element={<SeatMapEditor />} />
         <Route path="/admin/notifications" element={<NotificationDashboard />} />  
         <Route path="/forgot-code" element={<ForgotCode />} />  
+        <Route path="/login" element={<LoginPage />} />  
 
       </Routes>
     </BrowserRouter>

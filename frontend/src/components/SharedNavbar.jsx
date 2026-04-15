@@ -2,6 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import bellevueLogo from "../assets/bellevue-logo.png";
 
+// CSS for toggle label visibility
+const toggleLabelCSS = `
+  @media (min-width: 540px) { 
+    .toggle-label { 
+      display: inline !important; 
+    } 
+  }
+`;
+
 // DESIGN TOKENS
 function getTokens(isDark) {
   return isDark ? {
@@ -41,11 +50,10 @@ const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 // THEME TOGGLE
 function ThemeToggle({ isDark, toggle, C }) {
-  // Track: rounded pill, border only. Knob: solid gold circle slides inside.
-  const TRACK_W = 52;
-  const TRACK_H = 28;
-  const KNOB    = 20;
-  const PAD     = 4;
+  const TRACK_W = 44;
+  const TRACK_H = 24;
+  const KNOB = 16;
+  const PAD = 4;
 
   return (
     <button
@@ -54,28 +62,29 @@ function ThemeToggle({ isDark, toggle, C }) {
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       style={{
-        position: "relative",
-        width: TRACK_W, height: TRACK_H,
+        position: "relative",          // ← KEY FIX: knob anchors to this
+        width: TRACK_W,
+        height: TRACK_H,
         borderRadius: TRACK_H / 2,
-        background: "transparent",
-        border: `1.5px solid ${isDark ? "rgba(201,168,76,0.45)" : "rgba(154,110,28,0.40)"}`,
+        border: `1px solid ${C.goldBorder}`,
+        background: isDark ? "rgba(201,168,76,0.12)" : "rgba(154,110,28,0.10)",
         cursor: "pointer",
         padding: 0,
         flexShrink: 0,
-        transition: "border-color 0.3s",
+        transition: "background 0.3s, border-color 0.3s",
       }}
     >
-      {/* Knob */}
       <span style={{
         position: "absolute",
-        top: PAD - 2,
-        left: isDark ? PAD - 2 : TRACK_W - KNOB - PAD + 2,
-        width: KNOB, height: KNOB,
+        top: PAD,
+        left: isDark ? PAD : TRACK_W - KNOB - PAD,
+        width: KNOB,
+        height: KNOB,
         borderRadius: "50%",
         background: C.gold,
         display: "block",
         transition: "left 0.28s cubic-bezier(0.4,0,0.2,1), background 0.3s",
-        boxShadow: `0 1px 4px rgba(0,0,0,0.22)`,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
       }} />
     </button>
   );
@@ -122,6 +131,11 @@ export default function SharedNavbar({
         @media (min-width: 641px) {
           .shared-nav-burger  { display: none !important; }
           .shared-nav-drawer  { display: none !important; }
+        }
+        @media (min-width: 540px) { 
+          .toggle-label { 
+            display: inline !important; 
+          } 
         }
       `}</style>
 

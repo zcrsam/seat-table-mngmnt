@@ -1195,7 +1195,7 @@ function CancelReasonModal({ onConfirm, onDismiss, cancelling, C }) {
               disabled={cancelling}
               style={{
                 flex: 1, padding: "12px",
-                background: cancelling ? C.redBorder : C.red,
+                background: cancelling ? C.borderStrong : C.textSecondary,
                 border: "none", borderRadius: 8,
                 fontFamily: F.label, fontSize: 10, fontWeight: 700,
                 letterSpacing: "0.12em", textTransform: "uppercase",
@@ -1204,8 +1204,8 @@ function CancelReasonModal({ onConfirm, onDismiss, cancelling, C }) {
                 transition: "all 0.18s",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}
-              onMouseEnter={(e) => { if (!cancelling) e.currentTarget.style.background = "#8C2E2E"; }}
-              onMouseLeave={(e) => { if (!cancelling) e.currentTarget.style.background = C.red; }}
+              onMouseEnter={(e) => { if (!cancelling) e.currentTarget.style.background = C.borderAccent; }}
+              onMouseLeave={(e) => { if (!cancelling) e.currentTarget.style.background = C.textSecondary; }}
             >
               {cancelling
                 ? <><Spinner C={C} size={12} />Cancelling…</>
@@ -1789,7 +1789,7 @@ export default function ManageBooking() {
                           style={{
                             flex: 1,
                             padding: "11px 16px",
-                            background: isCancelableStatus(booking?.status) ? C.red : C.redBorder,
+                            background: isCancelableStatus(booking?.status) ? C.textSecondary : C.borderStrong,
                             border: "none",
                             borderRadius: 8,
                             fontFamily: F.label,
@@ -1799,15 +1799,15 @@ export default function ManageBooking() {
                             textTransform: "uppercase",
                             color: "#fff",
                             cursor: isCancelableStatus(booking?.status) ? "pointer" : "not-allowed",
-                            transition: "all 0.18s",
+                            transition: "0.18s",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 8,
                           }}
-                          onMouseEnter={(e) => { if (isCancelableStatus(booking?.status)) e.currentTarget.style.background = "#8C2E2E"; }}
+                          onMouseEnter={(e) => { if (isCancelableStatus(booking?.status)) e.currentTarget.style.background = C.borderAccent; }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = isCancelableStatus(booking?.status) ? C.red : C.redBorder;
+                            e.currentTarget.style.background = isCancelableStatus(booking?.status) ? C.textSecondary : C.borderStrong;
                           }}
                         >
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
