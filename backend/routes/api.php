@@ -1,9 +1,9 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\SeatMapController;
 use App\Http\Controllers\VenueController;
 use App\Http\Controllers\Admin\AdminReservationController;
 use App\Http\Controllers\Client\ClientReservationController;

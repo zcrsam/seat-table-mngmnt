@@ -242,8 +242,8 @@ function DraggableLabel({ item, onDragStart, isDragging }) {
       onMouseLeave={() => setHov(false)}
     >
       <span style={{ display: "flex", flexDirection: "column", gap: 2, opacity: 0.4 }}>
-        {[0, 1, 2].map(i => (
-          <span key={i} style={{ display: "flex", gap: 2 }}>
+        {[0, 1, 2].map((i) => (
+          <span key={`dots-${i}`} style={{ display: "flex", gap: 2 }}>
             <span key={`${i}-1`} style={{ width: 2, height: 2, borderRadius: "50%", background: "currentColor", display: "block" }} />
             <span key={`${i}-2`} style={{ width: 2, height: 2, borderRadius: "50%", background: "currentColor", display: "block" }} />
           </span>
@@ -397,9 +397,9 @@ function TableNode({ table, editMode, isTableSelected, selectedSeatId, onSelectT
     }[side];
     return (
       <div key={side} style={{ position: "absolute", display: "flex", flexDirection: horiz ? "row" : "column", gap: SEAT_GAP, ...pos }}>
-        {seats.map(seat => (
+        {seats.map((seat, index) => (
           <SeatNode
-            key={seat.id} seat={seat} editMode={editMode}
+            key={`${table.id}-${seat.id ?? seat.num ?? index}`} seat={seat} editMode={editMode}
             isSelected={seat.id === selectedSeatId}
             isDragging={draggingSeatId === seat.id}
             onSeatDragStart={startSeatDrag}
@@ -521,8 +521,8 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
       </div>
 
       <div style={{ flex: 1, paddingBottom: 8 }}>
-        {DEFAULT_WINGS.map(wing => (
-          <div key={wing.id}>
+        {DEFAULT_WINGS.map((wing, wingIndex) => (
+          <div key={`${wing.id}-${wingIndex}`}>
             <div
               style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 12px 7px 11px", cursor: "pointer", userSelect: "none", transition: "background 0.14s" }}
               onClick={() => toggle(wing.id)}
@@ -538,11 +538,11 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
             </div>
             {expanded[wing.id] && (
               <div>
-                {wing.rooms.map(room => {
+                {wing.rooms.map((room, roomIndex) => {
                   const active = activeWing === wing.label && activeRoom === room;
                   return (
                     <div
-                      key={room}
+                      key={`${wing.id}-${roomIndex}-${room}`}
                       onClick={() => onSelect(wing.label, room)}
                       style={rowStyle(active)}
                       onMouseEnter={e => { if (!active) e.currentTarget.style.background = C.goldFaintest; }}
@@ -577,8 +577,8 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, tables, setT
 
   const StatusRow = ({ current, onSet }) => (
     <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
-      {SEAT_STATUS_CYCLE.map(s => (
-        <button key={s} onClick={() => onSet(s)} style={{ flex: 1, padding: "6px 0", background: current === s ? STATUS_COLORS[s] : "transparent", border: `1px solid ${STATUS_COLORS[s]}80`, borderRadius: 5, fontFamily: F, fontWeight: 600, fontSize: 9, color: current === s ? "#fff" : STATUS_COLORS[s], cursor: "pointer", transition: "all 0.14s" }}>
+      {SEAT_STATUS_CYCLE.map((s, index) => (
+        <button key={`${s}-${index}`} onClick={() => onSet(s)} style={{ flex: 1, padding: "6px 0", background: current === s ? STATUS_COLORS[s] : "transparent", border: `1px solid ${STATUS_COLORS[s]}80`, borderRadius: 5, fontFamily: F, fontWeight: 600, fontSize: 9, color: current === s ? "#fff" : STATUS_COLORS[s], cursor: "pointer", transition: "all 0.14s" }}>
           {s === "available" ? "Avail." : s === "pending" ? "Pending" : "Reserved"}
         </button>
       ))}
@@ -831,14 +831,14 @@ export default function SeatMap({
       <div style={{ width: "100%" }}>
         <ScaledCanvas virtualW={VIRTUAL_W} virtualH={VIRTUAL_H} fitMode="contain" remountKey={0}>
           <div style={{ position: "absolute", top: oy, left: ox, width: VIRTUAL_W, height: VIRTUAL_H }}>
-            {labels.map(l => <StaticLabel key={l.id} item={l} />)}
+            {labels.map((l, index) => <StaticLabel key={`${l.id}-${index}`} item={l} />)}
             {mode === "individual" && standaloneSeats.map(s => (
-              <StandaloneSeat key={s.id} seat={s} editMode={false}
+              <StandaloneSeat key={`${s.id}-${s.num ?? 0}`} seat={s} editMode={false}
                 isSelected={selectedSeat ? selectedSeat.id === s.id : false}
                 isDragging={false} onDragStart={() => {}} onSelect={() => {}} onSeatClick={onSeatClick} />
             ))}
-            {tables.map(t => (
-              <TableNode key={t.id} table={t} editMode={false}
+            {tables.map((t, index) => (
+              <TableNode key={`${t.id}-${index}`} table={t} editMode={false}
                 isTableSelected={highlightedTable ? highlightedTable.id === t.id : false}
                 selectedSeatId={selectedSeat ? selectedSeat.id : null}
                 onSelectTable={handleTableSelect} onDragStart={() => {}} onResizeStart={() => {}}
@@ -915,20 +915,20 @@ export default function SeatMap({
                 onClick={handleCanvasClick}
                 onMouseDown={e => { if (tool === "select" && e.target === canvasRef.current) setSelected(null); }}
               />
-              {labels.map(l => (
-                <DraggableLabel key={l.id} item={l}
+              {labels.map((l, index) => (
+                <DraggableLabel key={`${l.id}-${index}`} item={l}
                   onDragStart={(e, id) => startLabelDrag(e, id)}
                   isDragging={activeDragId === l.id} />
               ))}
-              {standaloneSeats.map(s => (
-                <StandaloneSeat key={s.id} seat={s} editMode={true}
+              {standaloneSeats.map((s, index) => (
+                <StandaloneSeat key={`${s.id}-${index}`} seat={s} editMode={true}
                   isSelected={selected?.type === "standaloneSeat" && selected.standaloneSeatId === s.id}
                   isDragging={activeDragId === s.id}
                   onDragStart={startStandaloneSeatDrag}
                   onSelect={ss => setSelected({ type: "standaloneSeat", standaloneSeatId: ss.id })} />
               ))}
-              {tables.map(t => (
-                <TableNode key={t.id} table={t} editMode={true}
+              {tables.map((t, index) => (
+                <TableNode key={`${t.id}-${index}`} table={t} editMode={true}
                   isTableSelected={selected?.tableId === t.id}
                   selectedSeatId={selected?.type === "seat" && selected?.tableId === t.id ? selected.seatId : null}
                   onDragStart={startTableDrag} onResizeStart={startTableResize}
@@ -965,8 +965,8 @@ export default function SeatMap({
           {/* Status Legend */}
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", color: C.gold, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
-            {Object.entries(STATUS_COLORS).map(([key, color]) => (
-              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+            {Object.entries(STATUS_COLORS).map(([key, color], index) => (
+              <div key={`${key}-${index}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
                 <div style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
                 <span style={{ fontFamily: F, fontSize: 11, color: C.textSecondary, fontWeight: 500 }}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
               </div>

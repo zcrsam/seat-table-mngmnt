@@ -10,7 +10,7 @@ import {
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
 const ROOM = "Alabang Function Room";
 

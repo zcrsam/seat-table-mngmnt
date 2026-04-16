@@ -251,7 +251,7 @@ class ClientReservationController extends Controller
             $cancelReason = $cancelReason !== '' ? $cancelReason : null;
 
             $reservation->update([
-                'status' => 'cancelled',
+                'status' => 'rejected',
                 'rejection_reason' => null,
                 'cancellation_reason' => $cancelReason,
                 'cancelled_at' => now(),

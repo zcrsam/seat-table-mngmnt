@@ -7,7 +7,7 @@ import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence.js";
 import { SEAT_MAP_DATA } from "../../../data/seatMapData";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const WING = "Main Wing";
 const ROOM = "Laguna Ballroom";

@@ -6,7 +6,9 @@ import { fetchReservations, approveReservation, rejectReservation, getReservatio
 import { subscribeToReservationUpdates } from "../../../utils/websocket";
 
 const RESERVATIONS_KEY = "bellevue_reservations";
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const POLLING_INTERVAL_MS = 15000;
+const WS_CONNECT_GRACE_MS = 7000;
 
 // ─── Design Tokens (light only) ───────────────────────────────────────────────
 const C = {
@@ -500,6 +502,7 @@ export default function ReservationDashboard() {
   const [pagination,setPagination]=useState({currentPage:1,lastPage:1,totalItems:0});
   const [loading,setLoading]=useState(true);
   const [searchFocused,setSearchFocused]=useState(false);
+  const [syncMode, setSyncMode] = useState("connecting");
 
   // ─── Selection state ────────────────────────────────────────────────────────
   const [selectionMode, setSelectionMode] = useState(false);
@@ -517,40 +520,105 @@ export default function ReservationDashboard() {
   const isMobile=windowWidth<640;
   const isTablet=windowWidth<960;
 
-  // Load
-  useEffect(()=>{
-    const load=async()=>{
+  const refreshDashboardData = useCallback(async (silent = true) => {
+    if (!silent) {
       setLoading(true);
-      try{
-        const [reservationsResult, statsResult] = await Promise.all([
-          fetchReservations(1,100,filterStatus,search),
-          getReservationStats()
-        ]);
-        if(reservationsResult.data){
-          setReservations(reservationsResult.data);
-        } else {
-          const stored=localStorage.getItem(RESERVATIONS_KEY);
-          if(stored)setReservations(JSON.parse(stored));
-        }
-        if(statsResult) setStats(statsResult);
-      }catch{
-        try{const stored=localStorage.getItem(RESERVATIONS_KEY);if(stored)setReservations(JSON.parse(stored));}catch{}
-      }finally{setLoading(false);}
-    };
-    load();
-  },[]);
+    }
 
-  // WS
-  useEffect(()=>{
-    const unsub=subscribeToReservationUpdates((updated)=>{
-      setReservations((prev)=>{
-        const idx=prev.findIndex((r)=>r.id===updated.id);
-        if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
-        return[...prev,updated];
-      });
-    });
-    return unsub;
-  },[]);
+    try {
+      const [reservationsResult, statsResult] = await Promise.all([
+        fetchReservations(1, 100, "ALL", ""),
+        getReservationStats(),
+      ]);
+
+      if (Array.isArray(reservationsResult)) {
+        setReservations(reservationsResult);
+      } else if (reservationsResult?.data) {
+        setReservations(reservationsResult.data);
+      } else {
+        const stored = localStorage.getItem(RESERVATIONS_KEY);
+        if (stored) {
+          setReservations(JSON.parse(stored));
+        }
+      }
+
+      if (statsResult) {
+        setStats(statsResult);
+      }
+    } catch {
+      try {
+        const stored = localStorage.getItem(RESERVATIONS_KEY);
+        if (stored) {
+          setReservations(JSON.parse(stored));
+        }
+      } catch {}
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    refreshDashboardData(false);
+  }, [refreshDashboardData]);
+
+  // Realtime updates with polling fallback
+  useEffect(() => {
+    let pollingTimer = null;
+
+    const stopPolling = () => {
+      if (pollingTimer) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+      }
+    };
+
+    const startPolling = () => {
+      if (pollingTimer) {
+        return;
+      }
+      setSyncMode("polling");
+      refreshDashboardData(true);
+      pollingTimer = setInterval(() => {
+        refreshDashboardData(true);
+      }, POLLING_INTERVAL_MS);
+    };
+
+    const unsubscribe = subscribeToReservationUpdates(
+      () => {
+        setSyncMode("websocket");
+        stopPolling();
+        refreshDashboardData(true);
+      },
+      {
+        onStatusChange: (status) => {
+          if (status === "connected") {
+            setSyncMode("websocket");
+            stopPolling();
+            return;
+          }
+
+          if (status === "disconnected" || status === "error") {
+            startPolling();
+          }
+        },
+      }
+    );
+
+    const fallbackTimeout = setTimeout(() => {
+      startPolling();
+    }, WS_CONNECT_GRACE_MS);
+
+    return () => {
+      clearTimeout(fallbackTimeout);
+      stopPolling();
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
+  }, [refreshDashboardData]);
 
   // Filter
   useEffect(()=>{
@@ -767,6 +835,30 @@ export default function ReservationDashboard() {
                 <span style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.20em",color:C.gold,fontWeight:700,textTransform:"uppercase"}}>Admin</span>
                 <span style={{color:C.textTertiary,fontSize:11}}>·</span>
                 <span style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.14em",color:C.textSecondary,fontWeight:600,textTransform:"uppercase"}}>Reservation Management</span>
+                <span style={{
+                  display:"inline-flex",
+                  alignItems:"center",
+                  gap:5,
+                  marginLeft:4,
+                  padding:"2px 8px",
+                  borderRadius:20,
+                  border:`1px solid ${syncMode === "websocket" ? C.greenBorder : syncMode === "polling" ? C.borderAccent : C.borderDefault}`,
+                  background:syncMode === "websocket" ? C.greenFaint : syncMode === "polling" ? C.goldFaint : "transparent",
+                  color:syncMode === "websocket" ? C.green : syncMode === "polling" ? C.gold : C.textSecondary,
+                  fontFamily:F.label,
+                  fontSize:8,
+                  fontWeight:700,
+                  letterSpacing:"0.10em",
+                  textTransform:"uppercase",
+                }}>
+                  <span style={{
+                    width:5,
+                    height:5,
+                    borderRadius:"50%",
+                    background:syncMode === "websocket" ? C.green : syncMode === "polling" ? C.gold : C.textTertiary,
+                  }}/>
+                  {syncMode === "websocket" ? "Live" : syncMode === "polling" ? "Polling" : "Connecting"}
+                </span>
               </div>
               <div style={{position:"relative"}}>
                 <svg style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}

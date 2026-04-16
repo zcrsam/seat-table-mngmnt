@@ -5,7 +5,7 @@ import MainWingNavbar from "../components/MainWingNavbar";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const WING = "Main Wing";
 const ROOM = "Business Center";

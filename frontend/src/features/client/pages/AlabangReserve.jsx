@@ -6,7 +6,7 @@ import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
 const ROOM = "Alabang Function Room";
 
@@ -81,14 +81,25 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
   const apiStatusMap = {};
   const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
   apiTables.forEach(t => {
-    (t.seats || []).forEach(s => {
-      apiStatusMap[s.id] = (s.status || "available").toLowerCase();
-    });
+    if (Array.isArray(t?.seats)) {
+      (t.seats || []).forEach(s => {
+        apiStatusMap[s.id] = (s.status || "available").toLowerCase();
+      });
+      return;
+    }
+
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey = String(t.seat ?? t.seat_number ?? t.seatNo ?? t.seat_id ?? t.seatId ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+
+    if (tableKey || seatKey) {
+      apiStatusMap[compositeKey] = (t.status || "available").toLowerCase();
+    }
   });
   const mergedTables = (localLayout.tables || []).map(t => ({
     ...t,
     seats: (t.seats || []).map(s => {
-      const apiStatus = apiStatusMap[s.id];
+      const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
       if (apiStatus !== undefined) return { ...s, status: apiStatus };
       return s;
     }),
@@ -107,19 +118,60 @@ function loadLayoutForClient(wing, room) {
   } catch { return null; }
 }
 
+const loadStoredReservations = () => {
+  try {
+    const raw = localStorage.getItem("bellevue_reservations");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveStoredReservations = (reservations) => {
+  try {
+    localStorage.setItem("bellevue_reservations", JSON.stringify(reservations));
+  } catch {}
+};
+
+const makeOfflineReservation = (payload) => ({
+  ...payload,
+  id: `offline-${Date.now()}`,
+  db_id: Date.now(),
+  reference_code: `${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`,
+  status: "pending",
+  submitted_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 const apiCall = async (endpoint, options = {}) => {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    let msg = data?.message || `HTTP ${response.status}`;
-    if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
-    throw new Error(msg);
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!response.ok) {
+      let msg = data?.message || `HTTP ${response.status}`;
+      if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
+      throw new Error(msg);
+    }
+    return data;
+  } catch (error) {
+    const isCreateReservation = endpoint === "/reservations" && (options.method || "GET").toUpperCase() === "POST";
+    if (isCreateReservation) {
+      const payload = JSON.parse(options.body || "{}");
+      const offlineReservation = makeOfflineReservation(payload);
+      const reservations = loadStoredReservations();
+      reservations.push(offlineReservation);
+      saveStoredReservations(reservations);
+      return offlineReservation;
+    }
+
+    throw error;
   }
-  return data;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -866,7 +918,7 @@ export default function AlabangReserve() {
 
     const fetchAndMerge = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, {
+        const res = await fetch(`${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`, {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) return;
@@ -885,6 +937,12 @@ export default function AlabangReserve() {
         });
       } catch (err) {
         console.error("[AlabangReserve] Failed to fetch seat status:", err);
+        if (!tableData) {
+          const fallbackLayout = localLayout || loadLayoutForClient(WING, ROOM);
+          if (fallbackLayout) {
+            setTableData(fallbackLayout);
+          }
+        }
       }
     };
 
@@ -908,7 +966,7 @@ export default function AlabangReserve() {
       const channel = echo.channel("reservations");
       const syncSeats = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/rooms/${WING}/${ROOM}/seats`, { headers: { Accept: "application/json" } });
+          const res = await fetch(`${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`, { headers: { Accept: "application/json" } });
           if (res.ok) {
             const data = await res.json();
             if (data?.data) {

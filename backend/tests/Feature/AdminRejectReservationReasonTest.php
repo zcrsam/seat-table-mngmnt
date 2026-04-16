@@ -130,7 +130,7 @@ class AdminRejectReservationReasonTest extends TestCase
 
         $this->assertDatabaseHas('reservations', [
             'id' => $reservation->id,
-            'status' => 'cancelled',
+            'status' => 'rejected',
             'cancellation_reason' => 'Unable to attend due to schedule conflict',
         ]);
 
