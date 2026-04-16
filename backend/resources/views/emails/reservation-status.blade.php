@@ -74,6 +74,11 @@
             border: 2px solid #E05252;
             color: #7A1E1E;
         }
+        .badge-cancelled {
+            background: rgba(142, 107, 42, 0.12);
+            border: 2px solid #8C6B2A;
+            color: #5A431A;
+        }
         .reference-label {
             margin: 0 0 4px;
             font-size: 8px;
@@ -162,6 +167,12 @@
                         @if(!empty($rejectionReason))
                             <br><br>
                             Reason: <strong>{{ $rejectionReason }}</strong>
+                        @endif
+                    @elseif($status === 'cancelled')
+                        This email confirms that your reservation has been cancelled based on your request.
+                        @if(!empty($rejectionReason))
+                            <br><br>
+                            Cancellation note: <strong>{{ $rejectionReason }}</strong>
                         @endif
                     @endif
                 </p>

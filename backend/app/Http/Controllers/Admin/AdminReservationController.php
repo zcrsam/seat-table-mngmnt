@@ -10,12 +10,11 @@ use App\Services\WebsocketBroadcaster;
 use App\Events\ReservationCreated;
 use App\Events\ReservationUpdated;
 use App\Events\ReservationDeleted;
-use App\Events\SeatReserved;
-use App\Events\TableReserved;
 use App\Mail\ReservationStatusMail;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 class AdminReservationController extends Controller
 {
@@ -121,7 +120,7 @@ class AdminReservationController extends Controller
             'event_date'       => 'sometimes|required|date',
             'event_time'       => 'sometimes|required|string|max:50',
             'special_requests' => 'sometimes|nullable|string',
-            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved',
+            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved,cancelled',
         ]);
 
         $reservation->update($validated);
@@ -246,6 +245,11 @@ class AdminReservationController extends Controller
                 'message'        => 'Reservation rejected successfully',
                 'reservation_id' => $reservation->reference_code
             ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

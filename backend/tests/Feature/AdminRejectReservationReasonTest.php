@@ -13,11 +13,9 @@ class AdminRejectReservationReasonTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_reservation_notifications_send_for_reserved_and_rejected_states(): void
+    private function createVenue(): Venue
     {
-        Mail::fake();
-
-        $venue = Venue::create([
+        return Venue::create([
             'name' => 'Main Hall',
             'wing' => 'Main Wing',
             'type' => 'function room',
@@ -26,39 +24,46 @@ class AdminRejectReservationReasonTest extends TestCase
             'description' => 'Primary venue',
             'is_active' => true,
         ]);
+    }
 
-        $rejectedReservation = Reservation::create([
-            'reference_code' => '2026-0001',
-            'name' => 'Test Guest',
-            'email' => 'guest@example.com',
-            'phone' => '09171234567',
+    private function createReservation(Venue $venue, array $overrides = []): Reservation
+    {
+        static $sequence = 1;
+
+        $defaults = [
+            'reference_code' => sprintf('2026-%04d', $sequence),
+            'name' => 'Test Guest ' . $sequence,
+            'email' => 'guest' . $sequence . '@example.com',
+            'phone' => '09171234' . str_pad((string) $sequence, 3, '0', STR_PAD_LEFT),
             'venue_id' => $venue->id,
-            'table_number' => 'T1',
-            'seat_number' => 'S1',
+            'table_number' => 'T' . $sequence,
+            'seat_number' => 'S' . $sequence,
             'guests_count' => 4,
-            'event_date' => now()->addDay()->toDateTimeString(),
+            'event_date' => now()->addDay()->format('Y-m-d H:i:s'),
             'event_time' => '18:00',
             'special_requests' => null,
             'status' => 'pending',
             'type' => 'whole',
             'submitted_at' => now(),
-        ]);
+        ];
 
-        $reservedReservation = Reservation::create([
-            'reference_code' => '2026-0002',
+        $sequence++;
+
+        return Reservation::create(array_merge($defaults, $overrides));
+    }
+
+    public function test_admin_reservation_notifications_send_for_reserved_and_rejected_states(): void
+    {
+        Mail::fake();
+
+        $venue = $this->createVenue();
+
+        $rejectedReservation = $this->createReservation($venue);
+        $reservedReservation = $this->createReservation($venue, [
             'name' => 'Second Guest',
-            'email' => 'guest2@example.com',
-            'phone' => '09171234568',
-            'venue_id' => $venue->id,
-            'table_number' => 'T2',
-            'seat_number' => 'S2',
             'guests_count' => 2,
-            'event_date' => now()->addDays(2)->toDateTimeString(),
+            'event_date' => now()->addDays(2)->format('Y-m-d H:i:s'),
             'event_time' => '19:00',
-            'special_requests' => null,
-            'status' => 'pending',
-            'type' => 'whole',
-            'submitted_at' => now(),
         ]);
 
         $this->patchJson("/api/admin/reservations/{$rejectedReservation->id}/reject", [])
@@ -101,6 +106,43 @@ class AdminRejectReservationReasonTest extends TestCase
         Mail::assertSent(ReservationStatusMail::class, function (ReservationStatusMail $mail) use ($reservedReservation) {
             return $mail->status === 'reserved'
                 && (int) $mail->reservation->id === (int) $reservedReservation->id;
+        });
+    }
+
+    public function test_client_cancel_sends_cancelled_mail_with_distinct_message_context(): void
+    {
+        Mail::fake();
+
+        $venue = $this->createVenue();
+        $reservation = $this->createReservation($venue, [
+            'name' => 'Guest To Cancel',
+            'status' => 'approved',
+        ]);
+
+        $this->patchJson("/api/reservations/{$reservation->id}/reject", [
+            'reason' => 'Unable to attend due to schedule conflict',
+        ])
+            ->assertOk()
+            ->assertJsonFragment([
+                'success' => true,
+                'message' => 'Booking cancelled successfully',
+            ]);
+
+        $this->assertDatabaseHas('reservations', [
+            'id' => $reservation->id,
+            'status' => 'cancelled',
+            'cancellation_reason' => 'Unable to attend due to schedule conflict',
+        ]);
+
+        Mail::assertSent(ReservationStatusMail::class, function (ReservationStatusMail $mail) use ($reservation) {
+            return $mail->status === 'cancelled'
+                && $mail->rejectionReason === 'Unable to attend due to schedule conflict'
+                && (int) $mail->reservation->id === (int) $reservation->id;
+        });
+
+        Mail::assertNotSent(ReservationStatusMail::class, function (ReservationStatusMail $mail) use ($reservation) {
+            return (int) $mail->reservation->id === (int) $reservation->id
+                && $mail->status === 'rejected';
         });
     }
 }
