@@ -1,7 +1,7 @@
 // src/utils/api.js
 // API utility functions for reservation management - connects to seat_table_mngmnt database
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 // Fetch all reservations from database
 export async function fetchReservations(page = 1, perPage = 10, status = 'ALL', search = '') {

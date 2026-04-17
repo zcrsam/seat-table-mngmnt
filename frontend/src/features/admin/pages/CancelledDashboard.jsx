@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -467,6 +467,33 @@ export default function CancelledDashboard() {
 
               {/* Right side: refresh button + search */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={loadReservations}
+                  disabled={loading}
+                  title="Refresh"
+                  style={{
+                    width: 32, height: 32, borderRadius: 7,
+                    background: "transparent",
+                    border: `1px solid ${C.borderDefault}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    transition: "border-color 0.18s",
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={(e) => { if (!loading) e.currentTarget.style.borderColor = C.borderAccent; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
+                >
+                  {loading
+                    ? <Spinner size={12} />
+                    : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                      </svg>
+                    )
+                  }
+                </button>
+
                 <div style={{ position: "relative" }}>
                   <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
                     width="12" height="12" viewBox="0 0 24 24" fill="none"

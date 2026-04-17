@@ -109,6 +109,11 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
+const POLL_INTERVAL_MS = 15000;
+const RECONNECT_WINDOW_MS = 60000;
+const MAX_RECONNECTS_IN_WINDOW = 5;
+const WS_RECOVERY_RETRY_MS = 45000;
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function normaliseRow(r) {
   const isWS = !r.room && !r.eventDate && (r.event_date || r.eventDate);
@@ -572,6 +577,7 @@ export default function NotificationDashboard() {
 
   const knownIds=useRef(new Set()),firedAlerts=useRef(new Set()),leftRef=useRef(null);
   const echoRef=useRef(null),reconnectDelay=useRef(2000),reconnectTimer=useRef(null),isMounted=useRef(true);
+  const reconnectAttempts=useRef([]),pollTimer=useRef(null),recoveryTimer=useRef(null);
 
   useEffect(()=>{isMounted.current=true;return()=>{isMounted.current=false;};},[]);
   const addToast=useCallback((message,type="success")=>{const id=Date.now();setToasts(p=>[...p,{id,message,type}]);setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3500);},[]);
@@ -621,71 +627,152 @@ export default function NotificationDashboard() {
     finally{setIsApproving(false);setApprovingIds(p=>{const n=new Set(p);n.delete(id);return n;});}
   },[confirmRes,upsertReservation,addToast]);
 
-  useEffect(()=>{
-    const fetch=async()=>{
-      try{const resp=await reservationAPI.getAll("?per_page=200");const raw=Array.isArray(resp)?resp:Array.isArray(resp?.data)?resp.data:[];const tracked=raw.filter(shouldTrack).map(normaliseRow).sort((a,b)=>(b.submittedTimestamp||+new Date(b.created_at)||0)-(a.submittedTimestamp||+new Date(a.created_at)||0));tracked.forEach(r=>knownIds.current.add(r.id??r.db_id));setAllCards(tracked);checkAlerts(tracked);}catch{}finally{setLoading(false);}
-    };fetch();
+  const syncReservations=useCallback(async({silent=true}={})=>{
+    if(!silent)setLoading(true);
+    try{
+      const resp=await reservationAPI.getAll("?per_page=200");
+      const raw=Array.isArray(resp)?resp:Array.isArray(resp?.data)?resp.data:[];
+      const tracked=raw
+        .filter(shouldTrack)
+        .map(normaliseRow)
+        .sort((a,b)=>(b.submittedTimestamp||+new Date(b.created_at)||0)-(a.submittedTimestamp||+new Date(a.created_at)||0));
+
+      knownIds.current=new Set(tracked.map(r=>r.id??r.db_id));
+      setAllCards(tracked);
+      checkAlerts(tracked);
+    }catch{}
+    finally{if(!silent)setLoading(false);}
   },[checkAlerts]);
+
+  useEffect(()=>{syncReservations({silent:false});},[syncReservations]);
 
   useEffect(()=>{
     const wsHost=import.meta.env.VITE_WS_HOST||"localhost",wsPort=import.meta.env.VITE_WS_PORT||"6001";
     const protocol=window.location.protocol==="https:"?"wss:":"ws:";
     const wsUrl=`${protocol}//${wsHost}:${wsPort}`;
+
+    const clearReconnect=()=>{
+      if(reconnectTimer.current){
+        clearTimeout(reconnectTimer.current);
+        reconnectTimer.current=null;
+      }
+    };
+
+    const clearPoll=()=>{
+      if(pollTimer.current){
+        clearInterval(pollTimer.current);
+        pollTimer.current=null;
+      }
+      if(recoveryTimer.current){
+        clearInterval(recoveryTimer.current);
+        recoveryTimer.current=null;
+      }
+    };
+
+    const shouldFallbackToPolling=()=>{
+      const now=Date.now();
+      reconnectAttempts.current=[...reconnectAttempts.current.filter(ts=>now-ts<=RECONNECT_WINDOW_MS),now];
+      return reconnectAttempts.current.length>=MAX_RECONNECTS_IN_WINDOW;
+    };
+
     const connect=()=>{
+      if(!isMounted.current)return;
+      clearReconnect();
+
+      if(!echoRef.current){
+        setWsStatus(prev=>prev==="polling"?prev:"connecting");
+      }
+
       const ws=new WebSocket(wsUrl);
+      echoRef.current=ws;
+
       ws.onopen=()=>{
         setWsStatus("connected");
         reconnectDelay.current=2000;
-        console.log('[Notifications] WebSocket connected');
+        reconnectAttempts.current=[];
+        clearPoll();
       };
+
       ws.onclose=()=>{
+        echoRef.current=null;
+        if(!isMounted.current)return;
+
+        if(shouldFallbackToPolling()){
+          setWsStatus("polling");
+          if(!pollTimer.current){
+            syncReservations({silent:true});
+            pollTimer.current=setInterval(()=>syncReservations({silent:true}),POLL_INTERVAL_MS);
+          }
+          if(!recoveryTimer.current){
+            recoveryTimer.current=setInterval(()=>{
+              if(!echoRef.current&&isMounted.current){
+                connect();
+              }
+            },WS_RECOVERY_RETRY_MS);
+          }
+          return;
+        }
+
         setWsStatus("disconnected");
-        if(isMounted.current){
-          reconnectTimer.current=setTimeout(()=>{
-            connect();
-            reconnectDelay.current=Math.min(reconnectDelay.current*2,30000);
-          },reconnectDelay.current);
-        }
+        const delay=reconnectDelay.current;
+        reconnectTimer.current=setTimeout(()=>{
+          connect();
+        },delay);
+        reconnectDelay.current=Math.min(reconnectDelay.current*2,30000);
       };
+
       ws.onerror=()=>{
-        setWsStatus("error");
-        if(isMounted.current){
-          setTimeout(connect,reconnectDelay.current);
+        if(!isMounted.current)return;
+        setWsStatus(prev=>prev==="polling"?"polling":"error");
+        // Let onclose drive reconnect/fallback; force close if needed.
+        if(ws.readyState===WebSocket.OPEN){
+          ws.close();
         }
       };
+
       ws.onmessage=event=>{
-  try{
-    const data=JSON.parse(event.data);
-    console.log('[Notifications WS] Received event:', data.event);
-    
-    const res=data?.payload?.reservation;
-    if(!res){
-      console.log('[Notifications WS] No reservation data in message:', data);
-      return;
-    }
-    
-    console.log('[Notifications WS] Raw reservation data:', res);
-    const n=normaliseRow(res);
-    console.log('[Notifications WS] Normalized data:', n);
-    
-    if(data.event==="ReservationCreated"||data.event==="ReservationUpdated"){
-      upsertReservation(n,false);
-    }else if(data.event==="ReservationDeleted"){
-      const id=res.id??res.db_id;
-      setAllCards(p=>p.filter(r=>(r.id??r.db_id)!==String(id)&&(r.id??r.db_id)!==id));
-      knownIds.current.delete(id);
-      knownIds.current.delete(String(id));
-    }
-  }catch(err){
-    console.error('[Notifications WS] Parse error:', err);
-    console.error('[Notifications WS] Raw message:', event.data);
-  }
-};
-      echoRef.current=ws;
+        try{
+          const data=JSON.parse(event.data);
+          const eventName=data?.event;
+
+          if(eventName==="connected"){
+            return;
+          }
+
+          if(eventName==="ReservationCreated"||eventName==="ReservationUpdated"||eventName==="updated"){
+            const payload=data?.payload?.reservation??data?.payload;
+            if(payload&&typeof payload==="object"){
+              upsertReservation(normaliseRow(payload),false);
+            }
+            return;
+          }
+
+          if(eventName==="ReservationDeleted"){
+            const deletedId=data?.payload?.id??data?.payload?.reservation?.id;
+            if(deletedId===undefined||deletedId===null)return;
+            const strId=String(deletedId);
+            setAllCards(p=>p.filter(r=>String(r.db_id)!==strId&&String(r.id)!==strId));
+            knownIds.current.delete(deletedId);
+            knownIds.current.delete(strId);
+          }
+        }catch(err){
+          console.error('[Notifications WS] Parse error:', err);
+        }
+      };
     };
+
     connect();
-    return()=>{if(reconnectTimer.current)clearTimeout(reconnectTimer.current);if(echoRef.current){echoRef.current.close();echoRef.current=null;}};
-  },[upsertReservation]);
+
+    return()=>{
+      clearReconnect();
+      clearPoll();
+      if(echoRef.current){
+        const socket=echoRef.current;
+        echoRef.current=null;
+        socket.close();
+      }
+    };
+  },[syncReservations,upsertReservation]);
 
   const{upcomingCards,pendingCards,doneCards}=useMemo(()=>{
     const u=[],p=[],d=[];
@@ -699,8 +786,8 @@ export default function NotificationDashboard() {
 
   const handlePopupView=useCallback(p=>{dismissPopup();const items=p.items||[];if(items.length===1){const full=allCards.find(r=>(r.id??r.db_id)===items[0].id);if(full)setDetailRes(full);}else setPickerItems(items);},[allCards,dismissPopup]);
 
-  const wsColor=wsStatus==="connected"?C.green:wsStatus==="connecting"?C.gold:C.textMuted;
-  const wsLabel=wsStatus==="connected"?"Live":wsStatus==="connecting"?"Connecting":"Offline";
+  const wsColor=wsStatus==="connected"?C.green:wsStatus==="connecting"?C.gold:wsStatus==="polling"?C.blue:C.textSecondary;
+  const wsLabel=wsStatus==="connected"?"Live":wsStatus==="connecting"?"Connecting":wsStatus==="polling"?"Polling":"Offline";
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle:toggleTheme }}>
@@ -728,28 +815,28 @@ export default function NotificationDashboard() {
         </div>
 
         {/* NAV — identical to ManageBooking */}
-        <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(12px,3vw,20px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box",transition:"background 0.30s" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:16,flex:1,minWidth:0 }}>
-            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:24,width:"auto",display:"block",flexShrink:0,filter:isDark?"brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)":"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
+        <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(20px,5vw,64px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box",transition:"background 0.30s" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:20 }}>
+            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:26,width:"auto",display:"block",flexShrink:0,filter:isDark?"brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)":"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
+            <div style={{ width:1,height:18,background:C.borderDefault }}/>
+            <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.textSecondary,fontWeight:700,textTransform:"uppercase" }}>Notification Monitor</span>
+          </div>
+          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+            
+            <div style={{ display:"flex",alignItems:"center",gap:6,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:20,padding:"5px 12px" }}>
+              {wsStatus==="connected"?<Wifi size={11} color={wsColor}/>:<WifiOff size={11} color={wsColor}/>}
+              <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor }}>{wsLabel}</span>
             </div>
-          <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
-            {/* Show connection status and bell on mobile */}
-            <div style={{ display:"flex",alignItems:"center",gap:4,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:16,padding:"3px 8px" }}>
-              {wsStatus==="connected"?<Wifi size={10} color={wsColor}/>:<WifiOff size={10} color={wsColor}/>}
-              <span style={{ fontFamily:F.label,fontSize:7,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor,whiteSpace:"nowrap" }}>{wsLabel}</span>
+            <div style={{ width:36,height:36,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
+              {popup?<BellDot size={15} color={C.gold}/>:<Bell size={15} color={C.textSecondary}/>}
+              {popup&&<div style={{ position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
             </div>
-            <div style={{ width:32,height:32,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
-              {popup?<BellDot size={13} color={C.gold}/>:<Bell size={13} color={C.textSecondary}/>}
-              {popup&&<div style={{ position:"absolute",top:2,right:2,width:6,height:6,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
+            <div style={{ width:1,height:18,background:C.borderDefault }}/>
+            <div style={{ textAlign:"right",flexShrink:0 }}>
+              <div style={{ fontFamily:F.mono,fontWeight:700,fontSize:15,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
+              <div style={{ fontFamily:F.label,fontSize:9,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase",marginTop:2 }}>{date}</div>
             </div>
-            {/* Show theme toggle on larger screens only */}
-            <div style={{ display:"none","@media (min-width: 768px)": { display: "flex" } }}>
-              <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
-            </div>
-            {/* Show only theme toggle on mobile */}
-            <div style={{ display:"flex","@media (min-width: 768px)": { display: "none" } }}>
-              <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
-            </div>
+            <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
           </div>
         </nav>
 
@@ -768,13 +855,15 @@ export default function NotificationDashboard() {
               {/* Page header — matches ManageBooking exactly */}
               <div>
                 
-                <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4vw,40px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 14px", letterSpacing: "0.01em" }}>  Notification Monitor</h1>
-                <div style={{ marginLeft:"5px", fontFamily:F.mono,fontWeight:700,fontSize:14,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
-                <div style={{ marginLeft:"5px", fontFamily:F.label,fontSize:8,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase" }}>{date}</div>
+                <h1 style={{ fontFamily: F.display, fontSize: "clamp(24px,4vw,40px)", fontWeight: 400, color: C.textPrimary, lineHeight: 1.12, margin: "0 0 14px", letterSpacing: "0.01em" }}>
+  Notification Monitor
+</h1>
+
               </div>
 
               {/* Two-column layout */}
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,3fr) minmax(0,1.4fr)", gap: 14, flex: 1, minHeight: 0 }} className="nd-grid">
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,3fr) minmax(0,1.4fr)", gap: 14, flex: 1, minHeight: 0 }}
+  className="nd-grid">
 
                 {/* LEFT */}
                 <Panel C={C} style={{ maxHeight: "clamp(360px, calc(100vh - 280px), 700px)" }}>

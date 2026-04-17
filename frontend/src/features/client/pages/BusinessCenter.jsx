@@ -5,7 +5,7 @@ import MainWingNavbar from "../components/MainWingNavbar";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import { getRoomData, subscribeToSeatMapChanges, saveSeatMapData } from "../../../utils/seatMapPersistence.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const WING = "Main Wing";
 const ROOM = "Business Center";
@@ -168,10 +168,10 @@ export default function BusinessCenter() {
                   .filter(Boolean);
                 return nums.includes(seat.num);
               });
-              return { ...match ? { ...seat, status: match.status } : seat, key: seat.id };
+              return match ? { ...seat, status: match.status } : seat;
             }),
           });
-          return Array.isArray(prev) ? prev.map((table, index) => ({ ...applyToTable(table), key: table.id || index })) : applyToTable(prev);
+          return Array.isArray(prev) ? prev.map(applyToTable) : applyToTable(prev);
         });
       } catch (err) {
         console.warn("[BusinessCenter] Seat sync failed:", err.message);
@@ -245,14 +245,14 @@ export default function BusinessCenter() {
       if (activeTable) {
         const markPending = (tbl) => {
           if (mode === "individual") {
-            return { ...tbl, seats: (tbl.seats || []).map(s => ({ ...s, key: s.id, status: s.id === selectedSeat?.id ? "pending" : s.status })) };
+            return { ...tbl, seats: (tbl.seats || []).map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
           } else {
             let marked = 0;
-            return { ...tbl, seats: (tbl.seats || []).map(s => ({ ...s, key: s.id, status: (marked < guests && s.status === "available") ? (marked++, "pending") : s.status })) };
+            return { ...tbl, seats: (tbl.seats || []).map(s => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
           }
         };
         const updated = Array.isArray(tableData)
-          ? tableData.map(t => ({ ...(t.id === activeTable.id ? markPending(t) : t), key: t.id }))
+          ? tableData.map(t => t.id === activeTable.id ? markPending(t) : t)
           : markPending(tableData);
         setTableData(updated);
         saveSeatMapData(WING, ROOM, updated);

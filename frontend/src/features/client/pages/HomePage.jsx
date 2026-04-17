@@ -683,106 +683,6 @@ function GuestPicker({ value, onChange, min = 1, max = 20, style }) {
 }
 
 // ─────────────────────────────────────────────
-// TESTIMONIALS TICKER
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// PARTNERS & SPONSORS TICKER
-// ─────────────────────────────────────────────
-const PARTNERS = [
-  "Johnny’s Steak & Grill at Cellar XXII",
-  "Pastry Corner",
-  "Vue Bar",
-  "Azurea Spa",
-  "Jing Monis Salon",
-  "Pretty Looks",
-];
-
-function TestimonialsCarousel() {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-
-  return (
-    <section style={{
-      background: isDark
-        ? "linear-gradient(180deg, #0E0D09 0%, #14120C 50%, #0E0D09 100%)"
-        : "linear-gradient(180deg, #F5F0E8 0%, #EDE7D9 50%, #F5F0E8 100%)",
-      padding: "clamp(40px,6vw,72px) 0",
-      position: "relative",
-      overflow: "hidden",
-      transition: "background 0.35s",
-    }}>
-
-      {/* Label */}
-      <div style={{
-        maxWidth: 1100,
-        margin: "0 auto clamp(0px,2vw,30px)",
-        padding: "0 clamp(5px,0vw,10px)",
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-      }}>
-        <div style={{ flex: 1, height: 1, background: isDark ? "rgba(201,168,76,0.15)" : "rgba(160,120,40,0.22)" }} />
-        <span style={{
-          fontFamily: F.body,
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: "0.32em",
-          textTransform: "uppercase",
-          color: C.gold,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
-        }}>Official Partners &amp; Sponsors</span>
-        <div style={{ flex: 1, height: 1, background: isDark ? "rgba(201,168,76,0.15)" : "rgba(160,120,40,0.22)" }} />
-      </div>
-
-      {/* Ticker */}
-      <div style={{ overflow: "hidden", width: "100%" }}>
-        <div style={{
-          display: "flex",
-          animation: "partners-scroll 28s linear infinite",
-          whiteSpace: "nowrap",
-        }}
-          onMouseEnter={(e) => (e.currentTarget.style.animationPlayState = "paused")}
-          onMouseLeave={(e) => (e.currentTarget.style.animationPlayState = "running")}
-        >
-          {[...PARTNERS, ...PARTNERS].map((name, i) => (
-            <span key={i} style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              marginRight: "clamp(40px,6vw,72px)",
-              fontFamily: F.body,
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: isDark ? "rgba(245,239,224,0.40)" : "rgba(26,22,18,0.38)",
-            }}>
-              <span style={{
-                width: 4,
-                height: 4,
-                borderRadius: "50%",
-                background: C.gold,
-                display: "inline-block",
-                flexShrink: 0,
-              }} />
-              {name}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes partners-scroll {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      ` }} />
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────
 // NEWSLETTER
 // ─────────────────────────────────────────────
 function NewsletterSection() {
@@ -984,7 +884,6 @@ export default function HomePage() {
         <div id="home-dining">
           <DiningSection onNavigate={handleNavigate} initialRestaurantId={diningRestaurantId} />
         </div>
-        <TestimonialsCarousel />
         <NewsletterSection />
         <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
       </div>
