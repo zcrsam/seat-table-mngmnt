@@ -49,6 +49,72 @@ function AdminNavbar({ onLogout, pendingCount: pendingProp }) {
 
       {/* Right side */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+        {/* Bell icon — navigate to /admin/notifications */}
+        <button
+          onClick={() => navigate("/admin/notifications")}
+          title="Notifications"
+          style={{
+            width: 38, height: 38,
+            border: "none",
+            background: isNotifActive ? "rgba(201,168,76,0.10)" : "transparent",
+            borderRadius: 8,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+            transition: "background 0.15s",
+            color: isNotifActive ? "#C9A84C" : "#6B7280",
+            // Use outline instead of border so it doesn't shift layout
+            outline: isNotifActive ? "1.5px solid rgba(201,168,76,0.35)" : "none",
+          }}
+          onMouseEnter={e => {
+            // Use currentTarget (the button) not target (could be the SVG)
+            e.currentTarget.style.background = isNotifActive
+              ? "rgba(201,168,76,0.16)"
+              : "rgba(107,114,128,0.08)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = isNotifActive
+              ? "rgba(201,168,76,0.10)"
+              : "transparent";
+          }}
+        >
+          <svg
+            width="20" height="20" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ pointerEvents: "none" }}  // ← prevents SVG from stealing mouse events
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+
+          {/* Badge */}
+          {pending > 0 && (
+            <span style={{
+              position: "absolute",
+              top: 4, right: 4,
+              background: "#EF4444",
+              color: "#fff",
+              borderRadius: "50%",
+              minWidth: 16, height: 16,
+              fontSize: 9,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "Montserrat, sans-serif",
+              padding: "0 3px",
+              lineHeight: 1,
+              pointerEvents: "none",
+            }}>
+              {pending > 99 ? "99+" : pending}
+            </span>
+          )}
+        </button>
+
         {/* Logout */}
         <button
           onClick={onLogout}

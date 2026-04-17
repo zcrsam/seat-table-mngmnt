@@ -325,7 +325,7 @@ function SeatNode({ seat, isSelected, editMode, isDragging, onSeatClick, onSeatD
 }
 
 // TableNode
-function TableNode({ table, editMode, isTableSelected, selectedSeatId, onSelectTable, onDragStart, onResizeStart, onSeatClick, onLabelEdit, isDragging, onSeatMove, hideSeats = false, hideTable = false }) {
+function TableNode({ table, editMode, isTableSelected, selectedSeatId, onSelectTable, onDragStart, onResizeStart, onSeatClick, onLabelEdit, isDragging, onSeatMove }) {
   const [hov, setHov] = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelVal, setLabelVal] = useState(table.label || table.id);
@@ -403,8 +403,7 @@ function TableNode({ table, editMode, isTableSelected, selectedSeatId, onSelectT
             isSelected={seat.id === selectedSeatId}
             isDragging={draggingSeatId === seat.id}
             onSeatDragStart={startSeatDrag}
-            onSeatClick={s => { if (!draggingSeatId && !hideSeats) onSeatClick(s, table.id); }}
-            style={{ opacity: hideSeats ? 0.3 : 1, pointerEvents: hideSeats ? "none" : "auto" }}
+            onSeatClick={s => { if (!draggingSeatId) onSeatClick(s, table.id); }}
           />
         ))}
       </div>
@@ -429,23 +428,22 @@ function TableNode({ table, editMode, isTableSelected, selectedSeatId, onSelectT
       >
         {["top", "bottom", "left", "right"].map(side => renderSide(byPos[side], side))}
         <div
-            ref={tableBodyRef}
-            style={{
-              position: "absolute", left: tOffX, top: tOffY, width: tableW, height: tableH,
-              background: isTableSelected ? C.tableSelected : C.tableBg,
-              borderRadius: 8,
-              display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-              border: isTableSelected ? `1.5px solid ${C.gold}` : hov ? `1.5px solid ${C.borderAccent}` : `1px solid ${C.borderDefault}`,
-              boxShadow: isTableSelected ? `0 0 0 3px ${C.gold}10, 0 4px 16px rgba(0,0,0,0.08)` : hov ? "0 4px 12px rgba(0,0,0,0.07)" : C.cardShadow,
-              transition: "border 0.15s, box-shadow 0.15s",
-              cursor: editMode ? (isDragging ? "grabbing" : "grab") : (hideTable ? "default" : "pointer"),
-              zIndex: 2, overflow: "visible",
-              ...(hideTable && { opacity: 0.2, pointerEvents: "none", filter: "grayscale(0.8)" }),
-            }}
-            onMouseDown={editMode ? e => { if (!draggingSeatId) { e.stopPropagation(); onDragStart(e, table.id); } } : undefined}
-            onClick={e => { e.stopPropagation(); onSelectTable(table); }}
-            onDoubleClick={editMode ? e => { e.stopPropagation(); setEditingLabel(true); } : undefined}
-          >
+          ref={tableBodyRef}
+          style={{
+            position: "absolute", left: tOffX, top: tOffY, width: tableW, height: tableH,
+            background: isTableSelected ? C.tableSelected : C.tableBg,
+            borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
+            border: isTableSelected ? `1.5px solid ${C.gold}` : hov ? `1.5px solid ${C.borderAccent}` : `1px solid ${C.borderDefault}`,
+            boxShadow: isTableSelected ? `0 0 0 3px ${C.gold}10, 0 4px 16px rgba(0,0,0,0.08)` : hov ? "0 4px 12px rgba(0,0,0,0.07)" : C.cardShadow,
+            transition: "border 0.15s, box-shadow 0.15s",
+            cursor: editMode ? (isDragging ? "grabbing" : "grab") : "pointer",
+            zIndex: 2, overflow: "visible",
+          }}
+          onMouseDown={editMode ? e => { if (!draggingSeatId) { e.stopPropagation(); onDragStart(e, table.id); } } : undefined}
+          onClick={e => { e.stopPropagation(); onSelectTable(table); }}
+          onDoubleClick={editMode ? e => { e.stopPropagation(); setEditingLabel(true); } : undefined}
+        >
           {editingLabel
             ? <input
                 autoFocus value={labelVal}
@@ -468,7 +466,6 @@ function TableNode({ table, editMode, isTableSelected, selectedSeatId, onSelectT
               </>
           }
         </div>
-        
       </div>
     </>
   );
@@ -639,7 +636,7 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, tables, setT
 export default function SeatMap({
   tableData, editMode = false, selectedSeat, highlightedTable,
   onSeatClick, onTableClick, windowWidth, virtualWidth, virtualHeight,
-  wing, room, isDark = false, onBack, sidebarWidth = 0, mode = "whole",
+  wing, room, mode = "whole", isDark = false, onBack, sidebarWidth = 0,
 }) {
   const normalize = useCallback(td => {
     if (!td) return [];
@@ -831,15 +828,9 @@ export default function SeatMap({
       <div style={{ width: "100%" }}>
         <ScaledCanvas virtualW={VIRTUAL_W} virtualH={VIRTUAL_H} fitMode="contain" remountKey={0}>
           <div style={{ position: "absolute", top: oy, left: ox, width: VIRTUAL_W, height: VIRTUAL_H }}>
-<<<<<<< HEAD
             {labels.map((l, index) => <StaticLabel key={`${l.id}-${index}`} item={l} />)}
-            {mode === "individual" && standaloneSeats.map(s => (
-              <StandaloneSeat key={`${s.id}-${s.num ?? 0}`} seat={s} editMode={false}
-=======
-            {labels.map(l => <StaticLabel key={l.id} item={l} />)}
-            {mode === "individual" && standaloneSeats.map(s => (
-              <StandaloneSeat key={s.id} seat={s} editMode={false}
->>>>>>> 2926fa9 (ui updates)
+            {mode === "individual" && standaloneSeats.map((s, index) => (
+              <StandaloneSeat key={`${s.id}-${s.num ?? index}`} seat={s} editMode={false}
                 isSelected={selectedSeat ? selectedSeat.id === s.id : false}
                 isDragging={false} onDragStart={() => {}} onSelect={() => {}} onSeatClick={onSeatClick} />
             ))}
@@ -848,9 +839,7 @@ export default function SeatMap({
                 isTableSelected={highlightedTable ? highlightedTable.id === t.id : false}
                 selectedSeatId={selectedSeat ? selectedSeat.id : null}
                 onSelectTable={handleTableSelect} onDragStart={() => {}} onResizeStart={() => {}}
-                onSeatClick={handleSeatClick} isDragging={false}
-                hideSeats={mode === "whole"}
-                hideTable={mode === "individual"} />
+                onSeatClick={handleSeatClick} isDragging={false} />
             ))}
           </div>
         </ScaledCanvas>
