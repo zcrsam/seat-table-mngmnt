@@ -8,7 +8,7 @@ import twentyTwentyImg from "../../../assets/20-20.jpeg";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
-const ROOM = "20/20 Function Room B";
+const ROOM = "20/20 Function Room";
 
 // ─── THEME ─────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
@@ -760,7 +760,7 @@ export default function TwentyTwentyReserveB() {
     if (localLayout) setTableData(localLayout);
     const fetchAndMerge = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
+        const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
         if (!res.ok) return;
         const data = await res.json();
         if (!data?.data) return;
@@ -788,7 +788,7 @@ export default function TwentyTwentyReserveB() {
       const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
       const syncSeats = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
+          const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
           if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
         } catch {}
       };
@@ -818,7 +818,7 @@ export default function TwentyTwentyReserveB() {
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 5, // 20/20 Function Room B venue id
+        venue_id: 3, // 20/20 Function Room venue id
         room: ROOM,
         table_number: String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"

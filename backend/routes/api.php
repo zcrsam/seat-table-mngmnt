@@ -50,6 +50,14 @@ Route::prefix('seatmap')->group(function () {
     Route::get('/{wing}/{room}', [SeatMapController::class, 'getSeatmap']);
 });
 
+// Room seats routes (alias for seatmap to match frontend expectations)
+Route::get('/rooms/{wing}/{room}/seats', [SeatMapController::class, 'getSeatmap'])
+    ->where('wing', '.*')
+    ->where('room', '.*');
+
+// Alternative route using venue ID to avoid forward slash issues
+Route::get('/rooms/{venueId}/seats', [SeatMapController::class, 'getSeatmapById']);
+
 // Admin reservation routes
 Route::prefix('admin/reservations')->group(function () {
     Route::get('/', [AdminReservationController::class, 'index']);

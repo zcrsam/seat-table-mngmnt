@@ -828,7 +828,6 @@ export default function SeatMap({
       <div style={{ width: "100%" }}>
         <ScaledCanvas virtualW={VIRTUAL_W} virtualH={VIRTUAL_H} fitMode="contain" remountKey={0}>
           <div style={{ position: "absolute", top: oy, left: ox, width: VIRTUAL_W, height: VIRTUAL_H }}>
-<<<<<<< HEAD
             {labels.map(l => <StaticLabel key={l.id} item={l} />)}
             {standaloneSeats.map(s => (
             <StandaloneSeat key={s.id} seat={s} editMode={false}
@@ -838,16 +837,6 @@ export default function SeatMap({
           ))}
             {tables.map(t => (
               <TableNode key={t.id} table={t} editMode={false}
-=======
-            {labels.map((l, index) => <StaticLabel key={`${l.id}-${index}`} item={l} />)}
-            {mode === "individual" && standaloneSeats.map((s, index) => (
-              <StandaloneSeat key={`${s.id}-${s.num ?? index}`} seat={s} editMode={false}
-                isSelected={selectedSeat ? selectedSeat.id === s.id : false}
-                isDragging={false} onDragStart={() => {}} onSelect={() => {}} onSeatClick={onSeatClick} />
-            ))}
-            {tables.map((t, index) => (
-              <TableNode key={`${t.id}-${index}`} table={t} editMode={false}
->>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
                 isTableSelected={highlightedTable ? highlightedTable.id === t.id : false}
                 selectedSeatId={selectedSeat ? selectedSeat.id : null}
                 onSelectTable={handleTableSelect} onDragStart={() => {}} onResizeStart={() => {}}

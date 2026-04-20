@@ -5,6 +5,7 @@ import Sidebar from "../../../components/layout/Sidebar";
 import { fetchReservations, approveReservation, rejectReservation, getReservationStats } from "../../../utils/api";
 import { subscribeToReservationUpdates } from "../../../utils/websocket";
 
+
 const RESERVATIONS_KEY = "bellevue_reservations";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const POLLING_INTERVAL_MS = 15000;
@@ -523,11 +524,21 @@ export default function ReservationDashboard() {
   const isTablet=windowWidth<960;
 
   const refreshDashboardData = useCallback(async (silent = true) => {
-    if (!silent) {
-      setLoading(true);
-    }
+  if (!silent) setLoading(true);
+  try {
+    const [reservationsData, statsData] = await Promise.all([
+      fetchReservations(),
+      getReservationStats(),
+    ]);
+    if (reservationsData?.data) setReservations(reservationsData.data);
+    if (statsData) setStats(statsData);
+  } catch (err) {
+    console.error("[Dashboard] Refresh error:", err);
+  } finally {
+    if (!silent) setLoading(false);
+  }
+}, []);
 
-<<<<<<< HEAD
   // WebSocket with enhanced connection management and polling fallback
   useEffect(()=>{
     const wsHost=import.meta.env.VITE_WS_HOST||"localhost",wsPort=import.meta.env.VITE_WS_PORT||"6001";
@@ -662,102 +673,6 @@ export default function ReservationDashboard() {
       }
     };
   },[]);
-=======
-    try {
-      const [reservationsResult, statsResult] = await Promise.all([
-        fetchReservations(1, 100, "ALL", ""),
-        getReservationStats(),
-      ]);
-
-      if (Array.isArray(reservationsResult)) {
-        setReservations(reservationsResult);
-      } else if (reservationsResult?.data) {
-        setReservations(reservationsResult.data);
-      } else {
-        const stored = localStorage.getItem(RESERVATIONS_KEY);
-        if (stored) {
-          setReservations(JSON.parse(stored));
-        }
-      }
-
-      if (statsResult) {
-        setStats(statsResult);
-      }
-    } catch {
-      try {
-        const stored = localStorage.getItem(RESERVATIONS_KEY);
-        if (stored) {
-          setReservations(JSON.parse(stored));
-        }
-      } catch {}
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  // Initial load
-  useEffect(() => {
-    refreshDashboardData(false);
-  }, [refreshDashboardData]);
-
-  // Realtime updates with polling fallback
-  useEffect(() => {
-    let pollingTimer = null;
-
-    const stopPolling = () => {
-      if (pollingTimer) {
-        clearInterval(pollingTimer);
-        pollingTimer = null;
-      }
-    };
-
-    const startPolling = () => {
-      if (pollingTimer) {
-        return;
-      }
-      setSyncMode("polling");
-      refreshDashboardData(true);
-      pollingTimer = setInterval(() => {
-        refreshDashboardData(true);
-      }, POLLING_INTERVAL_MS);
-    };
-
-    const unsubscribe = subscribeToReservationUpdates(
-      () => {
-        setSyncMode("websocket");
-        stopPolling();
-        refreshDashboardData(true);
-      },
-      {
-        onStatusChange: (status) => {
-          if (status === "connected") {
-            setSyncMode("websocket");
-            stopPolling();
-            return;
-          }
-
-          if (status === "disconnected" || status === "error") {
-            startPolling();
-          }
-        },
-      }
-    );
-
-    const fallbackTimeout = setTimeout(() => {
-      startPolling();
-    }, WS_CONNECT_GRACE_MS);
-
-    return () => {
-      clearTimeout(fallbackTimeout);
-      stopPolling();
-      if (typeof unsubscribe === "function") {
-        unsubscribe();
-      }
-    };
-  }, [refreshDashboardData]);
->>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
 
   // Filter
   useEffect(()=>{
@@ -1142,7 +1057,7 @@ export default function ReservationDashboard() {
           </div>
         </div>
 
-        {toast&&<Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)}/>}
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
         {showModal&&selectedReservation&&(
           <DetailModal

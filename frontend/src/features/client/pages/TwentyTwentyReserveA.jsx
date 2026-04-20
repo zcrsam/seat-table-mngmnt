@@ -8,7 +8,7 @@ import twentyTwentyImg from "../../../assets/20-20.jpeg";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
-const ROOM = "20/20 Function Room A";
+const ROOM = "20/20 Function Room";
 
 // ─── THEME ─────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
@@ -760,7 +760,7 @@ export default function TwentyTwentyReserveA() {
     if (localLayout) setTableData(localLayout);
     const fetchAndMerge = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
+        const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
         if (!res.ok) return;
         const data = await res.json();
         if (!data?.data) return;
@@ -788,7 +788,7 @@ export default function TwentyTwentyReserveA() {
       const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
       const syncSeats = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
+          const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
           if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
         } catch {}
       };
@@ -818,7 +818,7 @@ export default function TwentyTwentyReserveA() {
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 4, // 20/20 Function Room A venue id
+        venue_id: 3, // 20/20 Function Room venue id
         room: ROOM,
         table_number: String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"
@@ -1001,10 +1001,10 @@ export default function TwentyTwentyReserveA() {
                   <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</span>
                 </div>
                 <h1 style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: isTablet ? 34 : 42, fontWeight: 600, color: C.textPrimary, lineHeight: 1.1, margin: "0 0 10px", letterSpacing: "0.01em" }}>
-                  20/20 Function Room A
+                  20/20 Function Room
                 </h1>
                 <p style={{ fontFamily: FONT, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
-                  Book your preferred table in the 20/20 Function Room A. Select your reservation type and click on the map to get started.
+                  Book your preferred table in 20/20 Function Room. Select your reservation type and click on the map to get started.
                 </p>
               </div>
 
