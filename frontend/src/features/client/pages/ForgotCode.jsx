@@ -65,9 +65,9 @@ function getTokens(isDark) {
         green: "#2E7A5A",
         greenFaint: "rgba(46,122,90,0.07)",
         greenBorder: "rgba(46,122,90,0.18)",
-        badgePending:  { bg: "rgba(140,107,42,0.09)",  color: "#8C6B2A",  dot: "#8C6B2A" },
-        badgeApproved: { bg: "rgba(46,122,90,0.09)",   color: "#2E7A5A",  dot: "#2E7A5A" },
-        badgeRejected: { bg: "rgba(160,56,56,0.09)",   color: "#A03838",  dot: "#A03838" },
+        badgePending:  { bg: "rgba(140,107,42,0.09)",  color: "#8C6B2A",  dot: "#8C6B2A"  },
+        badgeApproved: { bg: "rgba(46,122,90,0.09)",   color: "#2E7A5A",  dot: "#2E7A5A"  },
+        badgeRejected: { bg: "rgba(160,56,56,0.09)",   color: "#A03838",  dot: "#A03838"  },
         navBg: "rgba(247,244,238,0.96)",
         navBorder: "rgba(140,107,42,0.14)",
         divider: "rgba(0,0,0,0.05)",
@@ -288,7 +288,6 @@ export default function ForgotCode() {
         return { ok: false };
       }
     };
-
     try {
       const s1 = await tryFetch(`${API_BASE}/reservations?per_page=500&page=1`);
       if (s1.data) {
@@ -824,7 +823,6 @@ export default function ForgotCode() {
                   </div>
                 </div>
               )}
-
             </div>
           </div>
         </div>

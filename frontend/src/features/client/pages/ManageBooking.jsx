@@ -10,9 +10,7 @@ import {
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-const WING = "Main Wing";
-const ROOM = "Alabang Function Room";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
@@ -29,10 +27,12 @@ function getTokens(isDark) {
         pageBg: "#0A0908",
         surfaceBase: "#111009",
         surfaceRaised: "#161410",
-        surfaceInput: "rgba(255,255,255,0.04)",
+        surfaceOverlay: "rgba(255,254,251,0.95)",
+        surfaceGlass: "rgba(255,254,251,0.88)",
         borderFaint: "rgba(255,255,255,0.04)",
         borderDefault: "rgba(255,255,255,0.08)",
-        borderStrong: "rgba(255,255,255,0.12)",
+        borderStrong: "rgba(255,255,255,0.13)",
+        borderHover: "rgba(196,163,90,0.22)",
         borderAccent: "rgba(196,163,90,0.30)",
         textPrimary: "#EDE8DF",
         textSecondary: "#8A8278",
@@ -44,9 +44,9 @@ function getTokens(isDark) {
         green: "#4A9E7E",
         greenFaint: "rgba(74,158,126,0.08)",
         greenBorder: "rgba(74,158,126,0.20)",
-        badgePending:  { bg: "rgba(196,163,90,0.10)",  color: "#C4A35A",  dot: "#C4A35A"   },
-        badgeApproved: { bg: "rgba(74,158,126,0.10)",  color: "#4A9E7E",  dot: "#4A9E7E"   },
-        badgeRejected: { bg: "rgba(184,92,92,0.10)",   color: "#B85C5C",  dot: "#B85C5C"   },
+        badgePending:  { bg: "rgba(196,163,90,0.10)",  text: "#C4A35A",  dot: "#C4A35A"  },
+        badgeApproved: { bg: "rgba(74,158,126,0.10)",  text: "#4A9E7E",  dot: "#4A9E7E"  },
+        badgeRejected: { bg: "rgba(184,92,92,0.10)",   text: "#B85C5C",  dot: "#B85C5C"  },
         navBg: "rgba(10,9,8,0.95)",
         navBorder: "rgba(196,163,90,0.12)",
         divider: "rgba(255,255,255,0.05)",
@@ -69,10 +69,12 @@ function getTokens(isDark) {
         pageBg: "#F7F4EE",
         surfaceBase: "#FFFFFF",
         surfaceRaised: "#FAF8F4",
-        surfaceInput: "#FFFFFF",
+        surfaceOverlay: "rgba(10,9,8,0.92)",
+        surfaceGlass: "rgba(10,9,8,0.80)",
         borderFaint: "rgba(0,0,0,0.04)",
         borderDefault: "rgba(0,0,0,0.08)",
         borderStrong: "rgba(0,0,0,0.13)",
+        borderHover: "rgba(140,107,42,0.20)",
         borderAccent: "rgba(140,107,42,0.28)",
         textPrimary: "#18140E",
         textSecondary: "#7A7060",
@@ -84,9 +86,9 @@ function getTokens(isDark) {
         green: "#2E7A5A",
         greenFaint: "rgba(46,122,90,0.07)",
         greenBorder: "rgba(46,122,90,0.18)",
-        badgePending:  { bg: "rgba(140,107,42,0.09)",  color: "#8C6B2A",  dot: "#8C6B2A"  },
-        badgeApproved: { bg: "rgba(46,122,90,0.09)",   color: "#2E7A5A",  dot: "#2E7A5A"  },
-        badgeRejected: { bg: "rgba(160,56,56,0.09)",   color: "#A03838",  dot: "#A03838"  },
+        badgePending:  { bg: "rgba(140,107,42,0.09)",  text: "#8C6B2A",  dot: "#8C6B2A"  },
+        badgeApproved: { bg: "rgba(46,122,90,0.09)",   text: "#2E7A5A",  dot: "#2E7A5A"  },
+        badgeRejected: { bg: "rgba(160,56,56,0.09)",   text: "#A03838",  dot: "#A03838"  },
         navBg: "rgba(247,244,238,0.96)",
         navBorder: "rgba(140,107,42,0.14)",
         divider: "rgba(0,0,0,0.05)",
@@ -111,7 +113,7 @@ const F = {
 
 // ─── API Helper ───────────────────────────────────────────────────────────────
 const apiCall = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${API_BASE}${endpoint}`;
   const response = await fetch(url, {
     ...options,
     headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
@@ -188,27 +190,33 @@ function SectionLabel({ children, C, style = {} }) {
   );
 }
 
-function CloseBtn({ onClick, disabled = false, C }) {
+function CloseBtn({ onClick, disabled = false, C, light = false }) {
   return (
     <button onClick={onClick} disabled={disabled} title="Close"
       style={{
-        width: 32, height: 32, borderRadius: "50%",
-        background: "transparent",
-        border: "1px solid rgba(255,255,255,0.10)",
+        width: 34, height: 34, borderRadius: "50%",
+        background: light ? "rgba(255,255,255,0.06)" : C.surfaceRaised,
+        border: `1px solid ${light ? "rgba(255,255,255,0.12)" : C.borderDefault}`,
         cursor: disabled ? "not-allowed" : "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0, transition: "border-color 0.18s, background 0.18s",
-        padding: 0, zIndex: 10,
+        flexShrink: 0, padding: 0, transition: "all 0.20s",
       }}
       onMouseEnter={(e) => {
-        if (!disabled) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; }
+        if (!disabled) {
+          e.currentTarget.style.background = light ? "rgba(255,255,255,0.12)" : C.goldFaint;
+          e.currentTarget.style.borderColor = light ? "rgba(196,163,90,0.35)" : C.borderAccent;
+        }
       }}
       onMouseLeave={(e) => {
-        if (!disabled) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.background = "transparent"; }
+        if (!disabled) {
+          e.currentTarget.style.background = light ? "rgba(255,255,255,0.06)" : C.surfaceRaised;
+          e.currentTarget.style.borderColor = light ? "rgba(255,255,255,0.12)" : C.borderDefault;
+        }
       }}
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-        stroke="rgba(237,232,223,0.50)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+        stroke={light ? "rgba(237,232,223,0.60)" : C.textSecondary}
+        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -273,27 +281,28 @@ function ModalHeader({ eyebrow, title, onClose, disabled, C, meta }) {
         }}>
           {title}
         </div>
-        {meta && <div style={{ marginTop: 8 }}>{meta}</div>}
+        {meta && <div style={{ marginTop: 10 }}>{meta}</div>}
       </div>
     </div>
   );
 }
 
 // ─── Themed Field Input ───────────────────────────────────────────────────────
-function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, max, rows }) {
+function Field({ label, value, onChange, type = "text", placeholder = "", C, required = false }) {
   const [focused, setFocused] = useState(false);
-  const isTextarea = type === "textarea";
+
   const inputStyle = {
-    width: "100%", boxSizing: "border-box", padding: "11px 14px",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "11px 14px",
     border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
     borderRadius: 8, background: C.surfaceInput,
     fontFamily: F.body, fontSize: 13, color: C.textPrimary,
     outline: "none", transition: "border-color 0.18s, box-shadow 0.18s",
     boxShadow: focused ? C.inputFocusShadow : "none",
-    colorScheme: isDark ? "dark" : "light",
-    resize: isTextarea ? "vertical" : undefined,
-    minHeight: isTextarea ? 72 : undefined,
+    colorScheme: C.surfaceInput === "#FFFFFF" ? "light" : "dark",
   };
+
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{
@@ -304,16 +313,10 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
       }}>
         {label}{required && <span style={{ color: C.red, marginLeft: 3 }}>*</span>}
       </label>
-      {isTextarea
-        ? <textarea value={value} onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder} rows={rows || 3}
-            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-            style={inputStyle} />
-        : <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder} min={min} max={max}
-            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-            style={inputStyle} />
-      }
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        style={inputStyle} />
     </div>
   );
 }
@@ -1034,9 +1037,8 @@ function LegendDot({ color }) {
 }
 
 // ─── Inline Edit Field ────────────────────────────────────────────────────────
-function EditField({ label, value, onChange, type = "text", placeholder = "", required = false, min, C, isDark }) {
+function EditField({ label, value, onChange, type = "text", placeholder = "", C, required = false }) {
   const [focused, setFocused] = useState(false);
-  const isTextarea = type === "textarea";
 
   const inputStyle = {
     width: "100%",

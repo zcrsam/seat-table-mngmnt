@@ -233,236 +233,6 @@ function useGsapScroll(options = {}) {
   return ref;
 }
 
-// ── SVG ICONS ──────────────────────────────────────────────────────────────────
-const ChevLeft = ({ size = 16, color = "currentColor", strokeWidth = 2.5 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display:"block", flexShrink:0 }}>
-    <polyline points="15 18 9 12 15 6" />
-  </svg>
-);
-
-const ChevRight = ({ size = 16, color = "currentColor", strokeWidth = 2.5 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display:"block", flexShrink:0 }}>
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
-);
-
-// ── LOADER ─────────────────────────────────────────────────────────────────────
-function Loader({ onDone }) {
-  const [phase, setPhase]       = useState(0);
-  const [progress, setProgress] = useState(0);
-  const intervalRef = useRef(null);
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 120);
-    const t2 = setTimeout(() => setPhase(2), 800);
-    const t3 = setTimeout(() => setPhase(3), 1300);
-    const t4 = setTimeout(() => {
-      let val = 0;
-      intervalRef.current = setInterval(() => {
-        val += Math.random() * 12 + 4;
-        if (val >= 100) { val = 100; clearInterval(intervalRef.current); }
-        setProgress(Math.min(Math.round(val), 100));
-      }, 80);
-    }, 1400);
-    const t5 = setTimeout(() => setPhase(4), 2800);
-    const t6 = setTimeout(() => onDone(), 3500);
-    return () => {
-      [t1,t2,t3,t4,t5,t6].forEach(clearTimeout);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [onDone]);
-
-  return (
-    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#0E0D09", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:0, animation:phase===4?"loader-exit 0.65s cubic-bezier(0.76,0,0.24,1) forwards":"none", overflow:"hidden" }}>
-      <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-60%)", width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 70%)", pointerEvents:"none" }} />
-
-      <div style={{ marginBottom:40, opacity:phase>=1?1:0, animation:phase>=1?"logo-zoom-in 0.65s cubic-bezier(0.22,1,0.36,1) forwards, logo-breathe 3s 0.7s ease-in-out infinite":"none", transformOrigin:"center" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"20px 20px", gap:14 }}>
-          {[0,1,2,3].map(i => (
-            <span key={i} style={{ width:20, height:20, borderRadius:"50%", background:i%2===0?"linear-gradient(135deg,#E2C96A,#C9A84C)":"linear-gradient(135deg,#C9A84C,#9A7830)", display:"block", boxShadow:"0 2px 12px rgba(201,168,76,0.30)", animation:phase>=1?`dot-bounce 1.6s ${0.12*i}s ease-in-out infinite`:"none" }} />
-          ))}
-        </div>
-      </div>
-
-      <div style={{ fontFamily:BODY, fontSize:10, fontWeight:700, letterSpacing:"0.42em", textTransform:"uppercase", color:"rgba(201,168,76,0.55)", marginBottom:16, opacity:phase>=1?1:0, animationName:phase>=1?"fade-up":"none", animationDuration:phase>=1?"0.5s":"0s", animationDelay:phase>=1?"0.3s":"0s", animationTimingFunction:phase>=1?"ease":"linear", animationFillMode:"both" }}>
-        The Bellevue Manila
-      </div>
-
-      <div style={{ textAlign:"center", marginBottom:56, opacity:phase>=2?1:0, animationName:phase>=2?"fade-up":"none", animationDuration:phase>=2?"0.55s":"0s", animationTimingFunction:phase>=2?"ease":"linear", animationFillMode:"both" }}>
-        <div style={{ fontFamily:DISPLAY, fontSize:"clamp(20px,3vw,30px)", fontWeight:600, color:"#F0E8D0", lineHeight:1.3, letterSpacing:"-0.01em" }}>Reservations &amp; Event Management</div>
-        <div style={{ fontFamily:BODY, fontSize:12, color:"rgba(240,232,208,0.35)", marginTop:10, letterSpacing:"0.08em" }}>Seats · Tables · Event Spaces</div>
-      </div>
-
-      <div style={{ width:240, opacity:phase>=3?1:0, transition:"opacity 0.4s ease" }}>
-        <div style={{ width:"100%", height:1, background:"rgba(201,168,76,0.14)", borderRadius:2, overflow:"hidden", position:"relative" }}>
-          <div style={{ height:"100%", width:`${progress}%`, background:"linear-gradient(90deg,#9A7830,#E2C96A,#C9A84C)", borderRadius:2, transition:"width 0.12s ease", position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute", top:0, left:0, height:"100%", width:40, background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)", animation:phase>=3?"shimmer-line 1.2s 0.2s ease-in-out infinite":"none" }} />
-          </div>
-        </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12 }}>
-          <span style={{ fontFamily:BODY, fontSize:10, color:"rgba(240,232,208,0.28)", letterSpacing:"0.12em", textTransform:"uppercase" }}>Loading</span>
-          <span style={{ fontFamily:MONO, fontSize:11, color:"rgba(201,168,76,0.70)", letterSpacing:"0.04em" }}>{progress}%</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── HERO ───────────────────────────────────────────────────────────────────────
-function HeroSection({ loaded, onNavigateToVenues, onManageBooking }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  const isMobile = useIsMobile();
-  const [imgHov, setImgHov] = useState(null);
-  const [wingHov, setWingHov] = useState({});
-  const leftRef = useRef(null);
-
-  useEffect(() => {
-    if (!loaded) return;
-    const run = async () => {
-      await loadGsap();
-      if (!leftRef.current) return;
-      const els = leftRef.current.querySelectorAll(".ha");
-      window.gsap.fromTo(els, { y:52, opacity:0 }, { y:0, opacity:1, duration:0.95, ease:"power3.out", stagger:0.10, delay:0.18 });
-    };
-    run().catch(console.error);
-  }, [loaded]);
-
-  const WINGS = [
-    { img:mainWingImg,  label:"Main Wing",  sub:"Corporate & Social Events",  num:"01", action: () => onNavigateToVenues("main-wing")  },
-    { img:towerWingImg, label:"Tower Wing", sub:"Grand Galas & Celebrations", num:"02", action: () => onNavigateToVenues("tower-wing") },
-  ];
-
-  if (isMobile) {
-    return (
-      <section style={{ background:C.heroBg, paddingTop:NAV_H, minHeight:"100vh", display:"flex", flexDirection:"column" }}>
-        <div ref={leftRef} style={{ flex:1, padding:"32px 24px 48px", background:C.heroBg }}>
-          <div className="ha" style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22, opacity:0 }}>
-            <div style={{ width:32, height:1, background:C.gold }} />
-            <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.44em", textTransform:"uppercase", color:C.gold }}>Est. Alabang, Manila</span>
-          </div>
-          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(44px,12vw,68px)", fontWeight:600, color:C.textPrimary, lineHeight:0.90, letterSpacing:"-0.03em", margin:"0 0 3px", opacity:0 }}>Reserve</h1>
-          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(44px,12vw,68px)", fontWeight:600, fontStyle:"italic", color:C.gold, lineHeight:0.90, letterSpacing:"-0.03em", margin:"0 0 3px", opacity:0 }}>Your Perfect</h1>
-          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(44px,12vw,68px)", fontWeight:600, color:C.textPrimary, lineHeight:0.96, letterSpacing:"-0.018em", margin:"0 0 22px", opacity:0 }}>Setting.</h1>
-          <p className="ha" style={{ fontFamily:BODY, fontSize:14, color:C.heroSub, lineHeight:1.85, marginBottom:28, opacity:0 }}>Two wings of premium event spaces and dining — from intimate boardrooms to grand ballrooms.</p>
-          <div className="ha" style={{ display:"flex", gap:14, alignItems:"center", flexWrap:"wrap", marginBottom:28, opacity:0 }}>
-            <button onClick={() => onNavigateToVenues()}
-              style={{ padding:"14px 32px", background:isDark?C.textPrimary:C.dark, color:isDark?C.dark:"#F0E8D0", border:"none", fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.20em", textTransform:"uppercase", cursor:"pointer", transition:"all 0.3s" }}
-              onMouseEnter={e=>{e.currentTarget.style.background=C.gold;e.currentTarget.style.color="#18140E";}}
-              onMouseLeave={e=>{e.currentTarget.style.background=isDark?C.textPrimary:C.dark;e.currentTarget.style.color=isDark?C.dark:"#F0E8D0";}}>
-              Browse Venues
-            </button>
-            <span onClick={onManageBooking} style={{ display:"flex", alignItems:"center", gap:8, fontFamily:BODY, fontSize:12, fontWeight:500, color:C.textMuted, cursor:"pointer" }}>
-              Manage Booking <ChevRight size={14} color={C.gold} strokeWidth={2.5} />
-            </span>
-          </div>
-          <div className="ha" style={{ display:"flex", border:`1px solid ${C.border}`, opacity:0 }}>
-            {[{n:"2",l:"Wings"},{n:"9",l:"Venues"}].map((s,i) => (
-              <div key={s.l} style={{ flex:1, padding:"8px 0", borderLeft:i===0?"none":`1px solid ${C.border}`, textAlign:"center" }}>
-                <div style={{ fontFamily:MONO, fontSize:14, fontWeight:300, color:C.textPrimary }}>{s.n}</div>
-                <div style={{ fontFamily:BODY, fontSize:6, fontWeight:600, color:C.textMuted, letterSpacing:"0.18em", textTransform:"uppercase", marginTop:1 }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ width:"100%", height:340, overflow:"hidden", position:"relative", flexShrink:0, display:"flex", flexDirection:"column", marginTop:0 }}>
-          {WINGS.map((w) => {
-            const hov = wingHov[w.num] || false;
-            return (
-              <div key={w.num} onClick={w.action} onMouseEnter={() => setWingHov(prev => ({...prev, [w.num]: true}))} onMouseLeave={() => setWingHov(prev => ({...prev, [w.num]: false}))}
-                style={{ flex:1, position:"relative", overflow:"hidden", cursor:"pointer" }}>
-                <img src={w.img} alt="" style={{ position:"absolute", inset:"-10%", width:"120%", height:"120%", objectFit:"cover", filter:"blur(16px) brightness(0.22)", transform:hov?"scale(1.1)":"scale(1.05)", transition:"transform 0.3s ease", pointerEvents:"none" }} />
-                <img src={w.img} alt={w.label} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", filter:hov?"brightness(0.48)":"brightness(0.42)", transition:"filter 0.3s ease" }} />
-                <div style={{ position:"absolute", inset:0, background:hov?"linear-gradient(to top,rgba(201,168,76,0.15)0%,transparent 55%)":"linear-gradient(to top,rgba(14,13,9,0.82)0%,transparent 55%)", transition:"background 0.3s ease" }} />
-                <div style={{ position:"absolute", bottom:10, left:14, right:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                  <div>
-                    <div style={{ fontFamily:DISPLAY, fontSize:13, fontWeight:600, color:hov?"#C9A84C":"#F0E8D0", transition:"color 0.3s ease" }}>{w.label}</div>
-                    <div style={{ fontFamily:BODY, fontSize:10, color:hov?"rgba(201,168,76,0.60)":"rgba(240,232,208,0.50)", transition:"color 0.3s ease" }}>{w.sub}</div>
-                  </div>
-                  <ChevRight size={16} color={hov?"#C9A84C":"#F0E8D0"} strokeWidth={2.5} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section style={{ position:"relative", minHeight:"100vh", display:"flex", paddingTop:NAV_H, background:C.heroBg, overflow:"hidden" }}>
-      <div ref={leftRef} style={{ flex:"0 0 52%", display:"flex", flexDirection:"column", justifyContent:"center", padding:"80px 64px 80px 56px", position:"relative", zIndex:2 }}>
-        <div className="ha" style={{ display:"flex", alignItems:"center", gap:16, marginBottom:42, opacity:0 }}>
-          <div style={{ width:40, height:1, background:C.gold }} />
-          <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.44em", textTransform:"uppercase", color:C.gold }}>Est. Alabang, Manila</span>
-        </div>
-        <div style={{ overflow:"hidden", marginBottom:2 }}>
-          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(54px,6.5vw,102px)", fontWeight:600, color:C.textPrimary, lineHeight:0.88, letterSpacing:"-0.03em", margin:0, opacity:0 }}>Reserve</h1>
-        </div>
-        <div style={{ overflow:"hidden", marginBottom:2 }}>
-          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(54px,6.5vw,102px)", fontWeight:600, fontStyle:"italic", color:C.gold, lineHeight:0.88, letterSpacing:"-0.03em", margin:0, opacity:0 }}>Your Perfect</h1>
-        </div>
-        <div style={{ overflow:"hidden", marginBottom:44 }}>
-          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(54px,6.5vw,102px)", fontWeight:600, color:C.textPrimary, lineHeight:0.96, letterSpacing:"-0.018em", margin:0, opacity:0 }}>Setting.</h1>
-        </div>
-        <p className="ha" style={{ fontFamily:BODY, fontSize:15, color:C.heroSub, lineHeight:1.9, maxWidth:380, marginBottom:48, fontWeight:400, opacity:0 }}>Two wings of premium event spaces and dining — from intimate boardrooms to grand ballrooms.</p>
-        <div className="ha" style={{ display:"flex", gap:16, alignItems:"center", opacity:0 }}>
-          <button onClick={() => onNavigateToVenues()}
-            style={{ padding:"15px 44px", background:isDark?C.textPrimary:C.dark, color:isDark?C.dark:"#F0E8D0", border:"none", fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.20em", textTransform:"uppercase", cursor:"pointer", transition:"all 0.32s cubic-bezier(0.4,0,0.2,1)" }}
-            onMouseEnter={e=>{e.currentTarget.style.background=C.gold;e.currentTarget.style.color="#18140E";e.currentTarget.style.transform="translateY(-2px)";}}
-            onMouseLeave={e=>{e.currentTarget.style.background=isDark?C.textPrimary:C.dark;e.currentTarget.style.color=isDark?C.dark:"#F0E8D0";e.currentTarget.style.transform="translateY(0)";}}>
-            Browse Venues
-          </button>
-          <span onClick={onManageBooking}
-            style={{ display:"flex", alignItems:"center", gap:10, fontFamily:BODY, fontSize:12, fontWeight:500, color:C.textMuted, cursor:"pointer", transition:"color 0.2s" }}
-            onMouseEnter={e=>e.currentTarget.style.color=C.gold}
-            onMouseLeave={e=>e.currentTarget.style.color=C.textMuted}>
-            Manage Booking
-            <span style={{ display:"flex", alignItems:"center", justifyContent:"center", width:22, height:22, borderRadius:"50%", border:`1.5px solid ${C.gold}`, flexShrink:0 }}>
-              <ChevRight size={12} color={C.gold} strokeWidth={2.5} />
-            </span>
-          </span>
-        </div>
-        <div style={{ position:"absolute", bottom:40, left:56, display:"flex", alignItems:"center", gap:12, opacity:loaded?0.30:0, transition:"opacity 1.2s 1.8s" }}>
-          <div style={{ width:1, height:48, background:C.border }} />
-          <span style={{ fontFamily:BODY, fontSize:9, letterSpacing:"0.32em", textTransform:"uppercase", color:C.textMuted, writingMode:"vertical-lr" }}>Scroll</span>
-        </div>
-        <div className="ha" style={{ position:"absolute", bottom:40, right:0, display:"flex", background:isDark?C.darkMid:"#DED4BC", border:`1px solid ${C.border}`, borderRight:"none", opacity:0 }}>
-          {[{n:"2",l:"Wings"},{n:"9",l:"Venues"}].map((s,i) => (
-            <div key={s.l} style={{ padding:"18px 32px", borderLeft:i===0?"none":`1px solid ${C.border}`, textAlign:"center" }}>
-              <div style={{ fontFamily:MONO, fontSize:22, fontWeight:300, color:C.textPrimary, lineHeight:1 }}>{s.n}</div>
-              <div style={{ fontFamily:BODY, fontSize:9, fontWeight:600, color:C.textMuted, letterSpacing:"0.18em", textTransform:"uppercase", marginTop:4 }}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ flex:"0 0 48%", display:"flex", flexDirection:"column", overflow:"hidden", opacity:loaded?1:0, transform:loaded?"none":"translateX(30px)", transition:"opacity 0.9s 0.3s, transform 0.9s 0.3s" }}>
-        {WINGS.map((wing) => {
-          const hov = imgHov === wing.num;
-          return (
-            <div key={wing.num} onMouseEnter={() => setImgHov(wing.num)} onMouseLeave={() => setImgHov(null)} onClick={wing.action}
-              style={{ flex:"1 1 50%", position:"relative", overflow:"hidden", cursor:"pointer" }}>
-              <img src={wing.img} alt="" style={{ position:"absolute", inset:"-10%", width:"120%", height:"120%", objectFit:"cover", filter:"blur(20px) brightness(0.22)", transform:"scale(1.05)", pointerEvents:"none" }} />
-              <img src={wing.img} alt={wing.label} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", transform:hov?"scale(1.06)":"scale(1.00)", transition:"transform 0.75s cubic-bezier(0.22,1,0.36,1)", filter:hov?"brightness(0.48)":"brightness(0.38)" }} />
-              <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(14,13,9,0.90)0%,rgba(14,13,9,0.10)60%,transparent 100%)" }} />
-              <div style={{ position:"absolute", top:20, right:24, fontFamily:MONO, fontSize:52, fontWeight:300, color:"rgba(240,232,208,0.06)", lineHeight:1, userSelect:"none", pointerEvents:"none" }}>{wing.num}</div>
-              <div style={{ position:"absolute", top:20, left:20, width:40, height:40, background:C.gold, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", opacity:hov?1:0, transform:hov?"scale(1)":"scale(0.65)", transition:"all 0.32s cubic-bezier(0.22,1,0.36,1)" }}>
-                <ChevRight size={18} color="#18140E" strokeWidth={2.8} />
-              </div>
-              <div style={{ position:"absolute", bottom:24, left:28, background:hov?"rgba(14,13,9,0.95)":"rgba(14,13,9,0.72)", backdropFilter:"blur(8px)", padding:"12px 18px", borderLeft:`3px solid ${C.gold}`, transition:"background 0.3s" }}>
-                <div style={{ fontFamily:BODY, fontSize:9, fontWeight:700, color:C.gold, letterSpacing:"0.24em", textTransform:"uppercase", marginBottom:5 }}>Wing {wing.num}</div>
-                <div style={{ fontFamily:DISPLAY, fontSize:16, fontWeight:600, color:"#F0E8D0", lineHeight:1.2 }}>{wing.label}</div>
-                <div style={{ fontFamily:BODY, fontSize:11, color:"rgba(240,232,208,0.48)", marginTop:3 }}>{wing.sub}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 // ── NAV DOT ────────────────────────────────────────────────────────────────────
 function NavDot({ disabled, icon, C, onClick }) {
   const [hov, setHov] = useState(false);
@@ -476,6 +246,43 @@ function NavDot({ disabled, icon, C, onClick }) {
         : <ChevRight size={16} color={hov&&!disabled?"#18140E":C.gold} strokeWidth={2.5} />
       }
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────
+// THEME TOGGLE — "DARK ◐ LIGHT" pill matching screenshot
+// ─────────────────────────────────────────────
+function ThemeToggle() {
+  const { isDark, toggle } = useTheme();
+  const C = getTokens(isDark);
+  return (
+    <button type="button" onClick={toggle}
+      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "6px 10px 6px 6px",
+        background: "transparent",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"}`,
+        borderRadius: 20,
+        cursor: "pointer", flexShrink: 0,
+        transition: "all 0.22s",
+      }}>
+      {/* Track */}
+      <span style={{
+        position: "relative", width: 34, height: 18, borderRadius: 10,
+        background: isDark ? "rgba(201,168,76,0.25)" : "rgba(0,0,0,0.10)",
+        display: "inline-flex", alignItems: "center", flexShrink: 0,
+        transition: "background 0.28s",
+      }}>
+        <span style={{
+          position: "absolute",
+          left: isDark ? 2 : "calc(100% - 16px)",
+          width: 14, height: 14, borderRadius: "50%",
+          background: isDark ? C.gold : "#8C6E2A",
+          transition: "left 0.24s cubic-bezier(.4,0,.2,1)",
+        }} />
+      </span>
+          </button>
   );
 }
 
