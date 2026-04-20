@@ -6,7 +6,12 @@ import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
+<<<<<<< HEAD
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+=======
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
 const WING = "Main Wing";
 const ROOM = "Business Center";
 
@@ -760,6 +765,7 @@ export default function BusinessCenterReserve() {
     if (localLayout) setTableData(localLayout);
     const fetchAndMerge = async () => {
       try {
+<<<<<<< HEAD
         const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
         if (!res.ok) return;
         const data = await res.json();
@@ -767,6 +773,33 @@ export default function BusinessCenterReserve() {
         setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
         setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
       } catch (err) { console.warn("[BusinessCenterReserve] API fetch failed (offline?):", err); }
+=======
+        const res = await apiCall(`/seat-status/${encodeURIComponent(ROOM)}`);
+        if (!res.success || !res.data?.length) return;
+
+        setTableData(prev => {
+          if (!prev) return prev;
+          const applyToTable = (tbl) => ({
+            ...tbl,
+            seats: (tbl.seats || []).map(seat => {
+              const match = res.data.find(r => {
+                if (r.table !== String(tbl.id)) return false;
+                const nums = String(r.seat || "")
+                  .replace(/Seat\s*/gi, "")
+                  .split(",")
+                  .map(s => parseInt(s.trim()))
+                  .filter(Boolean);
+                return nums.includes(seat.num);
+              });
+              return match ? { ...seat, status: match.status } : seat;
+            }),
+          });
+          return Array.isArray(prev) ? prev.map(applyToTable) : applyToTable(prev);
+        });
+      } catch (err) {
+        console.warn("[BusinessCenter] Seat sync failed:", err.message);
+      }
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
     };
     fetchAndMerge();
   }, []);
@@ -839,6 +872,7 @@ export default function BusinessCenterReserve() {
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
 
       if (activeTable) {
+<<<<<<< HEAD
         setTableData(prev => {
           if (!prev) return prev;
           const tables = (prev.tables || []).map(t => {
@@ -851,6 +885,21 @@ export default function BusinessCenterReserve() {
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
         });
+=======
+        const markPending = (tbl) => {
+          if (mode === "individual") {
+            return { ...tbl, seats: (tbl.seats || []).map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+          } else {
+            let marked = 0;
+            return { ...tbl, seats: (tbl.seats || []).map(s => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
+          }
+        };
+        const updated = Array.isArray(tableData)
+          ? tableData.map(t => t.id === activeTable.id ? markPending(t) : t)
+          : markPending(tableData);
+        setTableData(updated);
+        saveSeatMapData(WING, ROOM, updated);
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
       }
       setModal("success"); resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }

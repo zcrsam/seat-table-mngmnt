@@ -170,7 +170,7 @@ class Echo {
       pusher: {
         connection: {
           bind: (event, handler) => {
-            this.ws.channel('internal').listen(event, handler);
+            return this.ws.channel('internal').listen(event, handler);
           }
         }
       }
@@ -179,9 +179,46 @@ class Echo {
 }
 
 // Subscribe to reservation updates
-export function subscribeToReservationUpdates(callback) {
+export function subscribeToReservationUpdates(callback, options = {}) {
+  const { onStatusChange } = options;
   const echo = new Echo();
-  return echo.channel('reservations').listen('updated', callback);
+  const channel = echo.channel('reservations');
+
+  const eventHandlers = [
+    channel.listen('ReservationCreated', (payload) => callback({ event: 'ReservationCreated', payload })),
+    channel.listen('ReservationUpdated', (payload) => callback({ event: 'ReservationUpdated', payload })),
+    channel.listen('ReservationDeleted', (payload) => callback({ event: 'ReservationDeleted', payload })),
+    // Backward compatibility with legacy event naming.
+    channel.listen('updated', (payload) => callback({ event: 'updated', payload })),
+  ];
+
+  const connection = echo.connector?.pusher?.connection;
+  const statusHandlers = [];
+
+  if (connection && typeof onStatusChange === 'function') {
+    statusHandlers.push(connection.bind('connected', () => onStatusChange('connected')));
+    statusHandlers.push(connection.bind('disconnected', () => onStatusChange('disconnected')));
+    statusHandlers.push(connection.bind('error', (error) => onStatusChange('error', error)));
+  }
+
+  return () => {
+    eventHandlers.forEach((unsub) => {
+      if (typeof unsub === 'function') {
+        unsub();
+      }
+    });
+
+    statusHandlers.forEach((unsub) => {
+      if (typeof unsub === 'function') {
+        unsub();
+      }
+    });
+
+    echo.leaveChannel('reservations');
+    if (echo.ws && typeof echo.ws.disconnect === 'function') {
+      echo.ws.disconnect();
+    }
+  };
 }
 
 export default Echo;

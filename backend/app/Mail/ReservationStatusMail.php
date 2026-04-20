@@ -17,8 +17,8 @@ class ReservationStatusMail extends Mailable
     /**
      * Create a new message instance.
      *
-     * @param  mixed   $reservation
-     * @param  string      $status  — 'pending' | 'approved' | 'rejected'
+     * @param  mixed       $reservation
+     * @param  string      $status  One of: pending|approved|reserved|rejected|cancelled
      * @param  string|null $rejectionReason
      */
     public function __construct($reservation, string $status, ?string $rejectionReason = null)
@@ -39,6 +39,7 @@ class ReservationStatusMail extends Mailable
             'pending'  => 'Reservation Received – Pending Approval',
             'approved', 'reserved' => 'Reservation Reserved – Confirmed',
             'rejected' => 'Reservation Update – Not Accommodated',
+            'cancelled' => 'Reservation Cancelled – Confirmation',
             default    => 'Reservation Status Update',
         };
 
@@ -46,6 +47,7 @@ class ReservationStatusMail extends Mailable
             'pending'  => 'Pending',
             'approved', 'reserved' => 'Reserved',
             'rejected' => 'Rejected',
+            'cancelled' => 'Cancelled',
             default    => ucfirst($this->status),
         };
 

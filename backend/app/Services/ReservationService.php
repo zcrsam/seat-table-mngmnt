@@ -192,6 +192,7 @@ class ReservationService
             'pending'  => $reservations->where('status', 'pending')->count(),
             'approved' => $reservations->where('status', 'reserved')->count(),
             'rejected' => $reservations->where('status', 'rejected')->count(),
+            'cancelled' => $reservations->where('status', 'cancelled')->count(),
         ];
     }
 
@@ -215,6 +216,7 @@ class ReservationService
             'pending'  => $reservations->where('status', 'pending')->count(),
             'approved' => $reservations->where('status', 'approved')->count(),
             'rejected' => $reservations->where('status', 'rejected')->count(),
+            'cancelled' => $reservations->where('status', 'cancelled')->count(),
         ];
     }
 }

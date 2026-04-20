@@ -10,7 +10,13 @@ import {
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
+<<<<<<< HEAD
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+=======
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const WING = "Main Wing";
+const ROOM = "Alabang Function Room";
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
@@ -1230,6 +1236,95 @@ export default function ManageBooking() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
   const toggleTheme = () => setIsDark((p) => {
+
+function CancelSuccessModal({ reference, onClose, C }) {
+  return (
+    <ModalShell onClose={onClose} C={C} maxWidth={430}>
+      <div style={{ padding: "26px 26px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            flexShrink: 0,
+            background: C.statusNote.approved,
+            border: `1px solid ${C.statusNoteBorder.approved}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+
+          <div>
+            <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.green, fontWeight: 700, textTransform: "uppercase", marginBottom: 3 }}>
+              Booking Cancelled
+            </div>
+            <div style={{ fontFamily: F.display, fontSize: 22, fontWeight: 400, color: C.textPrimary, lineHeight: 1.2 }}>
+              Cancellation Successful
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          padding: "12px 14px",
+          borderRadius: 10,
+          background: C.greenFaint,
+          border: `1px solid ${C.greenBorder}`,
+          color: C.textPrimary,
+          fontFamily: F.body,
+          fontSize: 13,
+          lineHeight: 1.55,
+          marginBottom: 14,
+        }}>
+          Your booking has been cancelled successfully.
+        </div>
+
+        {!!reference && (
+          <div style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: C.goldFaintest,
+            border: `1px solid ${C.borderAccent}`,
+            marginBottom: 18,
+          }}>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", color: C.textTertiary, marginBottom: 6 }}>
+              Reference Code
+            </div>
+            <div style={{ fontFamily: F.mono, fontSize: 18, fontWeight: 800, color: C.textPrimary, letterSpacing: "0.08em" }}>
+              {reference}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          style={{
+            width: "100%",
+            padding: "12px",
+            border: "none",
+            borderRadius: 8,
+            background: C.gold,
+            color: C.textOnAccent,
+            fontFamily: F.label,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            transition: "all 0.18s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; }}
+        >
+          Done
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
     const n = !p;
     try { localStorage.setItem("bellevue-theme", n ? "dark" : "light"); } catch {}
     return n;
@@ -1243,6 +1338,8 @@ export default function ManageBooking() {
   const [saving, setSaving]                   = useState(false);
   const [cancelling, setCancelling]           = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showCancelSuccessModal, setShowCancelSuccessModal] = useState(false);
+  const [cancelledReference, setCancelledReference] = useState("");
   const [error, setError]                     = useState("");
   const [booking, setBooking]                 = useState(null);
   const [editing, setEditing]                 = useState(false);
@@ -1385,7 +1482,10 @@ export default function ManageBooking() {
         throw new Error(data?.message || `HTTP ${response.status}`);
       }
 
+      const cancelledCode = booking?.reference_code || booking?.id || referenceCode;
       setShowCancelModal(false);
+      setCancelledReference(cancelledCode || "");
+      setShowCancelSuccessModal(true);
       setBooking(null);
       setReferenceCode("");
     } catch (err) {
@@ -1492,31 +1592,27 @@ export default function ManageBooking() {
             <div style={{ position: "absolute", top: 80, left: "clamp(16px,4vw,40px)" }}>
               <button onClick={() => navigate("/")} title="Go back"
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  background: "transparent",
-                  border: `1.5px solid ${C.borderDefault}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  transition: "all 0.22s",
-                  flexShrink: 0,
-                  padding: 0,
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "transparent", border: `1px solid ${C.borderDefault}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", transition: "all 0.18s", padding: 0,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
                 <svg
-                  width="16" height="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke={C.gold}
+                  stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="lucide lucide-chevron-left-icon lucide-chevron-left"
+                  style={{ color: C.textSecondary }}
                 >
-                  <polyline points="15 18 9 12 15 6" />
+                  <path d="m15 18-6-6 6-6" />
                 </svg>
               </button>
             </div>
@@ -1853,6 +1949,17 @@ export default function ManageBooking() {
           onConfirm={handleCancelConfirm}
           onDismiss={() => setShowCancelModal(false)}
           cancelling={cancelling}
+          C={C}
+        />
+      )}
+
+      {showCancelSuccessModal && (
+        <CancelSuccessModal
+          reference={cancelledReference}
+          onClose={() => {
+            setShowCancelSuccessModal(false);
+            setCancelledReference("");
+          }}
           C={C}
         />
       )}

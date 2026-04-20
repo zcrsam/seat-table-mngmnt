@@ -109,7 +109,7 @@ class ClientReservationController extends Controller
             'eventTime'        => 'sometimes|required|string|max:50',
             'time'             => 'sometimes|required|string|max:50',
             'special_requests' => 'sometimes|nullable|string',
-            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved',
+            'status'           => 'sometimes|required|in:pending,approved,rejected,reserved,cancelled',
         ]);
 
         $updateData = [];
@@ -252,7 +252,7 @@ class ClientReservationController extends Controller
 
             $reservation->update([
                 'status' => 'rejected',
-                'rejection_reason' => 'Cancelled by guest',
+                'rejection_reason' => null,
                 'cancellation_reason' => $cancelReason,
                 'cancelled_at' => now(),
             ]);
@@ -260,7 +260,7 @@ class ClientReservationController extends Controller
             // Send cancellation email to client
             try {
                 Mail::to($reservation->email)
-                    ->send(new ReservationStatusMail($reservation, 'rejected', $cancelReason ?: 'Cancelled by guest'));
+                    ->send(new ReservationStatusMail($reservation, 'cancelled', $cancelReason ?: 'Cancelled by guest'));
             } catch (\Exception $e) {
                 \Log::error('Failed to send cancellation email: ' . $e->getMessage());
             }
@@ -311,14 +311,14 @@ class ClientReservationController extends Controller
      * Called after approve or reject from the admin dashboard.
      *
      * POST /api/reservations/{reservation}/notify
-     * Body: { status: "approved"|"rejected", rejection_reason?: string }
+        * Body: { status: "approved"|"rejected"|"cancelled", rejection_reason?: string }
      */
     public function notify(Request $request, Reservation $reservation)
     {
         $status          = $request->input('status');
         $rejectionReason = $request->input('rejection_reason', '');
 
-        if (!in_array($status, ['approved', 'rejected', 'pending'])) {
+        if (!in_array($status, ['approved', 'rejected', 'pending', 'cancelled'])) {
             return response()->json(['message' => 'Invalid status'], 422);
         }
 

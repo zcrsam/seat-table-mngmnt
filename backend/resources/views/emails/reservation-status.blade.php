@@ -164,10 +164,29 @@
             border-radius: 8px;
             border: 1px solid #E9ECEF;
         }
+<<<<<<< HEAD
         
         .detail-label {
             font-size: 12px;
             color: #6C757D;
+=======
+        .badge-rejected {
+            background: rgba(224,82,82,0.13);
+            border: 2px solid #E05252;
+            color: #7A1E1E;
+        }
+        .badge-cancelled {
+            background: rgba(142, 107, 42, 0.12);
+            border: 2px solid #8C6B2A;
+            color: #5A431A;
+        }
+        .reference-label {
+            margin: 0 0 4px;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #888888;
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 4px;
@@ -272,8 +291,102 @@
                 North Bridgeway, Filinvest City, Alabang, Muntinlupa<br>
                 For inquiries, please contact our reservations desk.
             </div>
+<<<<<<< HEAD
             <div class="footer-copyright">
                 © {{ date('Y') }} The Bellevue Manila. All rights reserved.
+=======
+
+            <div class="content">
+                <div class="badge badge-{{ $displayStatus ?? $status }}">{{ $statusText }}</div>
+
+                <div class="divider"></div>
+
+                <p class="message">
+                    @if($status === 'pending')
+                        Your reservation has been received and is currently pending review. Our team will process your request shortly and you will receive another email once a decision has been made.
+                    @elseif($status === 'approved' || $status === 'reserved')
+                        Great news! Your reservation has been approved and confirmed. Please arrive at least 15 minutes before your scheduled time.
+                    @elseif($status === 'rejected')
+                        We regret to inform you that we are unable to accommodate your reservation at this time.
+                        @if(!empty($rejectionReason))
+                            <br><br>
+                            Reason: <strong>{{ $rejectionReason }}</strong>
+                        @endif
+                    @elseif($status === 'cancelled')
+                        This email confirms that your reservation has been cancelled based on your request.
+                        @if(!empty($rejectionReason))
+                            <br><br>
+                            Cancellation note: <strong>{{ $rejectionReason }}</strong>
+                        @endif
+                    @endif
+                </p>
+
+                <table class="details" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td class="label">Name</td>
+                        <td class="value">{{ $reservation->name ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Email</td>
+                        <td class="value">{{ $reservation->email ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Venue</td>
+                        <td class="value">{{ $reservation->room ?? ($reservation->venue->name ?? ($reservation->venue ?? 'N/A')) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Event Date</td>
+                        <td class="value">
+                            @if(!empty($reservation->event_date))
+                                {{ \Carbon\Carbon::parse($reservation->event_date)->format('F j, Y') }}
+                            @else
+                                N/A
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="label">Event Time</td>
+                        <td class="value">
+                            @if(!empty($reservation->event_time))
+                                {{ \Carbon\Carbon::parse($reservation->event_time)->format('g:i A') }}
+                            @else
+                                N/A
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="label">Guests</td>
+                        <td class="value">{{ $reservation->guests_count ?? $reservation->guests ?? 'N/A' }} pax</td>
+                    </tr>
+                    @if(!empty($reservation->table_number) || !empty($reservation->table))
+                    <tr>
+                        <td class="label">Table</td>
+                        <td class="value">{{ $reservation->table_number ?? $reservation->table ?? 'N/A' }}</td>
+                    </tr>
+                    @endif
+                    @if(!empty($reservation->seat_number) || !empty($reservation->seat))
+                    <tr>
+                        <td class="label">Seat</td>
+                        <td class="value">{{ $reservation->seat_number ?? $reservation->seat ?? 'N/A' }}</td>
+                    </tr>
+                    @endif
+                    @if(!empty($reservation->special_requests))
+                    <tr>
+                        <td class="label">Special Requests</td>
+                        <td class="value">{{ $reservation->special_requests }}</td>
+                    </tr>
+                    @endif
+                </table>
+            </div>
+
+            <div class="footer">
+                <p>
+                    <strong>The Bellevue Manila</strong><br>
+                    North Bridgeway, Filinvest City, Alabang, Muntinlupa<br>
+                    For inquiries, please contact our reservations desk.<br><br>
+                    © {{ date('Y') }} The Bellevue Manila. All rights reserved.
+                </p>
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
             </div>
         </div>
     </div>

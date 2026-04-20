@@ -448,6 +448,7 @@ function Marquee() {
         <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.32em", textTransform:"uppercase", color:C.gold, flexShrink:0, whiteSpace:"nowrap", padding:"0 16px" }}>Official Partners &amp; Sponsors</span>
         <div style={{ flex:1, height:1, background:"rgba(201,168,76,0.15)" }} />
       </div>
+<<<<<<< HEAD
       <div style={{ position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", left:0, top:0, bottom:0, width:80, background:`linear-gradient(to right,${bg},transparent)`, zIndex:2, pointerEvents:"none" }} />
         <div style={{ position:"absolute", right:0, top:0, bottom:0, width:80, background:`linear-gradient(to left,${bg},transparent)`, zIndex:2, pointerEvents:"none" }} />
@@ -462,11 +463,20 @@ function Marquee() {
           ))}
         </div>
       </div>
+=======
+      <button type="button" onClick={() => onChange(clamp(value+1))} disabled={value>=max} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: value>=max ? C.textMuted : C.gold, fontSize: 17, cursor: value>=max ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: value>=max ? 0.5 : 1 }}>+</button>
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
     </div>
   );
 }
 
+<<<<<<< HEAD
 // ── NEWSLETTER ─────────────────────────────────────────────────────────────────
+=======
+// ─────────────────────────────────────────────
+// NEWSLETTER
+// ─────────────────────────────────────────────
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
 function NewsletterSection() {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
@@ -647,6 +657,11 @@ export default function HomePage() {
           <NewsletterSection />
           <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
         </div>
+<<<<<<< HEAD
+=======
+        <NewsletterSection />
+        <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
+>>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
       </div>
     </ThemeContext.Provider>
   );

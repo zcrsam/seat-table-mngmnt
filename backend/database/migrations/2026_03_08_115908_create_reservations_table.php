@@ -27,7 +27,7 @@ return new class extends Migration
             $table->text('rejection_reason')->nullable();
             $table->text('cancellation_reason')->nullable();
             $table->timestamp('cancelled_at')->nullable();
-            $table->enum('status', ['pending', 'approved', 'rejected', 'reserved'])->default('pending');
+            $table->enum('status', ['pending', 'approved', 'rejected', 'reserved', 'cancelled'])->default('pending');
             $table->enum('type', ['whole', 'individual'])->default('whole');
             $table->timestamp('submitted_at');
             $table->timestamps();
