@@ -852,13 +852,30 @@ export default function AlabangReserve() {
   }, [modal, holdSecondsLeft]);
 
   useEffect(() => {
-    const onStorage = e => {
-      if (e.key !== layoutKey(WING, ROOM)) return;
-      try { const parsed = e.newValue ? JSON.parse(e.newValue) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  // Cross-tab sync
+  const onStorage = e => {
+    if (e.key !== layoutKey(WING, ROOM)) return;
+    try {
+      const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+      if (parsed?.v === 2) setTableData(parsed);
+    } catch {}
+  };
+  // Same-tab sync (fired by the custom event in SeatMap saveLayout)
+  const onSeatMapSaved = e => {
+    if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
+    try {
+      const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
+      if (parsed?.v === 2) setTableData(parsed);
+    } catch {}
+  };
+
+  window.addEventListener("storage", onStorage);
+  window.addEventListener("seatmap:saved", onSeatMapSaved);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("seatmap:saved", onSeatMapSaved);
+  };
+}, []);
 
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);

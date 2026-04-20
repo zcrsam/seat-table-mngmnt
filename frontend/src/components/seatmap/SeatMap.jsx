@@ -95,9 +95,9 @@ function saveLayout(wing, room, { tables, labels, standaloneSeats }) {
   const payload = JSON.stringify({ v: 2, tables, labels, standaloneSeats });
   try {
     localStorage.setItem(layoutKey(wing, room), payload);
-    window.dispatchEvent(new StorageEvent("storage", {
-      key: layoutKey(wing, room),
-      newValue: payload,
+    // Use a custom event so same-page listeners also fire
+    window.dispatchEvent(new CustomEvent("seatmap:saved", {
+      detail: { wing, room, payload }
     }));
   } catch (err) {
     console.warn("SeatMap: could not save to localStorage", err);
@@ -497,7 +497,7 @@ function ToolBtn({ active, onClick, label, accentColor }) {
 // Wing/Room Sidebar
 function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
   const DEFAULT_WINGS = [
-    { id: "main-wing",  label: "Main Wing",  rooms: ["Alabang Function Room", "Laguna Ballroom", "20/20 Function Room", "Business Center"] },
+    { id: "main-wing", label: "Main Wing", rooms: ["Alabang Function Room", "Laguna Ballroom 1", "Laguna Ballroom 2", "20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C","Business Center"] },
     { id: "tower-wing", label: "Tower Wing", rooms: ["Tower Ballroom", "Grand Ballroom"] },
     { id: "dining",     label: "Dining",     rooms: ["Qsina", "Hanakazu", "Phoenix Court"] },
   ];
@@ -832,11 +832,12 @@ export default function SeatMap({
         <ScaledCanvas virtualW={VIRTUAL_W} virtualH={VIRTUAL_H} fitMode="contain" remountKey={0}>
           <div style={{ position: "absolute", top: oy, left: ox, width: VIRTUAL_W, height: VIRTUAL_H }}>
             {labels.map(l => <StaticLabel key={l.id} item={l} />)}
-            {mode === "individual" && standaloneSeats.map(s => (
-              <StandaloneSeat key={s.id} seat={s} editMode={false}
-                isSelected={selectedSeat ? selectedSeat.id === s.id : false}
-                isDragging={false} onDragStart={() => {}} onSelect={() => {}} onSeatClick={onSeatClick} />
-            ))}
+            {standaloneSeats.map(s => (
+            <StandaloneSeat key={s.id} seat={s} editMode={false}
+              isSelected={selectedSeat ? selectedSeat.id === s.id : false}
+              isDragging={false} onDragStart={() => {}} onSelect={() => {}}
+              onSeatClick={mode === "individual" ? onSeatClick : undefined} />
+          ))}
             {tables.map(t => (
               <TableNode key={t.id} table={t} editMode={false}
                 isTableSelected={highlightedTable ? highlightedTable.id === t.id : false}

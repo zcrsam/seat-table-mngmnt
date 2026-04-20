@@ -540,16 +540,139 @@ export default function ReservationDashboard() {
     load();
   },[]);
 
-  // WS
+  // WebSocket with enhanced connection management and polling fallback
   useEffect(()=>{
-    const unsub=subscribeToReservationUpdates((updated)=>{
-      setReservations((prev)=>{
-        const idx=prev.findIndex((r)=>r.id===updated.id);
-        if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
-        return[...prev,updated];
-      });
-    });
-    return unsub;
+    const wsHost=import.meta.env.VITE_WS_HOST||"localhost",wsPort=import.meta.env.VITE_WS_PORT||"6001";
+    const protocol=window.location.protocol==="https:"?"wss:":"ws:";
+    const wsUrl=`${protocol}//${wsHost}:${wsPort}`;
+    
+    let ws=null;
+    let retryCount=0;
+    const maxRetries=3;
+    const retryDelay=5000;
+    let pollingInterval=null;
+    let isPolling=false;
+    
+    const setConnectionStatus=(status)=>{
+      console.log(`[ReservationDashboard] Connection status: ${status}`);
+      // Update UI if needed (could add status indicator later)
+    };
+    
+    const startPolling=()=>{
+      if(isPolling) return;
+      isPolling=true;
+      setConnectionStatus('polling');
+      console.log('[ReservationDashboard] Starting polling fallback');
+      
+      pollingInterval=setInterval(async()=>{
+        try{
+          const resp=await fetch(`${API_BASE_URL}/admin/reservations/recent`);
+          if(resp.ok){
+            const data=await resp.json();
+            if(Array.isArray(data)){
+              data.forEach(updated=>{
+                setReservations(prev=>{
+                  const idx=prev.findIndex(r=>r.id===updated.id);
+                  if(idx>=0){
+                    const arr=[...prev];
+                    arr[idx]=updated;
+                    return arr;
+                  }
+                  return[...prev,updated];
+                });
+              });
+            }
+          }
+        }catch(err){
+          console.error('[ReservationDashboard] Polling error:', err);
+        }
+      },10000); // Poll every 10 seconds
+    };
+    
+    const stopPolling=()=>{
+      if(pollingInterval){
+        clearInterval(pollingInterval);
+        pollingInterval=null;
+        isPolling=false;
+        setConnectionStatus('disconnected');
+      }
+    };
+    
+    const connect=()=>{
+      try{
+        ws=new WebSocket(wsUrl);
+        
+        ws.onopen=()=>{
+          setConnectionStatus('connected');
+          retryCount=0;
+          stopPolling(); // Stop polling when WebSocket connects
+          console.log('[ReservationDashboard] WebSocket connected');
+        };
+        
+        ws.onclose=()=>{
+          setConnectionStatus('disconnected');
+          if(retryCount<maxRetries){
+            retryCount++;
+            const delay=retryDelay*Math.pow(2,retryCount-1);
+            setTimeout(connect,delay);
+          }else{
+            console.log('[ReservationDashboard] Max retries reached, switching to polling');
+            startPolling();
+          }
+        };
+        
+        ws.onerror=(error)=>{
+          setConnectionStatus('error');
+          if(retryCount===0){
+            console.error('[ReservationDashboard] Connection error:', error);
+          }
+          if(retryCount<maxRetries){
+            retryCount++;
+            const delay=retryDelay*Math.pow(2,retryCount-1);
+            setTimeout(connect,delay);
+          }else{
+            console.log('[ReservationDashboard] Connection error max retries, switching to polling');
+            startPolling();
+          }
+        };
+        
+        ws.onmessage=event=>{
+          try{
+            const data=JSON.parse(event.data);
+            console.log('[ReservationDashboard WS] Received event:', data.event);
+            
+            const updated=data?.payload?.reservation||data?.reservation;
+            if(updated){
+              setReservations(prev=>{
+                const idx=prev.findIndex(r=>r.id===updated.id);
+                if(idx>=0){
+                  const arr=[...prev];
+                  arr[idx]=updated;
+                  return arr;
+                }
+                return[...prev,updated];
+              });
+            }
+          }catch(err){
+            console.error('[ReservationDashboard WS] Parse error:', err);
+          }
+        };
+        
+      }catch(err){
+        console.error('[ReservationDashboard] Failed to create WebSocket:', err);
+        startPolling();
+      }
+    };
+    
+    connect();
+    
+    return ()=>{
+      stopPolling();
+      if(ws){
+        ws.close();
+        ws=null;
+      }
+    };
   },[]);
 
   // Filter

@@ -1,16 +1,16 @@
-// src/pages/BusinessCenterReserve.jsx
+// src/features/client/pages/LagunaReserv1e.jsx
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SharedNavbar from "../../../components/SharedNavbar.jsx";
 import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import Echo from "../../../utils/websocket.js";
-import bellevueLogo from "../../../assets/bellevue-logo.png";
+import lagunaImg from "../../../assets/laguna.jpeg";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
-const ROOM = "Business Center";
+const ROOM = "Laguna Ballroom 1";
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────
+// ─── Design Tokens ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
@@ -73,7 +73,7 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-// ─── Persistence helpers ────────────────────────────────────────────────────
+// ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
 function mergeApiStatusIntoLayout(localLayout, apiData) {
@@ -89,7 +89,8 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
     ...t,
     seats: (t.seats || []).map(s => {
       const apiStatus = apiStatusMap[s.id];
-      return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
+      if (apiStatus !== undefined) return { ...s, status: apiStatus };
+      return s;
     }),
   }));
   return { ...localLayout, tables: mergedTables };
@@ -101,12 +102,12 @@ function loadLayoutForClient(wing, room) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.v === 2) return parsed;
-    if (Array.isArray(parsed)) return { tables: parsed, labels: null, standaloneSeats: [] };
+    if (Array.isArray(parsed)) return { tables: parsed, labels: null, venueZones: [], standaloneSeats: [] };
     return null;
   } catch { return null; }
 }
 
-// ─── API ────────────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────────────────────
 const apiCall = async (endpoint, options = {}) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
@@ -121,7 +122,7 @@ const apiCall = async (endpoint, options = {}) => {
   return data;
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
@@ -136,7 +137,7 @@ const getSeatRatio = (table) => {
   return `${available}/${table.seats.length}`;
 };
 
-// ─── Shared Primitives ───────────────────────────────────────────────────────
+// ─── Shared Primitives ────────────────────────────────────────────────────────
 function Spinner({ size = 13, C }) {
   return (
     <span style={{
@@ -227,7 +228,7 @@ function GhostBtn({ children, onClick, disabled = false, C, style = {} }) {
   );
 }
 
-// ─── Step Indicator ──────────────────────────────────────────────────────────
+// ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step, C }) {
   const steps = ["Guest Count", "Details", "Confirm"];
   return (
@@ -255,7 +256,7 @@ function StepIndicator({ step, C }) {
   );
 }
 
-// ─── Field Input ─────────────────────────────────────────────────────────────
+// ─── Field Input ──────────────────────────────────────────────────────────────
 function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, rows }) {
   const [focused, setFocused] = useState(false);
   const isTextarea = type === "textarea";
@@ -277,13 +278,17 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
 function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, isDark }) {
   const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
   const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
-  const capacity      = bookableSeats.length || tableData?.capacity || 8;
+  const capacity = bookableSeats.length || tableData?.capacity || 8;
 
   const [guests,   setGuests]   = useState(() => Math.min(2, capacity));
   const [inputVal, setInputVal] = useState(String(Math.min(2, capacity)));
 
   useEffect(() => {
-    setGuests(g => { const c = Math.min(g, capacity); setInputVal(String(c)); return c; });
+    setGuests(g => {
+      const clamped = Math.min(g, capacity);
+      setInputVal(String(clamped));
+      return clamped;
+    });
   }, [capacity]);
 
   const handleInputChange = e => {
@@ -292,23 +297,28 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
     const n = parseInt(raw, 10);
     if (isNaN(n)) return;
     const clamped = Math.min(Math.max(1, n), capacity);
-    setInputVal(String(clamped)); setGuests(clamped);
+    setInputVal(String(clamped));
+    setGuests(clamped);
   };
+
   const handleInputBlur = () => {
     let n = parseInt(inputVal, 10);
     if (isNaN(n) || n < 1) n = 1;
     if (n > capacity) n = capacity;
-    setGuests(n); setInputVal(String(n));
+    setGuests(n);
+    setInputVal(String(n));
   };
+
   const dec = () => { const n = Math.max(1, guests - 1); setGuests(n); setInputVal(String(n)); };
   const inc = () => { if (guests >= capacity) return; const n = guests + 1; setGuests(n); setInputVal(String(n)); };
+
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
 
   const infoRows = [
-    ["Room",         ROOM,                                                              null],
-    ["Table",        `Table ${tableData?.id ?? "—"}`,                                  null],
-    ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                   null],
+    ["Room",         ROOM,                                                            null],
+    ["Table",        `Table ${tableData?.id ?? "—"}`,                                null],
+    ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                 null],
     ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
                      seatData?.status === "available" ? C.green : C.gold],
   ];
@@ -332,32 +342,40 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
           <>
             <div style={{ textAlign: "center", marginBottom: 22 }}>
               <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 14 }}>Number of Guests</div>
+
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 10 }}>
                 <button onClick={dec} disabled={atMin}
                   style={{ width: 44, height: 52, border: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`, borderRight: "none", borderRadius: "8px 0 0 8px", background: C.surfaceInput, color: atMin ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMin ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMin ? 0.4 : 1 }}
                   onMouseEnter={e => { if (!atMin) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >−</button>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" value={inputVal} onChange={handleInputChange} onBlur={handleInputBlur}
+
+                <input
+                  type="text" inputMode="numeric" pattern="[0-9]*"
+                  value={inputVal} onChange={handleInputChange} onBlur={handleInputBlur}
                   style={{ width: 80, height: 52, border: `1.5px solid ${C.borderAccent}`, borderLeft: "none", borderRight: "none", background: C.surfaceInput, textAlign: "center", fontFamily: F.display, fontSize: 28, fontWeight: 700, color: C.textPrimary, outline: "none", colorScheme: isDark ? "dark" : "light", MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box" }}
                 />
+
                 <button onClick={inc} disabled={atMax}
                   style={{ width: 44, height: 52, border: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`, borderLeft: "none", borderRadius: "0 8px 8px 0", background: C.surfaceInput, color: atMax ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMax ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMax ? 0.4 : 1 }}
                   onMouseEnter={e => { if (!atMax) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >+</button>
               </div>
+
               <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>
                 Table <strong style={{ color: C.textPrimary }}>{tableData?.id}</strong> has{" "}
                 <strong style={{ color: C.textPrimary }}>{capacity} available seat{capacity !== 1 ? "s" : ""}</strong>
                 {pendingSeats.length > 0 && <span style={{ color: C.gold }}>{" "}({pendingSeats.length} pending approval)</span>}
               </div>
+
               {atMax && (
                 <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, fontFamily: F.body, fontSize: 11.5, color: C.gold, lineHeight: 1.5 }}>
-                  Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available.
+                  Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available on this table.
                 </div>
               )}
             </div>
+
             <div style={{ padding: "12px 16px", borderRadius: 8, marginBottom: 20, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
               <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Seats to be Reserved</div>
               <div style={{ fontFamily: F.body, fontSize: 13, color: C.gold, fontWeight: 600 }}>{getWholeSeatLabel(guests, tableData)}</div>
@@ -372,21 +390,23 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
   );
 }
 
-// ─── MODAL 2: Details ────────────────────────────────────────────────────────
+// ─── MODAL 2: Details ─────────────────────────────────────────────────────────
 function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
     firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
     email: prefill?.email || "", phone: prefill?.phone || "+63",
-    eventDate: prefill?.eventDate || today, eventTime: prefill?.eventTime || "09:00",
+    eventDate: prefill?.eventDate || today, eventTime: prefill?.eventTime || "19:00",
     specialRequests: prefill?.specialRequests || "",
   });
 
   useEffect(() => {
-    if (prefill) setForm({ firstName: prefill.firstName || "", lastName: prefill.lastName || "", email: prefill.email || "", phone: prefill.phone || "+63", eventDate: prefill.eventDate || today, eventTime: prefill.eventTime || "09:00", specialRequests: prefill.specialRequests || "" });
+    if (prefill) setForm({ firstName: prefill.firstName || "", lastName: prefill.lastName || "", email: prefill.email || "", phone: prefill.phone || "+63", eventDate: prefill.eventDate || today, eventTime: prefill.eventTime || "19:00", specialRequests: prefill.specialRequests || "" });
   }, [prefill]);
 
-  useEffect(() => { if (secondsLeft <= 0) onTimerExpired(); }, [secondsLeft]);
+  useEffect(() => {
+    if (secondsLeft <= 0) onTimerExpired();
+  }, [secondsLeft]);
 
   const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const secs = String(secondsLeft % 60).padStart(2, "0");
@@ -399,7 +419,13 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
     } else setForm(f => ({ ...f, [k]: v }));
   };
 
-  const allFilled = form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim() && form.phone !== "+63" && form.eventDate.trim();
+  const allFilled =
+    form.firstName.trim() !== "" &&
+    form.lastName.trim()  !== "" &&
+    form.email.trim()     !== "" &&
+    form.phone.trim()     !== "" && form.phone !== "+63" &&
+    form.eventDate.trim() !== "";
+
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
 
   return (
@@ -417,7 +443,7 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
 
         {/* Booking summary strip */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
-          {[["Room", "Biz Center"], ["Table", `Table ${tableData?.id ?? "—"}`], ["Seat", seatDisplay], ["Guests", String(guests)]].map(([label, value], i, arr) => (
+          {[["Room", ROOM.split(" ").slice(0, 2).join(" ")], ["Table", `Table ${tableData?.id ?? "—"}`], ["Seat", seatDisplay], ["Guests", String(guests)]].map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
               <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
               <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
@@ -438,37 +464,39 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
           <Field label="Event Date" value={form.eventDate} onChange={set("eventDate")} type="date" min={today} C={C} isDark={isDark} required />
           <Field label="Event Time" value={form.eventTime} onChange={set("eventTime")} type="time" C={C} isDark={isDark} />
         </div>
-        <Field label="Special Requests" value={form.specialRequests} onChange={set("specialRequests")} type="textarea" C={C} isDark={isDark} placeholder="Equipment needs, catering, accessibility…" />
+        <Field label="Special Requests" value={form.specialRequests} onChange={set("specialRequests")} type="textarea" C={C} isDark={isDark} placeholder="Dietary needs, accessibility, preferences…" />
 
         <button
           onClick={() => allFilled && onReview(form)} disabled={!allFilled}
           style={{ width: "100%", padding: "13px", marginTop: 6, background: allFilled ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"), border: allFilled ? "none" : `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: allFilled ? C.textOnAccent : C.textTertiary, cursor: allFilled ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           onMouseEnter={e => { if (allFilled) e.currentTarget.style.background = C.goldLight; }}
           onMouseLeave={e => { if (allFilled) e.currentTarget.style.background = C.gold; }}
-        >Review Booking</button>
+        >
+          Review Booking
+        </button>
       </div>
     </ModalShell>
   );
 }
 
-// ─── MODAL 3: Review ─────────────────────────────────────────────────────────
+// ─── MODAL 3: Review ──────────────────────────────────────────────────────────
 function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "—"}`;
 
   const reservationRows = [
-    ["Venue",      "The Bellevue Manila"],
-    ["Room",       `${WING} — ${ROOM}`],
-    ["Table",      `Table ${tableData?.id ?? "—"}`],
-    ["Seat(s)",    seatDisplay],
-    ["Guests",     `${guests} guest${guests !== 1 ? "s" : ""}`],
+    ["Venue", "The Bellevue Manila"],
+    ["Room",  `${WING} — ${ROOM}`],
+    ["Table", `Table ${tableData?.id ?? "—"}`],
+    ["Seat(s)", seatDisplay],
+    ["Guests", `${guests} guest${guests !== 1 ? "s" : ""}`],
     ["Event Date", form.eventDate || "—"],
     ["Event Time", form.eventTime ? fmt(form.eventTime) : "—"],
   ];
   const guestRows = [
     ["Full Name", `${form.firstName} ${form.lastName}`],
-    ["Email",     form.email],
-    ["Phone",     form.phone],
+    ["Email", form.email],
+    ["Phone", form.phone],
     ["Special Requests", form.specialRequests || "None"],
   ];
 
@@ -515,7 +543,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
   );
 }
 
-// ─── QR Code ─────────────────────────────────────────────────────────────────
+// ─── QR Code ──────────────────────────────────────────────────────────────────
 function QRCodeWithRef({ value, size = 120, imgRef }) {
   const [imgSrc, setImgSrc] = useState(null);
   useEffect(() => {
@@ -550,14 +578,15 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
   return <img src={imgSrc} alt="QR Code" style={{ width: size, height: size, display: "block", borderRadius: 8, imageRendering: "pixelated" }} />;
 }
 
+// ── QR value points to laguna-reserv1e route ──────────────────────────────────
 const buildQrValue = ({ refCode }) => {
   const base = (import.meta.env.VITE_APP_URL || window.location.origin).replace(/\/$/, "");
   const url = base.startsWith("http") ? base : `https://${base}`;
-  return `${url}/business-center/${String(refCode || "").trim()}`;
+  return `${url}/laguna-reserv1e/${String(refCode || "").trim()}`;
 };
 
-// ─── MODAL: Success ──────────────────────────────────────────────────────────
-function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails, C }) {
+// ─── MODAL: Success ───────────────────────────────────────────────────────────
+function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails, C, isDark }) {
   const qrImgRef = useRef(null);
   const [saving, setSaving]   = useState(false);
   const [qrReady, setQrReady] = useState(false);
@@ -587,7 +616,7 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
       ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(28, divY); ctx.lineTo(W - 28, divY); ctx.stroke();
       ctx.fillStyle = "#8A8278"; ctx.font = "600 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("REFERENCE CODE", W / 2, divY + 20);
       ctx.fillStyle = "#EDE8DF"; ctx.font = "bold 26px sans-serif"; ctx.fillText(refCode || "—", W / 2, divY + 52);
-      const link = document.createElement("a"); link.download = `bellevue-business-center-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
+      const link = document.createElement("a"); link.download = `bellevue-laguna1-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
     } catch { alert("Could not save photo. Please try again."); }
     finally { setSaving(false); }
   }, [refCode, saving, qrReady]);
@@ -646,20 +675,30 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
   );
 }
 
-// ─── Mobile Bottom Sheet ─────────────────────────────────────────────────────
+// ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
 function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
   const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "—");
   const displaySeat  = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
+
   const canGo = mode === "whole" ? true : canProceed;
 
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: C.bottomSheet, borderTop: `1px solid ${C.borderAccent}`, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(0,0,0,0.28)", padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0", animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)" }}>
+    <div style={{
+      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
+      background: C.bottomSheet,
+      borderTop: `1px solid ${C.borderAccent}`,
+      borderRadius: "20px 20px 0 0",
+      boxShadow: "0 -8px 32px rgba(0,0,0,0.28)",
+      padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0",
+      animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)",
+    }}>
       <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}80 30%, ${C.gold}80 70%, transparent)`, borderRadius: "20px 20px 0 0" }} />
       <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, paddingBottom: 4 }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderStrong }} />
       </div>
+
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
@@ -668,20 +707,26 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
             {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
           </div>
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
+              {mode === "whole" ? "Seats" : "Seat"}
+            </div>
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
           </div>
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
-            <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Biz Center</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Laguna 1</div>
           </div>
         </div>
-        <button onClick={canGo ? onReserve : undefined} disabled={!canGo}
+
+        <button
+          onClick={canGo ? onReserve : undefined} disabled={!canGo}
           style={{ width: "100%", padding: "15px", background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"), border: "none", borderRadius: 12, fontFamily: F.label, fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: canGo ? C.textOnAccent : C.textTertiary, cursor: canGo ? "pointer" : "not-allowed", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           {mode === "whole"
             ? (rebookFrom ? "Move to This Table" : activeTable ? "Reserve This Table" : "Tap a Table to Reserve")
-            : selectedSeat ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat") : "Select a Seat First"
+            : selectedSeat
+              ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat")
+              : "Select a Seat First"
           }
         </button>
       </div>
@@ -689,10 +734,12 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
   );
 }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
-export default function BusinessCenterReserve() {
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+export default function LagunaReserv1e() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Laguna 1 always uses ROOM — no sub-room selection needed
+  const selectedRoom = ROOM;
 
   const [isDark, setIsDark] = useState(() => {
     try { const s = localStorage.getItem("bellevue-theme"); if (s !== null) return s === "dark"; } catch {}
@@ -731,7 +778,6 @@ export default function BusinessCenterReserve() {
     holdStartedRef.current = false; setHoldSecondsLeft(24 * 60);
   }, []);
 
-  // Run countdown only when details/review modal is open
   useEffect(() => {
     if (modal !== "details" && modal !== "review") return;
     if (holdSecondsLeft <= 0) { setModal(null); resetHoldTimer(); return; }
@@ -739,35 +785,58 @@ export default function BusinessCenterReserve() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
-  // ── Seatmap sync: cross-tab storage + same-tab custom event ──────────────
-  useEffect(() => {
-    const onStorage = e => {
-      if (e.key !== layoutKey(WING, ROOM)) return;
-      try { const parsed = e.newValue ? JSON.parse(e.newValue) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
-    };
-    const onSeatMapSaved = e => {
-      if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
-      try { const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("seatmap:saved", onSeatMapSaved);
-    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap:saved", onSeatMapSaved); };
-  }, []);
+useEffect(() => {
+  // Cross-tab sync
+  const onStorage = e => {
+    if (e.key !== layoutKey(WING, ROOM)) return;
+    try {
+      const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+      if (parsed?.v === 2) setTableData(parsed);
+    } catch {}
+  };
+  // Same-tab sync (fired by SeatMap saveLayout via CustomEvent)
+  const onSeatMapSaved = e => {
+    if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
+    try {
+      const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
+      if (parsed?.v === 2) setTableData(parsed);
+    } catch {}
+  };
 
-  // ── Initial load + API merge ──────────────────────────────────────────────
+  window.addEventListener("storage", onStorage);
+  window.addEventListener("seatmap:saved", onSeatMapSaved);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("seatmap:saved", onSeatMapSaved);
+  };
+}, []);
+
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
+
     const fetchAndMerge = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
+        const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, {
+          headers: { Accept: "application/json" },
+        });
         if (!res.ok) return;
         const data = await res.json();
         if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.warn("[BusinessCenterReserve] API fetch failed (offline?):", err); }
+        setTableData(prev => {
+          const base = prev || localLayout;
+          if (!base) return data.data;
+          return mergeApiStatusIntoLayout(base, data.data);
+        });
+        setTableData(merged => {
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      } catch (err) {
+        console.error("[LagunaReserv1e] Failed to fetch seat status:", err);
+      }
     };
+
     fetchAndMerge();
   }, []);
 
@@ -777,7 +846,7 @@ export default function BusinessCenterReserve() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── WebSocket (Pusher/Echo) ──────────────────────────────────────────────
+  // WebSocket — defensive, won't crash if server is offline
   useEffect(() => {
     const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
@@ -786,15 +855,20 @@ export default function BusinessCenterReserve() {
     }
     const echo = echoRef.current; if (!echo) return;
     try {
-      const channel = echo.channel("reservations");
+      const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
       const syncSeats = async () => {
         try {
           const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data));
+          }
         } catch {}
       };
       ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
+      return () => {
+        try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {}
+      };
     } catch {}
   }, []);
 
@@ -818,9 +892,10 @@ export default function BusinessCenterReserve() {
       const activeTable = getActiveTable();
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email, phone: formData.phone,
-        venue_id: 7,
-        room: ROOM, wing: WING,
+        email: formData.email,
+        phone: formData.phone,
+        venue_id: 2,                          // ← Laguna Ballroom 1 venue id
+        room: selectedRoom,
         table_number: String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"
           ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
@@ -832,12 +907,10 @@ export default function BusinessCenterReserve() {
         type: mode,
       };
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
-      const newRefCode = response.reference_code || response.data?.reference_code || "—";
+      const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
-
+      setLastBookingDetails({ room: selectedRoom, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
-
       if (activeTable) {
         setTableData(prev => {
           if (!prev) return prev;
@@ -852,19 +925,16 @@ export default function BusinessCenterReserve() {
           return updated;
         });
       }
-      setModal("success"); resetHoldTimer();
+      setModal("success");
+      resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }
     finally { setSubmitting(false); }
   };
 
-  const handleBack = () => {
-    setModal(null); setSelectedSeat(null); setSelectedTable(null);
-    setRefCode(null); setFormData(null); setGuests(2);
-    setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
-  };
+  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
 
-  const isMobile    = windowSize.width < 640;
-  const isTablet    = windowSize.width < 1024;
+  const isMobile   = windowSize.width < 640;
+  const isTablet   = windowSize.width < 1024;
   const activeTable = getActiveTable();
   const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
   const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
@@ -872,22 +942,12 @@ export default function BusinessCenterReserve() {
   const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "—") : (selectedTable ? `Table ${selectedTable.id}` : "—");
   const displaySeat  = mode === "individual" ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") : getWholeSeatLabel(guests, activeTable);
 
-  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "09:00", specialRequests: rebookFrom.special_requests || "" } : null;
-  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "09:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
+  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
+  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
 
   const BOTTOM_SHEET_H = 180;
-  const NAV_H          = 64;
+  const NAV_H = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
-
-  // ── Business Center feature list ─────────────────────────────────────────
-  const FEATURES = [
-    { icon: <><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></>, label: "High-Speed WiFi" },
-    { icon: <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></>, label: "Projector & Screen" },
-    { icon: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, label: "Boardroom Setup" },
-    { icon: <><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></>, label: "Power Outlets" },
-    { icon: <><rect x="9" y="2" width="6" height="6" /><rect x="9" y="16" width="6" height="6" /><rect x="2" y="9" width="6" height="6" /><rect x="16" y="9" width="6" height="6" /><path d="M15 8v3a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1V8" /><path d="M9 16v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" /></>, label: "Video Conferencing" },
-    { icon: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>, label: "Whiteboard" },
-  ];
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
@@ -907,15 +967,17 @@ export default function BusinessCenterReserve() {
 
         {/* Background */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
-          <div style={{ position: "absolute", inset: 0, backgroundImage: `url('${bellevueLogo}')`, backgroundSize: "cover", backgroundPosition: "center", filter: isDark ? "blur(6px) brightness(0.30)" : "blur(6px) brightness(0.45) saturate(0.3)", transform: "scale(1.05)", transition: "filter 0.40s" }} />
-          <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(12,11,10,0.80)" : "rgba(237,233,224,0.68)", transition: "background 0.40s" }} />
+          <div style={{ position: "absolute", inset: 0, backgroundImage: `url('${lagunaImg}')`, backgroundSize: "cover", backgroundPosition: "center", filter: isDark ? "blur(6px) brightness(0.35)" : "blur(6px) brightness(0.45) saturate(0.4)", transform: "scale(1.05)", transition: "filter 0.40s" }} />
+          <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(12,11,10,0.75)" : "rgba(237,233,224,0.65)", transition: "background 0.40s" }} />
         </div>
 
-        <SharedNavbar />
+        <SharedNavbar isDark={isDark} toggle={toggleTheme} showNavigation={false} />
 
-        {/* ═══════════ MOBILE ═══════════ */}
+        {/* ═══════════════ MOBILE LAYOUT ═══════════════ */}
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
+
+            {/* Mobile top bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px", background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderAccent}` }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
@@ -923,18 +985,30 @@ export default function BusinessCenterReserve() {
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
-                <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Business Center</div>
+                <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Laguna Ballroom 1</div>
               </div>
             </div>
 
             {/* Mode toggle */}
             <div style={{ display: "flex", gap: 0, padding: "10px 16px", background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: `1px solid ${C.borderDefault}` }}>
               {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label], i) => (
-                <button key={val} onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
+                <button key={val}
+                  onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
                   style={{ flex: 1, padding: "9px 0", background: mode === val ? C.gold : "transparent", border: `1px solid ${mode === val ? C.gold : C.borderDefault}`, borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0", color: mode === val ? C.textOnAccent : C.textSecondary, fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.18s" }}
                 >{label}</button>
               ))}
             </div>
+
+            {rebookFrom && (
+              <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 14 }}>🔄</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Rebooking Mode</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Prev: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong></div>
+                </div>
+                <button onClick={() => setRebookFrom(null)} style={{ background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 8px", fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer", flexShrink: 0 }}>Cancel</button>
+              </div>
+            )}
 
             {/* Map */}
             <div style={{ width: "100%", height: mobileMapHeight, position: "relative", background: C.surfaceBase, overflow: "hidden" }}>
@@ -942,16 +1016,18 @@ export default function BusinessCenterReserve() {
                 <>
                   <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch", position: "relative" }}>
                     <div style={{ minWidth: 700, minHeight: Math.max(mobileMapHeight, 520), position: "relative" }}>
-                      <SeatMap tableData={tableData} editMode={false} selectedSeat={selectedSeat} onSeatClick={handleSeatClick} onTableClick={handleTableClick} windowWidth={700} wing={WING} room={ROOM} mode={mode} />
+                      <SeatMap
+                        tableData={tableData} editMode={false} selectedSeat={selectedSeat}
+                        onSeatClick={handleSeatClick} onTableClick={handleTableClick}
+                        windowWidth={700} wing={WING} room={ROOM} mode={mode}
+                      />
                     </div>
                   </div>
-                  {/* Scroll hint */}
                   <div style={{ position: "absolute", bottom: 10, right: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "5px 12px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 3, display: "flex", alignItems: "center", gap: 5, pointerEvents: "none" }}>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
                     <span style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Scroll to explore</span>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </div>
-                  {/* Legend */}
                   <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3, pointerEvents: "none" }}>
                     {Object.entries(STATUS_COLORS).map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -966,22 +1042,30 @@ export default function BusinessCenterReserve() {
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
                   </div>
-                  <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>No seat layout published yet.<br /><span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span></div>
+                  <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
+                    No seat layout published for this room.<br />
+                    <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            <MobileBottomSheet mode={mode} selectedSeat={selectedSeat} activeTable={activeTable} guests={guests} seatRatio={seatRatio} canProceed={canProceed} rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")} C={C} isDark={isDark} />
+            <MobileBottomSheet
+              mode={mode} selectedSeat={selectedSeat} activeTable={activeTable}
+              guests={guests} seatRatio={seatRatio} canProceed={canProceed}
+              rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")}
+              C={C} isDark={isDark}
+            />
           </div>
 
         ) : (
-          /* ═══════════ DESKTOP ═══════════ */
+        /* ═══════════════ TABLET / DESKTOP LAYOUT ═══════════════ */
           <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto", padding: isTablet ? "28px 24px" : "36px 48px" }}>
 
-              {/* Back breadcrumb */}
+              {/* Back */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, animation: "fadeUp 0.28s ease" }}>
-                <button onClick={() => navigate("/venues")} title="Back"
+                <button onClick={() => navigate("/venues")} title="Back to venues"
                   style={{ width: 36, height: 36, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s", padding: 0, flexShrink: 0 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
@@ -991,17 +1075,27 @@ export default function BusinessCenterReserve() {
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
               </div>
 
-              {/* Heading */}
+              {/* Page heading */}
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
+                {rebookFrom && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
+                    <span style={{ fontSize: 14 }}>🔄</span>
+                    <div>
+                      <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, marginBottom: 2 }}>Rebooking Mode</div>
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> — select your new {mode === "individual" ? "seat" : "table"}</div>
+                    </div>
+                    <button onClick={() => setRebookFrom(null)} style={{ marginLeft: 8, background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 10px", fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
+                  </div>
+                )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
                   <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</span>
                 </div>
                 <h1 style={{ fontFamily: F.display, fontSize: isTablet ? 34 : 42, fontWeight: 600, color: C.textPrimary, lineHeight: 1.1, margin: "0 0 10px", letterSpacing: "0.01em" }}>
-                  Business Center
+                  Laguna Ballroom 1
                 </h1>
                 <p style={{ fontFamily: F.body, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
-                  Reserve your workspace in The Bellevue Manila's professional business facility. Select a table for your team or an individual seat.
+                  Book your preferred table in the Laguna Ballroom 1. Select your reservation type and click on the map to get started.
                 </p>
               </div>
 
@@ -1010,7 +1104,8 @@ export default function BusinessCenterReserve() {
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>Reserve a:</span>
                 <div style={{ display: "flex", alignItems: "center", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: 3, gap: 3, border: `1px solid ${C.borderDefault}` }}>
                   {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label]) => (
-                    <button key={val} onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
+                    <button key={val}
+                      onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
                       style={{ padding: "8px 18px", border: "none", background: mode === val ? C.gold : "transparent", color: mode === val ? C.textOnAccent : C.textSecondary, cursor: "pointer", fontSize: 10, letterSpacing: "0.12em", fontWeight: 700, fontFamily: F.label, borderRadius: 6, transition: "all 0.18s", outline: "none", textTransform: "uppercase" }}
                     >{label}</button>
                   ))}
@@ -1025,13 +1120,18 @@ export default function BusinessCenterReserve() {
                   {tableData ? (
                     <>
                       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-                        <SeatMap tableData={tableData} editMode={false} selectedSeat={selectedSeat} onSeatClick={handleSeatClick} onTableClick={handleTableClick} windowWidth={windowSize.width} wing={WING} room={ROOM} mode={mode} />
+                        <SeatMap
+                          tableData={tableData} editMode={false} selectedSeat={selectedSeat}
+                          onSeatClick={handleSeatClick} onTableClick={handleTableClick}
+                          windowWidth={windowSize.width} wing={WING} room={ROOM} mode={mode}
+                        />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
-                        {mode === "whole"
-                          ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 15h6" /></svg>
-                          : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></svg>
-                        }
+                        {mode === "whole" ? (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 15h6" /></svg>
+                        ) : (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></svg>
+                        )}
                         <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>
                           {mode === "whole" ? "Click a table to reserve" : "Click a seat to select"}
                         </span>
@@ -1043,7 +1143,8 @@ export default function BusinessCenterReserve() {
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
                       </div>
                       <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
-                        No seat layout has been published for this room yet.<br /><span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later or contact the venue.</span>
+                        No seat layout has been published for this room yet.<br />
+                        <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later or contact the venue.</span>
                       </div>
                     </div>
                   )}
@@ -1091,29 +1192,6 @@ export default function BusinessCenterReserve() {
                     </div>
                   </div>
 
-                  {/* Facilities card */}
-                  <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
-                    <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
-                    <div style={{ padding: "14px 16px" }}>
-                      <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Facilities</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        {[
-                          { path: <><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></>, label: "High-Speed WiFi" },
-                          { path: <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></>, label: "Projector" },
-                          { path: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, label: "Boardroom" },
-                          { path: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />, label: "Power Outlets" },
-                          { path: <><rect x="2" y="2" width="20" height="20" rx="2" /><path d="M7 7h10M7 12h10M7 17h6" /></>, label: "Whiteboard" },
-                          { path: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>, label: "Video Conf." },
-                        ].map(({ path, label }) => (
-                          <div key={label} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{path}</svg>
-                            <span style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary }}>{label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Reserve button */}
                   <button
                     onClick={mode === "whole" ? () => setModal("guestCount") : (canProceed ? () => setModal("guestCount") : undefined)}
@@ -1136,16 +1214,33 @@ export default function BusinessCenterReserve() {
 
       {/* Modals */}
       {modal === "guestCount" && (
-        <ModalGuestCount seatData={mode === "individual" ? selectedSeat : null} tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable} mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark} />
+        <ModalGuestCount
+          seatData={mode === "individual" ? selectedSeat : null}
+          tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable}
+          mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark}
+        />
       )}
       {modal === "details" && (
-        <ModalDetails tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests} onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }} prefill={detailsPrefill} C={C} isDark={isDark} secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }} />
+        <ModalDetails
+          tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests}
+          onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }}
+          prefill={detailsPrefill} C={C} isDark={isDark}
+          secondsLeft={holdSecondsLeft}
+          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+        />
       )}
       {modal === "review" && formData && (
-        <ModalReview form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat} onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C} />
+        <ModalReview
+          form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat}
+          onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting}
+          isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
+        />
       )}
       {modal === "success" && (
-        <ModalSuccess refCode={refCode} onBack={handleBack} mode={mode} guests={guests} isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark} />
+        <ModalSuccess
+          refCode={refCode} onBack={handleBack} mode={mode} guests={guests}
+          isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark}
+        />
       )}
     </ThemeContext.Provider>
   );

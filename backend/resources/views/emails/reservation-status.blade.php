@@ -5,232 +5,275 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reservation Status - The Bellevue Manila</title>
     <style>
-        * { box-sizing: border-box; }
-        body {
+        * {
+            box-sizing: border-box;
             margin: 0;
-            padding: 40px 20px;
-            background: #F5F1EB;
-            font-family: Helvetica, Arial, sans-serif;
-            color: #111111;
+            padding: 0;
         }
-        .wrap {
-            width: 100%;
-            max-width: 660px;
+        
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: linear-gradient(135deg, #F8F7F4 0%, #F5F1EB 100%);
+            color: #2C2C2C;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .email-container {
+            max-width: 600px;
             margin: 0 auto;
-        }
-        .card {
-            background: #ffffff;
-            border: 1px solid #D8D4CC;
-            border-radius: 12px;
+            background: #FFFFFF;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
             overflow: hidden;
         }
+        
         .header {
-            background: #F7F3EA;
-            border-bottom: 1px solid #D8D4CC;
-            padding: 28px 32px 22px;
+            background: linear-gradient(135deg, #8C6B2A 0%, #A07D38 100%);
+            color: #FFFFFF;
+            padding: 32px 40px;
             text-align: center;
+            position: relative;
         }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="p" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M0,4 L4,0" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23p)"/></svg>');
+            opacity: 0.3;
+        }
+        
         .brand {
-            margin: 0 0 10px;
-            font-size: 8px;
+            font-size: 11px;
             letter-spacing: 3px;
-            color: #B8902A;
-            font-weight: 700;
             text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
         }
-        h1 {
+        
+        .title {
+            font-size: 24px;
+            font-weight: 300;
+            letter-spacing: 0.5px;
             margin: 0;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .status-pending {
+            background: linear-gradient(135deg, #FFF4E0 0%, #FFE0AA 100%);
+            color: #8B4513;
+            border: 1px solid #FFB900;
+        }
+        
+        .status-approved {
+            background: linear-gradient(135deg, #E8F5E8 0%, #D4EDDA 100%);
+            color: #0F5132;
+            border: 1px solid #0FBA81;
+        }
+        
+        .status-rejected {
+            background: linear-gradient(135deg, #F8D7DA 0%, #F5C2C7 100%);
+            color: #721C24;
+            border: 1px solid #E05252;
+        }
+        
+        .status-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+        
+        .reference-section {
+            text-align: center;
+            margin: 24px 0;
+            padding: 20px;
+            background: #F8F9FA;
+            border-radius: 12px;
+            border: 1px solid #E9ECEF;
+        }
+        
+        .reference-label {
+            font-size: 11px;
+            color: #6C757D;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        
+        .reference-code {
             font-size: 20px;
             font-weight: 700;
-            letter-spacing: 0.08em;
-            color: #000000;
+            color: #2C2C2C;
+            letter-spacing: 1px;
         }
-        .content {
-            padding: 36px 48px 32px;
-            text-align: center;
+        
+        .message-box {
+            background: #FFFFFF;
+            border: 1px solid #E9ECEF;
+            border-left: 4px solid #8C6B2A;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 24px 0;
         }
-        .badge {
-            display: inline-block;
-            padding: 10px 40px;
-            border-radius: 20px;
+        
+        .message-text {
             font-size: 15px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            margin-bottom: 28px;
+            line-height: 1.7;
+            color: #495057;
         }
-        .badge-pending {
-            background: #FFE0AA;
-            border: 2px solid #FFB900;
-            color: #000000;
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 32px 0;
         }
-        .badge-approved,
-        .badge-reserved {
-            background: rgba(15,186,129,0.15);
-            border: 2px solid #0FBA81;
-            color: #084D38;
+        
+        .detail-item {
+            background: #F8F9FA;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #E9ECEF;
         }
-        .badge-rejected {
-            background: rgba(224,82,82,0.13);
-            border: 2px solid #E05252;
-            color: #7A1E1E;
-        }
-        .reference-label {
-            margin: 0 0 4px;
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            color: #888888;
+        
+        .detail-label {
+            font-size: 12px;
+            color: #6C757D;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
         }
-        .reference-code {
-            margin: 0 0 16px;
+        
+        .detail-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2C2C2C;
+        }
+        
+        .footer {
+            background: #F8F7F4;
+            padding: 32px 40px;
+            text-align: center;
+            border-top: 1px solid #E9ECEF;
+        }
+        
+        .footer-brand {
             font-size: 18px;
             font-weight: 700;
-            letter-spacing: 0.1em;
-            color: #000000;
+            color: #8C6B2A;
+            margin-bottom: 8px;
         }
-        .divider {
-            height: 1px;
-            background: #D8D4CC;
-            margin: 0 0 24px;
+        
+        .footer-address {
+            font-size: 14px;
+            color: #6C757D;
+            line-height: 1.6;
+            margin-bottom: 16px;
         }
-        .message {
-            margin: 0 0 32px;
+        
+        .footer-copyright {
             font-size: 12px;
-            font-weight: 600;
-            line-height: 26px;
-            letter-spacing: 0.05em;
-            color: #000000;
-            text-align: center;
+            color: #ADB5BD;
         }
-        .details {
-            width: 100%;
-            max-width: 560px;
-            margin: 0 auto;
-            border-collapse: collapse;
-            text-align: left;
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            .email-container {
+                border-radius: 12px;
+            }
+            
+            .header, .content, .footer {
+                padding: 24px;
+            }
+            
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
         }
-        .details td {
-            padding: 6px 0;
-            font-size: 12px;
-            vertical-align: top;
-        }
-        .label {
-            font-weight: 700;
-            color: #000000;
-            width: 50%;
-        }
-        .value {
-            font-weight: 400;
-            color: #333333;
-        }
-        .footer {
-            background: #F7F3EA;
-            border-top: 1px solid #D8D4CC;
-            padding: 18px 24px;
-            text-align: center;
-        }
-        .footer p {
-            margin: 0;
-            font-size: 12px;
-            color: #A09880;
-            line-height: 1.7;
-        }
-        .footer strong { color: #B8902A; }
     </style>
 </head>
 <body>
-    <div class="wrap">
-        <div class="card">
-            <div class="header">
-                <p class="brand">The Bellevue Manila</p>
-                <h1>Reservation Update</h1>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="brand">The Bellevue Manila</div>
+            <h1 class="title">Reservation Update</h1>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <p>
+                @if($status === 'pending')
+                    Your reservation has been received and is currently pending review. Our team will process your request shortly and you will receive another email once a decision has been made. Thank you for your patience. Here is your reference code: {{ $reservation->reference_code ?? 'N/A' }}
+                @elseif($status === 'approved' || $status === 'reserved')
+                    Great news! Your reservation has been approved and confirmed. Please arrive at least 15 minutes before your scheduled time. Thank you for choosing The Bellevue Manila.
+                @elseif($status === 'rejected')
+                    We regret to inform you that we are unable to accommodate your reservation at this time.
+                    @if(!empty($rejectionReason))
+                        Reason: {{ $rejectionReason }}
+                    @endif
+                    Thank you for your understanding.
+                @endif
+            </p>
+            
+            <p>
+                <strong>Other details:</strong><br>
+                Venue: {{ $reservation->room ?? ($reservation->venue->name ?? ($reservation->venue ?? 'N/A')) }}<br>
+                Event Time: @if(!empty($reservation->event_time)) {{ \Carbon\Carbon::parse($reservation->event_time)->format('g:i A') }} @else N/A @endif<br>
+                @if(!empty($reservation->table_number) || !empty($reservation->table))
+                    Table {{ $reservation->table_number ?? $reservation->table ?? 'N/A' }} 
+                @endif
+                @if(!empty($reservation->seat_number) || !empty($reservation->seat))
+                    Seat {{ $reservation->seat_number ?? $reservation->seat ?? 'N/A' }}
+                @endif
+                Guests: {{ $reservation->guests_count ?? $reservation->guests ?? 'N/A' }} pax<br>
+                Event Date: @if(!empty($reservation->event_date)) {{ \Carbon\Carbon::parse($reservation->event_date)->format('F j, Y') }} @else N/A @endif
+                @if(!empty($reservation->special_requests))
+                    Special Requests: {{ $reservation->special_requests }}
+                @endif
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-address">
+                North Bridgeway, Filinvest City, Alabang, Muntinlupa<br>
+                For inquiries, please contact our reservations desk.
             </div>
-
-            <div class="content">
-                <div class="badge badge-{{ $displayStatus ?? $status }}">{{ $statusText }}</div>
-
-                <div class="divider"></div>
-
-                <p class="message">
-                    @if($status === 'pending')
-                        Your reservation has been received and is currently pending review. Our team will process your request shortly and you will receive another email once a decision has been made.
-                    @elseif($status === 'approved' || $status === 'reserved')
-                        Great news! Your reservation has been approved and confirmed. Please arrive at least 15 minutes before your scheduled time.
-                    @elseif($status === 'rejected')
-                        We regret to inform you that we are unable to accommodate your reservation at this time.
-                        @if(!empty($rejectionReason))
-                            <br><br>
-                            Reason: <strong>{{ $rejectionReason }}</strong>
-                        @endif
-                    @endif
-                </p>
-
-                <table class="details" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                        <td class="label">Name</td>
-                        <td class="value">{{ $reservation->name ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Email</td>
-                        <td class="value">{{ $reservation->email ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Venue</td>
-                        <td class="value">{{ $reservation->room ?? ($reservation->venue->name ?? ($reservation->venue ?? 'N/A')) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Event Date</td>
-                        <td class="value">
-                            @if(!empty($reservation->event_date))
-                                {{ \Carbon\Carbon::parse($reservation->event_date)->format('F j, Y') }}
-                            @else
-                                N/A
-                            @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="label">Event Time</td>
-                        <td class="value">
-                            @if(!empty($reservation->event_time))
-                                {{ \Carbon\Carbon::parse($reservation->event_time)->format('g:i A') }}
-                            @else
-                                N/A
-                            @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="label">Guests</td>
-                        <td class="value">{{ $reservation->guests_count ?? $reservation->guests ?? 'N/A' }} pax</td>
-                    </tr>
-                    @if(!empty($reservation->table_number) || !empty($reservation->table))
-                    <tr>
-                        <td class="label">Table</td>
-                        <td class="value">{{ $reservation->table_number ?? $reservation->table ?? 'N/A' }}</td>
-                    </tr>
-                    @endif
-                    @if(!empty($reservation->seat_number) || !empty($reservation->seat))
-                    <tr>
-                        <td class="label">Seat</td>
-                        <td class="value">{{ $reservation->seat_number ?? $reservation->seat ?? 'N/A' }}</td>
-                    </tr>
-                    @endif
-                    @if(!empty($reservation->special_requests))
-                    <tr>
-                        <td class="label">Special Requests</td>
-                        <td class="value">{{ $reservation->special_requests }}</td>
-                    </tr>
-                    @endif
-                </table>
-            </div>
-
-            <div class="footer">
-                <p>
-                    <strong>The Bellevue Manila</strong><br>
-                    North Bridgeway, Filinvest City, Alabang, Muntinlupa<br>
-                    For inquiries, please contact our reservations desk.<br><br>
-                    © {{ date('Y') }} The Bellevue Manila. All rights reserved.
-                </p>
+            <div class="footer-copyright">
+                © {{ date('Y') }} The Bellevue Manila. All rights reserved.
             </div>
         </div>
     </div>

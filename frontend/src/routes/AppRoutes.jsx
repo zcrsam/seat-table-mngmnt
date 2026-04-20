@@ -4,7 +4,12 @@ import HomePage from "../features/client/pages/HomePage";
 import VenuesPage from "../features/client/pages/VenuesPage";
 import ManageBooking from "../features/client/pages/ManageBooking";
 import AlabangReserve from "../features/client/pages/AlabangReserve";
-import LagunaBallroom from "../features/client/pages/LagunaBallroom";
+import LagunaReserv1e from "../features/client/pages/LagunaReserv1e";
+import LagunaReserve2 from "../features/client/pages/LagunaReserve2";
+import TwentyTwentyReserveA from "../features/client/pages/TwentyTwentyReserveA";
+import TwentyTwentyReserveB from "../features/client/pages/TwentyTwentyReserveB";
+import TwentyTwentyReserveC from "../features/client/pages/TwentyTwentyReserveC";
+import BusinessCenterReserve from "../features/client/pages/BusinessCenterReserve";
 import FunctionRoom2020 from "../features/client/pages/FunctionRoom2020";
 import BusinessCenter from "../features/client/pages/BusinessCenter";
 import ReservationDashboard from "../features/admin/pages/ReservationDashboard";
@@ -36,9 +41,14 @@ export default function AppRoutes() {
         <Route path="/" element={<><Navbar /><HomePage /></>} />
         <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
         <Route path="/manage-booking" element={<ManageBooking />} />
-        <Route path="/reserve/:routeId" element={<><Navbar /><div>Reserve Page - Coming Soon</div></>} />
         <Route path="/alabang-reserve" element={<AlabangReserve />} />
-        <Route path="/laguna-ballroom" element={<LagunaBallroom />} />
+        <Route path="/laguna-reserv1e" element={<LagunaReserv1e />} />
+        <Route path="/laguna-reserv2e" element={<LagunaReserve2 />} />
+        <Route path="/twenty-twenty-a" element={<TwentyTwentyReserveA />} />
+        <Route path="/twenty-twenty-b" element={<TwentyTwentyReserveB />} />
+        <Route path="/twenty-twenty-c" element={<TwentyTwentyReserveC />} />
+        <Route path="/business-center-reserve" element={<BusinessCenterReserve />} />
+        <Route path="/reserve/:routeId" element={<><Navbar /><div>Reserve Page - Coming Soon</div></>} />
         <Route path="/function-room-2020" element={<FunctionRoom2020 />} />
         <Route path="/business-center" element={<BusinessCenter />} />
         <Route path="/admin" element={<AdminEntry />} />

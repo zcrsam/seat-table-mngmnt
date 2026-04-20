@@ -1,839 +1,699 @@
 // src/features/client/pages/HomePage.jsx
-import { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import heroBanner from "../../../assets/banner-grandroom.jpg";
-import mainWingImg from "../../../assets/main-wing.jpeg";
-import towerWingImg from "../../../assets/tower-wing.jpeg";
-import diningImg from "../../../assets/dining.jpeg";
-import SharedNavbar from "../../../components/SharedNavbar.jsx";
-import qsinaImg from "../../../assets/qsina.jpeg";
-import qsinaImg2 from "../../../assets/qsina2.jpeg";
-import qsinaImg3 from "../../../assets/qsina3.jpeg";
-import hanakazuImg from "../../../assets/hanakazu.jpeg";
-import hanakazuImg2 from "../../../assets/hanakazu2.jpeg";
-import hanakazuImg3 from "../../../assets/hanakazu3.jpeg";
+import heroBanner      from "../../../assets/banner-grandroom.jpg";
+import mainWingImg     from "../../../assets/main-wing.jpeg";
+import towerWingImg    from "../../../assets/tower-wing.jpeg";
+import SharedNavbar    from "../../../components/SharedNavbar.jsx";
+import qsinaImg        from "../../../assets/qsina.jpeg";
+import qsinaImg2       from "../../../assets/qsina2.jpeg";
+import qsinaImg3       from "../../../assets/qsina3.jpeg";
+import hanakazuImg     from "../../../assets/hanakazu.jpeg";
+import hanakazuImg2    from "../../../assets/hanakazu2.jpeg";
+import hanakazuImg3    from "../../../assets/hanakazu3.jpeg";
 import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
-import bellevueLogo from "../../../assets/bellevue-logo.png";
+import bellevueLogo    from "../../../assets/bellevue-logo.png";
 
-// ─────────────────────────────────────────────
-// THEME CONTEXT
-// ─────────────────────────────────────────────
+// ── THEME CONTEXT ──────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
-// ─────────────────────────────────────────────
-// DESIGN TOKENS — per-theme
-// ─────────────────────────────────────────────
+// ── DESIGN TOKENS ──────────────────────────────────────────────────────────────
 function getTokens(isDark) {
-  return isDark
-    ? {
-        gold:              "#C9A84C",
-        goldLight:         "#E2C96A",
-        goldDark:          "#9A7A2E",
-        goldFaint:         "rgba(201,168,76,0.12)",
-        pageBg:            "#0E0D09",
-        darkCard:          "#1A1812",
-        darkMid:           "#242018",
-        textPrimary:       "#F7F3EA",
-        textSub:           "rgba(245,239,224,0.52)",
-        textMuted:         "#8A8070",
-        textFaint:         "#4A4438",
-        textDeep:          "#3A3428",
-        border:            "rgba(201,168,76,0.18)",
-        borderLight:       "rgba(201,168,76,0.10)",
-        cardBg:            "rgba(10,9,6,0.52)",
-        cardFooterBg:      "rgba(201,168,76,0.05)",
-        widgetBg:          "rgba(0,0,0,0.55)",
-        fieldBg:           "rgba(255,255,255,0.07)",
-        nlBg:              "#242018",
-        footerBg:          "#0E0D09",
-        diningBg:          "#0E0D09",
-        badgeBg:           "rgba(0,0,0,0.42)",
-        scrollCueOp:       0.28,
-        footerLinkDefault: "#4A4438",
-        navBg:             "rgba(14,13,9,0.92)",
-        navBorder:         "rgba(201,168,76,0.15)",
-        navText:           "rgba(245,239,224,0.70)",
-        heroCopy:          "#F5EFE0",
-        heroCopySub:       "rgba(245,239,224,0.55)",
-        heroEmphasis:      "#C9A84C",
-        heroOverlay1:      "rgba(6,5,3,0.70)",
-        heroBrowseBg:      "transparent",
-        sectionLabelColor: "rgba(201,168,76,0.75)",
-        sectionLabelLine:  "rgba(201,168,76,0.18)",
-        viewAllColor:      "rgba(245,239,224,0.55)",
-        viewAllBorder:     "rgba(201,168,76,0.30)",
-        scrollCueColor:    "#C9A84C",
-        btnPrimaryText:    "#0E0D09",
-        wingCardBg:        "rgba(10,9,6,0.62)",
-        wingCardBgHov:     "rgba(201,168,76,0.05)",
-        wingCardBorder:    "rgba(201,168,76,0.13)",
-        wingCardBorderHov: "rgba(201,168,76,0.58)",
-        wingCardFooterBg:  "rgba(10,9,6,0.80)",
-        wingCardFooterText:"#F7F3EA",
-        wingCardSubText:   "#8A8070",
-        badgeOverlay:      "rgba(0,0,0,0.45)",
-        badgeText:         "#C9A84C",
-        wingArrowHovText:  "#0E0D09",
-        diningOverlay:     "linear-gradient(to top,rgba(14,13,9,0.80) 0%,transparent 55%)",
-      }
-    : {
-        gold:              "#A07828",
-        goldLight:         "#C9A84C",
-        goldDark:          "#7A5A18",
-        goldFaint:         "rgba(160,120,40,0.10)",
-        pageBg:            "#F5F0E8",
-        darkCard:          "#FFFFFF",
-        darkMid:           "#EDE7D9",
-        textPrimary:       "#1A1612",
-        textSub:           "rgba(26,22,18,0.60)",
-        textMuted:         "#5A5040",
-        textFaint:         "#8A7A60",
-        textDeep:          "#9A8A70",
-        border:            "rgba(160,120,40,0.22)",
-        borderLight:       "rgba(160,120,40,0.14)",
-        cardBg:            "rgba(255,255,255,0.82)",
-        cardFooterBg:      "rgba(160,120,40,0.06)",
-        widgetBg:          "rgba(255,252,245,0.94)",
-        fieldBg:           "rgba(0,0,0,0.04)",
-        nlBg:              "#EDE7D9",
-        footerBg:          "#F5F0E8",
-        diningBg:          "#F5F0E8",
-        badgeBg:           "rgba(255,255,255,0.72)",
-        scrollCueOp:       0.38,
-        footerLinkDefault: "#7A6A50",
-        navBg:             "rgba(245,240,232,0.96)",
-        navBorder:         "rgba(160,120,40,0.18)",
-        navText:           "rgba(26,22,18,0.65)",
-        heroCopy:          "#1A1208",
-        heroCopySub:       "rgba(26,18,8,0.65)",
-        heroEmphasis:      "#A07828",
-        heroOverlay1:      "rgba(245,240,228,0.82)",
-        heroBrowseBg:      "transparent",
-        sectionLabelColor: "#A07828",
-        sectionLabelLine:  "rgba(160,120,40,0.30)",
-        viewAllColor:      "rgba(26,18,8,0.55)",
-        viewAllBorder:     "rgba(160,120,40,0.40)",
-        scrollCueColor:    "#A07828",
-        btnPrimaryText:    "#FFFFFF",
-        wingCardBg:        "rgba(255,255,255,0.90)",
-        wingCardBgHov:     "rgba(160,120,40,0.04)",
-        wingCardBorder:    "rgba(160,120,40,0.20)",
-        wingCardBorderHov: "rgba(201,168,76,0.58)",
-        wingCardFooterBg:  "#FFFFFF",
-        wingCardFooterText:"#1A1612",
-        wingCardSubText:   "#5A5040",
-        badgeOverlay:      "rgba(0,0,0,0.45)",
-        badgeText:         "#C9A84C",
-        wingArrowHovText:  "#FFFFFF",
-        diningOverlay:     "linear-gradient(to top,rgba(14,13,9,0.80) 0%,transparent 55%)",
-      };
+  return isDark ? {
+    gold:        "#C9A84C",
+    goldLight:   "#E2C96A",
+    goldFaint:   "rgba(201,168,76,0.10)",
+    pageBg:      "#0E0D09",
+    cream:       "#F0E8D0",
+    dark:        "#18140E",
+    darkMid:     "#1E1B13",
+    textPrimary: "#F0E8D0",
+    textMuted:   "#7A6E58",
+    textFaint:   "#4A4438",
+    textDeep:    "#3A3428",
+    border:      "rgba(201,168,76,0.18)",
+    borderLight: "rgba(201,168,76,0.10)",
+    nlBg:        "#1E1B13",
+    footerBg:    "#0E0D09",
+    diningBg:    "#111009",
+    footerLink:  "#4A4438",
+    heroSub:     "rgba(240,232,208,0.50)",
+    heroBg:      "#18140E",
+  } : {
+    gold:        "#9A6E1C",
+    goldLight:   "#C49A2C",
+    goldFaint:   "rgba(154,110,28,0.08)",
+    pageBg:      "#EDE5D0",
+    cream:       "#1A1510",
+    dark:        "#1A1510",
+    darkMid:     "#E4DAC4",
+    textPrimary: "#1A1510",
+    textMuted:   "#6A5830",
+    textFaint:   "#8A7A60",
+    textDeep:    "#9A8A70",
+    border:      "rgba(154,110,28,0.18)",
+    borderLight: "rgba(154,110,28,0.12)",
+    nlBg:        "#E4DAC4",
+    footerBg:    "#EDE5D0",
+    diningBg:    "#E8DEC8",
+    footerLink:  "#6A5830",
+    heroSub:     "rgba(26,21,16,0.52)",
+    heroBg:      "#EDE5D0",
+  };
 }
 
-const F = {
-  display: "Georgia, 'Times New Roman', serif",
-  body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
-};
+const DISPLAY = `'Playfair Display', 'Times New Roman', serif`;
+const BODY    = `'Inter', -apple-system, BlinkMacSystemFont, sans-serif`;
+const MONO    = `'JetBrains Mono', monospace`;
+const NAV_H   = 64;
 
-const NAV_H = 64;
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-// ─────────────────────────────────────────────
-// DATA
-// ─────────────────────────────────────────────
-const EVENT_CATEGORIES = [
-  { id: 1, label: "MAIN WING",  subtitle: "Elegant banquets & corporate events", img: mainWingImg,  section: "main-wing"  },
-  { id: 2, label: "TOWER WING", subtitle: "Grand celebrations & gala evenings",  img: towerWingImg, section: "tower-wing" },
-  { id: 3, label: "DINING",     subtitle: "Fine dining & culinary experiences",  img: diningImg,    section: "dining"     },
-];
+  @keyframes loader-exit {
+    0%   { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-100%); }
+  }
+  @keyframes counter-in     { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes bar-grow       { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes partners-scroll{ from { transform:translateX(0); } to { transform:translateX(-50%); } }
 
+  @keyframes logo-breathe {
+    0%, 100% { transform: scale(1);    opacity: 0.9; }
+    50%       { transform: scale(1.08); opacity: 1;   }
+  }
+  @keyframes logo-zoom-in {
+    from { transform: scale(0.55); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: scale(0.85) translateY(0);   opacity: 0.55; }
+    40%            { transform: scale(1.18) translateY(-6px); opacity: 1;   }
+  }
+  @keyframes shimmer-line {
+    0%   { transform: translateX(-100%); opacity: 0; }
+    20%  { opacity: 1; }
+    100% { transform: translateX(300%);  opacity: 0; }
+  }
+  @keyframes progress-fill {
+    from { width: 0%; }
+    to   { width: 100%; }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .dining-reserve-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 32px;
+    background: #C9A84C;
+    border: 2px solid #C9A84C;
+    color: #18140E;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.32s cubic-bezier(0.4,0,0.2,1),
+                color 0.32s cubic-bezier(0.4,0,0.2,1),
+                border-color 0.32s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.32s cubic-bezier(0.4,0,0.2,1),
+                transform 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  .dining-reserve-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+    transform: translateX(-100%);
+    transition: transform 0s;
+  }
+  .dining-reserve-btn:hover {
+    background: transparent;
+    border-color: #C9A84C;
+    color: #C9A84C;
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.15);
+    transform: translateY(-2px);
+  }
+  .dining-reserve-btn:hover::before {
+    transform: translateX(300%);
+    transition: transform 0.6s ease;
+  }
+  .dining-reserve-btn-light {
+    background: #9A6E1C;
+    border-color: #9A6E1C;
+    color: #F4EFE4;
+  }
+  .dining-reserve-btn-light:hover {
+    background: transparent;
+    border-color: #9A6E1C;
+    color: #9A6E1C;
+  }
+
+  @media (max-width:767px) { * { -webkit-tap-highlight-color: transparent; } body { overflow-x:hidden; } }
+`;
+
+// ── DATA ───────────────────────────────────────────────────────────────────────
 const RESTAURANTS = [
-  {
-    id: "qsina", name: "Qsina",
-    description: "Qsina offers diverse culinary delights with both international buffets and à la carte options. From lavish breakfast spreads to intimate dinner experiences.",
-    imgs: [qsinaImg, qsinaImg2, qsinaImg3],
-    diningTimes: [
-      { label: "Breakfast Buffet", hours: "6:00 – 10:00 AM" },
-      { label: "Lunch",            hours: "MON · TUE · SAT · SUN" },
-      { label: "Light Lunch",      hours: "WED · FRI" },
-      { label: "Dinner",           hours: "MON · THURS" },
-      { label: "Dinner Buffet",    hours: null },
-    ],
+  { id:"qsina", name:"Qsina", tag:"All-Day Dining",
+    description:"Qsina offers diverse culinary delights with both international buffets and à la carte options. From lavish breakfast spreads to intimate candlelit dinner experiences.",
+    imgs:[qsinaImg,qsinaImg2,qsinaImg3],
+    diningTimes:[{label:"Breakfast Buffet",hours:"6:00 – 10:00 AM"},{label:"Lunch",hours:"MON · TUE · SAT · SUN"},{label:"Light Lunch",hours:"WED · FRI"},{label:"Dinner",hours:"MON · THURS"},{label:"Dinner Buffet",hours:null}],
   },
-  {
-    id: "hanakazu", name: "Hanakazu",
-    description: "Hanakazu brings authentic Japanese cuisine to The Bellevue Manila. Savor fresh sushi, sashimi, and teppanyaki in an elegant setting.",
-    imgs: [hanakazuImg, hanakazuImg2, hanakazuImg3],
-    diningTimes: [
-      { label: "Lunch",   hours: "11:30 AM – 2:30 PM" },
-      { label: "Dinner",  hours: "6:00 PM – 10:00 PM" },
-      { label: "Omakase", hours: "By reservation" },
-    ],
+  { id:"hanakazu", name:"Hanakazu", tag:"Japanese Specialty",
+    description:"Hanakazu brings authentic Japanese cuisine to The Bellevue Manila. Savor fresh sushi, sashimi, and teppanyaki in an elegant zen-inspired setting.",
+    imgs:[hanakazuImg,hanakazuImg2,hanakazuImg3],
+    diningTimes:[{label:"Lunch",hours:"11:30 AM – 2:30 PM"},{label:"Dinner",hours:"6:00 PM – 10:00 PM"},{label:"Omakase",hours:"By reservation"}],
   },
-  {
-    id: "phoenix-court", name: "Phoenix Court",
-    description: "Phoenix Court presents refined Cantonese and Chinese cuisine. Experience dim sum, Peking duck, and classic dishes in a sophisticated atmosphere.",
-    imgs: [phoenixCourtImg, qsinaImg2, qsinaImg3],
-    diningTimes: [
-      { label: "Dim Sum", hours: "5:00 AM – 11:29 PM" },
-      { label: "Lunch",   hours: "11:30 AM – 2:30 PM" },
-      { label: "Dinner",  hours: "6:00 PM – 10:00 PM" },
-    ],
+  { id:"phoenix-court", name:"Phoenix Court", tag:"Cantonese Fine Dining",
+    description:"Phoenix Court presents refined Cantonese cuisine — masterful dim sum, Peking duck, and classic dishes elevated to perfection in a sophisticated atmosphere.",
+    imgs:[phoenixCourtImg,qsinaImg2,qsinaImg3],
+    diningTimes:[{label:"Dim Sum",hours:"5:00 AM – 11:29 PM"},{label:"Lunch",hours:"11:30 AM – 2:30 PM"},{label:"Dinner",hours:"6:00 PM – 10:00 PM"}],
   },
 ];
 
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
-function useScrollReveal(threshold = 0.15) {
+const PARTNERS = ["Johnny's Steak & Grill at Cellar XXII","Pastry Corner","Vue Bar","Azurea Spa","Jing Monis Salon","Pretty Looks"];
+
+// ── HOOKS ──────────────────────────────────────────────────────────────────────
+function useIsMobile(bp = 768) {
+  const [m, setM] = useState(() => typeof window !== "undefined" ? window.innerWidth < bp : false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${bp-1}px)`);
+    const h = (e) => setM(e.matches);
+    mq.addEventListener("change", h); setM(mq.matches);
+    return () => mq.removeEventListener("change", h);
+  }, [bp]);
+  return m;
+}
+
+async function loadGsap() {
+  if (!window.gsap) {
+    await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js";
+      s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+  if (!window.ScrollTrigger) {
+    await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js";
+      s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+    window.gsap.registerPlugin(window.ScrollTrigger);
+  }
+}
+
+function useGsapScroll(options = {}) {
   const ref = useRef(null);
-  const [vis, setVis] = useState(false);
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") { setVis(true); return; }
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setVis(true); obs.disconnect(); }
-    }, { threshold });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return [ref, vis];
-}
-
-// ─────────────────────────────────────────────
-// UTILITY COMPONENTS
-// ─────────────────────────────────────────────
-function GoldLine({ width = 32 }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <span style={{ display: "inline-block", width, height: 1, background: C.gold, verticalAlign: "middle" }} />;
-}
-
-function Divider({ mb = 0, mt = 0 }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <div style={{ height: 1, background: C.borderLight, margin: `${mt}px 0 ${mb}px` }} />;
-}
-
-// ─────────────────────────────────────────────
-// HERO + BROWSE
-// ─────────────────────────────────────────────
-function HeroBrowseSection({ onNavigateToVenues, onManageBooking }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  const [loaded, setLoaded] = useState(false);
-  const [hovCard, setHovCard] = useState(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setLoaded(true), 80);
-    return () => clearTimeout(t);
+    const run = async () => {
+      await loadGsap();
+      if (!ref.current) return;
+      const { y=48, opacity=0, duration=0.9, ease="power3.out", delay=0, stagger=0, selector=null } = options;
+      const targets = selector ? ref.current.querySelectorAll(selector) : [ref.current];
+      window.gsap.fromTo(targets,
+        { y, opacity },
+        { y:0, opacity:1, duration, ease, delay, stagger,
+          scrollTrigger:{ trigger:ref.current, start:"top 88%", once:true } }
+      );
+    };
+    run().catch(console.error);
   }, []);
+  return ref;
+}
 
-  const fade = (delay = 0) => ({
-    opacity: loaded ? 1 : 0,
-    transform: loaded ? "translateY(0)" : "translateY(18px)",
-    transition: `opacity 0.85s ${delay}s ease, transform 0.85s ${delay}s ease`,
-  });
+// ── SVG ICONS ──────────────────────────────────────────────────────────────────
+const ChevLeft = ({ size = 16, color = "currentColor", strokeWidth = 2.5 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display:"block", flexShrink:0 }}>
+    <polyline points="15 18 9 12 15 6" />
+  </svg>
+);
+
+const ChevRight = ({ size = 16, color = "currentColor", strokeWidth = 2.5 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display:"block", flexShrink:0 }}>
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
+// ── LOADER ─────────────────────────────────────────────────────────────────────
+function Loader({ onDone }) {
+  const [phase, setPhase]       = useState(0);
+  const [progress, setProgress] = useState(0);
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 120);
+    const t2 = setTimeout(() => setPhase(2), 800);
+    const t3 = setTimeout(() => setPhase(3), 1300);
+    const t4 = setTimeout(() => {
+      let val = 0;
+      intervalRef.current = setInterval(() => {
+        val += Math.random() * 12 + 4;
+        if (val >= 100) { val = 100; clearInterval(intervalRef.current); }
+        setProgress(Math.min(Math.round(val), 100));
+      }, 80);
+    }, 1400);
+    const t5 = setTimeout(() => setPhase(4), 2800);
+    const t6 = setTimeout(() => onDone(), 3500);
+    return () => {
+      [t1,t2,t3,t4,t5,t6].forEach(clearTimeout);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [onDone]);
 
   return (
-    <section style={{
-      position: "relative",
-      marginTop: -NAV_H,        /* pull up behind the fixed nav — no gap */
-      paddingTop: NAV_H,
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-    }}>
-      {/* Background */}
-      <img src={heroBanner} alt="" style={{
-        position: "absolute", inset: 0, width: "100%", height: "100%",
-        objectFit: "cover",
-        filter: `blur(5px) brightness(${isDark ? 0.22 : 0.55})`,
-        transform: "scale(1.06)", pointerEvents: "none",
-        transition: "filter 0.5s",
-      }} />
-      <div style={{ position: "absolute", inset: 0, background: C.heroOverlay1, transition: "background 0.5s" }} />
-      {isDark && <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 26%, rgba(201,168,76,0.10) 0%, transparent 68%)" }} />}
-      {isDark && <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 120% 100% at 50% 50%, transparent 38%, rgba(0,0,0,0.50) 100%)" }} />}
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#0E0D09", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:0, animation:phase===4?"loader-exit 0.65s cubic-bezier(0.76,0,0.24,1) forwards":"none", overflow:"hidden" }}>
+      <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-60%)", width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 70%)", pointerEvents:"none" }} />
 
-      {/* Hero copy */}
-      <div style={{
-        position: "relative", flex: "0 0 auto",
-        display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", textAlign: "center",
-        padding: "clamp(28px,4vw,64px) clamp(20px,5vw,60px) clamp(24px,3vw,44px)",
-      }}>
-        <h1 style={{
-          ...fade(0.10),
-          fontFamily: F.display,
-          fontSize: "clamp(28px,5.2vw,65px)",
-          fontWeight: 600, color: C.heroCopy,
-          lineHeight: 1.06, letterSpacing: "-0.025em",
-          margin: "0 0 16px",
-          transition: "color 0.35s",
-          marginTop: "80px",
-        }}>
-          Reserve Your
-          <br />
-          <em style={{ color: C.heroEmphasis, fontStyle: "italic", transition: "color 0.35s", marginTop: "8px", display: "inline-block" }}>Perfect Setting.</em>
-        </h1>
-
-        <p style={{
-          ...fade(0.19),
-          fontFamily: F.body, fontSize: "clamp(13px,1.4vw,16px)",
-          color: C.heroCopySub, lineHeight: 1.85,
-          maxWidth: 440, margin: "0 auto 24px", fontWeight: 400,
-          transition: "color 0.35s",
-        }}>
-          Choose from premium venues and dining across three wings,
-          then pick your seat and get confirmed in minutes.
-        </p>
-      </div>
-
-      {/* Wing Cards */}
-      <div id="browse-wings" style={{
-        position: "relative", flex: "1 0 auto",
-        padding: "0 clamp(16px,4vw,40px) clamp(24px,5vw,56px)",
-      }}>
-        <div style={{
-          ...fade(0.37),
-          maxWidth: 1160, margin: "0 auto 18px",
-          display: "flex", alignItems: "center", gap: 14,
-        }}>
-          <div style={{ flex: 1, height: 1, background: C.sectionLabelLine }} />
-          <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.30em", textTransform: "uppercase", color: C.sectionLabelColor }}>
-            Select a Wing to Reserve
-          </span>
-          <div style={{ flex: 1, height: 1, background: C.sectionLabelLine }} />
-        </div>
-
-        {/* Manage Booking Button */}
-        <div style={{ ...fade(0.43), maxWidth: 1160, margin: "0 auto 24px", display: "flex", justifyContent: "center" }}>
-          <button
-            onClick={onManageBooking}
-            style={{
-              padding: "12px 24px",
-              borderRadius: 0,
-              border: "none",
-              background: C.gold,
-              fontFamily: F.body,
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: C.btnPrimaryText,
-              cursor: "pointer",
-              transition: "background 0.2s, color 0.35s",
-              boxShadow: "0 4px 12px rgba(201,168,76,0.25)",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = C.goldLight}
-            onMouseLeave={(e) => e.currentTarget.style.background = C.gold}
-          >
-            Manage My Booking
-          </button>
-        </div>
-
-        {/* Cards */}
-        <div style={{
-          ...fade(0.43),
-          maxWidth: 1160, margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "clamp(10px,1.8vw,18px)",
-        }}>
-          {EVENT_CATEGORIES.map((cat) => (
-            <div
-              key={cat.id}
-              onClick={() => onNavigateToVenues(cat.section)}
-              onMouseEnter={() => setHovCard(cat.id)}
-              onMouseLeave={() => setHovCard(null)}
-              style={{
-                cursor: "pointer",
-                borderRadius: 10,
-                overflow: "hidden",
-                background: hovCard === cat.id ? C.wingCardBgHov : C.wingCardBg,
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-                border: hovCard === cat.id
-                  ? `1px solid ${C.wingCardBorderHov}`
-                  : `1px solid ${C.wingCardBorder}`,
-                boxShadow: hovCard === cat.id
-                  ? "0 20px 56px rgba(0,0,0,0.55)"
-                  : "0 4px 22px rgba(0,0,0,0.22)",
-                transform: hovCard === cat.id ? "translateY(-6px)" : "translateY(0)",
-                transition: "transform 0.28s cubic-bezier(.22,.68,0,1.2), box-shadow 0.28s, border-color 0.22s, background 0.35s",
-              }}
-            >
-              {/* Image */}
-              <div style={{ height: "clamp(135px,14vw,200px)", overflow: "hidden", position: "relative" }}>
-                <img src={cat.img} alt={cat.label} loading="lazy" style={{
-                  width: "100%", height: "100%", objectFit: "cover",
-                  transition: "transform 0.55s ease",
-                  transform: hovCard === cat.id ? "scale(1.07)" : "scale(1.01)",
-                }} />
-                <div style={{
-                  position: "absolute", inset: 0,
-                  background: "linear-gradient(to top, rgba(0,0,0,0.60) 0%, transparent 52%)",
-                  opacity: hovCard === cat.id ? 1 : 0.55, transition: "opacity 0.28s",
-                }} />
-                <div style={{
-                  position: "absolute", top: 12, left: 12,
-                  padding: "3px 10px",
-                  background: C.badgeOverlay,
-                  backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-                  border: "1px solid rgba(201,168,76,0.22)", borderRadius: 20,
-                }}>
-                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: C.badgeText }}>{cat.label}</span>
-                </div>
-              </div>
-
-              {/* Card footer */}
-              <div style={{
-                padding: "13px 15px 15px",
-                borderTop: `1px solid ${C.borderLight}`,
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: hovCard === cat.id ? C.wingCardBgHov : C.wingCardFooterBg,
-                transition: "background 0.22s",
-              }}>
-                <div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: C.wingCardFooterText, marginBottom: 3, transition: "color 0.35s" }}>
-                    {cat.label}
-                  </div>
-                  <div style={{ fontFamily: F.body, fontSize: 11, color: C.wingCardSubText, transition: "color 0.35s" }}>
-                    {cat.subtitle}
-                  </div>
-                </div>
-                <div style={{
-                  width: 27, height: 27, borderRadius: "50%", flexShrink: 0,
-                  border: `1px solid ${hovCard === cat.id ? C.gold : C.border}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: hovCard === cat.id ? C.gold : "transparent",
-                  transition: "all 0.22s",
-                }}>
-                  <span style={{
-                    fontSize: 12,
-                    color: hovCard === cat.id ? C.wingArrowHovText : C.gold,
-                    display: "inline-block",
-                    transform: hovCard === cat.id ? "translateX(1px)" : "translateX(0)",
-                    transition: "transform 0.2s, color 0.22s",
-                  }}>→</span>
-                </div>
-              </div>
-            </div>
+      <div style={{ marginBottom:40, opacity:phase>=1?1:0, animation:phase>=1?"logo-zoom-in 0.65s cubic-bezier(0.22,1,0.36,1) forwards, logo-breathe 3s 0.7s ease-in-out infinite":"none", transformOrigin:"center" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"20px 20px", gap:14 }}>
+          {[0,1,2,3].map(i => (
+            <span key={i} style={{ width:20, height:20, borderRadius:"50%", background:i%2===0?"linear-gradient(135deg,#E2C96A,#C9A84C)":"linear-gradient(135deg,#C9A84C,#9A7830)", display:"block", boxShadow:"0 2px 12px rgba(201,168,76,0.30)", animation:phase>=1?`dot-bounce 1.6s ${0.12*i}s ease-in-out infinite`:"none" }} />
           ))}
         </div>
-
-        {/* View All */}
-        <div style={{ ...fade(0.50), maxWidth: 1160, margin: "14px auto 0", display: "flex", justifyContent: "flex-end" }}>
-          <button type="button" onClick={() => onNavigateToVenues()}
-            style={{
-              padding: "7px 18px",
-              border: `1px solid ${C.viewAllBorder}`,
-              background: "transparent",
-              color: C.viewAllColor,
-              fontFamily: F.body, fontSize: 11, fontWeight: 600, letterSpacing: "0.12em",
-              textTransform: "uppercase", cursor: "pointer", borderRadius: 3, transition: "all 0.2s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.viewAllBorder; e.currentTarget.style.color = C.viewAllColor; }}>
-            View All Venues →
-          </button>
-        </div>
       </div>
 
-      {/* Scroll cue */}
-      <div style={{ position: "absolute", bottom: 18, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: loaded ? C.scrollCueOp : 0, transition: "opacity 1.2s 1.2s", pointerEvents: "none" }}>
-        <span style={{ fontFamily: F.body, fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: C.scrollCueColor }}>Scroll</span>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.scrollCueColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
-        </svg>
+      <div style={{ fontFamily:BODY, fontSize:10, fontWeight:700, letterSpacing:"0.42em", textTransform:"uppercase", color:"rgba(201,168,76,0.55)", marginBottom:16, opacity:phase>=1?1:0, animationName:phase>=1?"fade-up":"none", animationDuration:phase>=1?"0.5s":"0s", animationDelay:phase>=1?"0.3s":"0s", animationTimingFunction:phase>=1?"ease":"linear", animationFillMode:"both" }}>
+        The Bellevue Manila
       </div>
-    </section>
-  );
-}
 
-// ─────────────────────────────────────────────
-// DINING SECTION
-// ─────────────────────────────────────────────
-function DiningSection({ onNavigate, initialRestaurantId }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
+      <div style={{ textAlign:"center", marginBottom:56, opacity:phase>=2?1:0, animationName:phase>=2?"fade-up":"none", animationDuration:phase>=2?"0.55s":"0s", animationTimingFunction:phase>=2?"ease":"linear", animationFillMode:"both" }}>
+        <div style={{ fontFamily:DISPLAY, fontSize:"clamp(20px,3vw,30px)", fontWeight:600, color:"#F0E8D0", lineHeight:1.3, letterSpacing:"-0.01em" }}>Reservations &amp; Event Management</div>
+        <div style={{ fontFamily:BODY, fontSize:12, color:"rgba(240,232,208,0.35)", marginTop:10, letterSpacing:"0.08em" }}>Seats · Tables · Event Spaces</div>
+      </div>
 
-  const [ref, vis] = useScrollReveal(0.08);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("13:00");
-  const [guests, setGuests] = useState(2);
-  const [activeRestaurant, setActiveRestaurant] = useState(0);
-  const [forcedHighlightedLabel, setForcedHighlightedLabel] = useState(null);
-  const [activeImg, setActiveImg] = useState(0);
-
-  const restaurant = RESTAURANTS[activeRestaurant];
-  const imgs = restaurant?.imgs ?? [qsinaImg, qsinaImg2, qsinaImg3];
-  const totalRestaurants = RESTAURANTS.length;
-
-  useEffect(() => {
-    if (!initialRestaurantId) return;
-    const idx = RESTAURANTS.findIndex((r) => r.id === initialRestaurantId);
-    if (idx >= 0) setActiveRestaurant(idx);
-  }, [initialRestaurantId]);
-
-  useEffect(() => { setActiveImg(0); }, [activeRestaurant]);
-  useEffect(() => { setForcedHighlightedLabel(null); }, [activeRestaurant]);
-  useEffect(() => {
-    const id = setInterval(() => setActiveImg((n) => (n + 1) % imgs.length), 4000);
-    return () => clearInterval(id);
-  }, [imgs.length]);
-
-  const selectedMinutes = useMemo(() => {
-    if (!time) return null;
-    const s = String(time).trim();
-    const m = /^(\d{1,2}):(\d{2})$/.exec(s);
-    if (m) { let hh = Number(m[1]); const mm = Number(m[2]); if (Number.isFinite(hh) && Number.isFinite(mm)) { if (hh === 24) hh = 0; return hh * 60 + mm; } }
-    return null;
-  }, [time]);
-
-  const parseHoursRange = (hours) => {
-    if (!hours || typeof hours !== "string") return null;
-    const re = /(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*[–-]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i;
-    const m = re.exec(hours); if (!m) return null;
-    const toMin = (h, min, ap) => {
-      let hh = Number(h); const mm = Number(min || 0); const u = String(ap || "").toUpperCase();
-      if (u === "AM") { if (hh === 12) hh = 0; } else if (u === "PM") { if (hh !== 12) hh += 12; }
-      return hh * 60 + mm;
-    };
-    const start = toMin(m[1], m[2], m[3]); const end = toMin(m[4], m[5], m[6]);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-    return { start, end };
-  };
-
-  const fallbackSlot = useMemo(() => {
-    if (selectedMinutes == null) return null;
-    if (selectedMinutes >= 360  && selectedMinutes < 600)  return "Breakfast Buffet";
-    if (selectedMinutes >= 660  && selectedMinutes < 780)  return "Lunch";
-    if (selectedMinutes >= 780  && selectedMinutes < 1020) return "Light Lunch";
-    if (selectedMinutes >= 1020 && selectedMinutes < 1200) return "Dinner";
-    if (selectedMinutes >= 1200 && selectedMinutes < 1320) return "Dinner Buffet";
-    return null;
-  }, [selectedMinutes]);
-
-  const getNextDateForWeekdays = (weekdays) => {
-    if (!weekdays?.length) return null;
-    const names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const today = new Date();
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(today); d.setDate(today.getDate() + i);
-      const dow = names[d.getDay()];
-      if (weekdays.includes(dow)) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    }
-    return null;
-  };
-
-  const repTime = (label) => ({ "Breakfast Buffet":"08:00", Lunch:"12:00", "Light Lunch":"15:00", Dinner:"18:00", "Dinner Buffet":"20:00" }[label] || "12:00");
-
-  const selectDiningTime = (d) => {
-    const range = parseHoursRange(d.hours);
-    if (range) { const hh = Math.floor(range.start / 60); const mm = range.start % 60; setTime(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`); }
-    else setTime(repTime(d.label));
-    const hh = String(d.hours || "").toLowerCase();
-    const dayMatches = hh.match(/mon|tue|wed|thu|thur|fri|sat|sun/g);
-    if (dayMatches?.length) { const tokens = dayMatches.map((s) => s.replace("thur", "thu").slice(0, 3)); const next = getNextDateForWeekdays(tokens); if (next) setDate(next); }
-    setForcedHighlightedLabel(d.label);
-  };
-
-  const highlightedLabel = useMemo(() => {
-    const times = restaurant?.diningTimes ?? [];
-    if (forcedHighlightedLabel && times.some((t) => t.label === forcedHighlightedLabel)) return forcedHighlightedLabel;
-    if (!times?.length || selectedMinutes == null) return null;
-    for (const t of times) {
-      const range = parseHoursRange(t.hours); if (!range) continue;
-      const { start, end } = range;
-      if (start <= end ? selectedMinutes >= start && selectedMinutes <= end : selectedMinutes >= start || selectedMinutes <= end) return t.label;
-    }
-    return null;
-  }, [restaurant, selectedMinutes, forcedHighlightedLabel]);
-
-  return (
-    <section
-      ref={ref}
-      style={{
-        background: C.diningBg,
-        padding: "clamp(52px,8vw,110px) clamp(16px,4vw,40px) clamp(64px,9vw,120px)",
-        overflow: "hidden",
-        transition: "background 0.35s ease",
-        position: "relative",
-        zIndex: 1,
-      }}
-    >
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-          gap: "clamp(52px,6vw,80px)",
-          alignItems: "start",
-        }}>
-
-          {/* LEFT — image + widget */}
-          <div style={{ position: "relative", opacity: vis ? 1 : 0, transform: vis ? "none" : "translateX(-30px)", transition: "opacity 0.8s, transform 0.8s" }}>
-            <div style={{ borderRadius: 10, overflow: "hidden", height: 400, position: "relative" }}>
-              {imgs.map((src, i) => (
-                <img key={src} src={src} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: activeImg === i ? 1 : 0, transition: "opacity 0.55s ease" }} />
-              ))}
-              <div style={{ position: "absolute", inset: 0, background: C.diningOverlay, pointerEvents: "none" }} />
-              <div style={{ position: "absolute", bottom: 110, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 6 }}>
-                {imgs.map((_, i) => (
-                  <button key={i} type="button" onClick={() => setActiveImg(i)} style={{ width: 6, height: 6, borderRadius: "50%", border: "none", background: i === activeImg ? C.gold : "rgba(255,255,255,0.35)", cursor: "pointer", padding: 0, transition: "background 0.2s" }} />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT */}
-          <div style={{ paddingTop: 10, opacity: vis ? 1 : 0, transform: vis ? "none" : "translateX(30px)", transition: "opacity 0.8s 0.15s, transform 0.8s 0.15s", position: "relative", zIndex: 10005 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-              {[{d:-1,disabled:activeRestaurant===0,lbl:"←"},{d:1,disabled:activeRestaurant===totalRestaurants-1,lbl:"→"}].map(({d,disabled,lbl}) => (
-                <button key={lbl} type="button" disabled={disabled}
-                  onClick={() => setActiveRestaurant((n) => Math.max(0, Math.min(totalRestaurants-1, n+d)))}
-                  style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${C.border}`, background: "transparent", color: disabled ? C.textMuted : C.gold, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", fontSize: 15 }}
-                  onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.borderColor = C.gold; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-
-            <h2 style={{ fontFamily: F.display, fontSize: "clamp(32px,4.5vw,58px)", fontWeight: 600, color: C.textPrimary, marginBottom: 12, lineHeight: 0.95, letterSpacing: "-0.01em", transition: "color 0.35s" }}>
-              {restaurant?.name}
-            </h2>
-            <p style={{ fontFamily: F.body, fontSize: 14, color: C.textMuted, lineHeight: 1.85, marginBottom: 24, maxWidth: 380, transition: "color 0.35s" }}>
-              {restaurant?.description}
-            </p>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 26 }}>
-              {(restaurant?.diningTimes ?? []).map((d) => {
-                const active = highlightedLabel ? d.label === highlightedLabel : false;
-                return (
-                  <button key={d.label} type="button" onClick={() => selectDiningTime(d)}
-                    style={{
-                      padding: "6px 13px", borderRadius: 3,
-                      background: active ? C.gold : C.fieldBg,
-                      border: `1px solid ${active ? C.gold : C.border}`,
-                      cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start",
-                      position: "relative", zIndex: 10006, transition: "background 0.2s, border-color 0.2s",
-                    }}>
-                    <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: active ? C.btnPrimaryText : C.gold, transition: "color 0.2s" }}>{d.label}</div>
-                    {d.hours && <div style={{ fontFamily: F.body, fontSize: 11, color: active ? (isDark ? "rgba(14,13,9,0.55)" : "rgba(255,255,255,0.7)") : C.textMuted, marginTop: 2, transition: "color 0.2s" }}>{d.hours}</div>}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              {imgs.map((src, i) => (
-                <div key={src}
-                  onClick={() => { setActiveImg(i); const pref = restaurant?.diningTimes?.[0]; if (pref) selectDiningTime(pref); }}
-                  style={{ flex: 1, height: 62, borderRadius: 5, overflow: "hidden", cursor: "pointer", border: activeImg === i ? `2px solid ${C.gold}` : "2px solid transparent", transition: "border 0.2s", position: "relative", zIndex: 40 }}>
-                  <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.4s" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")} />
-                </div>
-              ))}
-            </div>
+      <div style={{ width:240, opacity:phase>=3?1:0, transition:"opacity 0.4s ease" }}>
+        <div style={{ width:"100%", height:1, background:"rgba(201,168,76,0.14)", borderRadius:2, overflow:"hidden", position:"relative" }}>
+          <div style={{ height:"100%", width:`${progress}%`, background:"linear-gradient(90deg,#9A7830,#E2C96A,#C9A84C)", borderRadius:2, transition:"width 0.12s ease", position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:0, left:0, height:"100%", width:40, background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)", animation:phase>=3?"shimmer-line 1.2s 0.2s ease-in-out infinite":"none" }} />
           </div>
         </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12 }}>
+          <span style={{ fontFamily:BODY, fontSize:10, color:"rgba(240,232,208,0.28)", letterSpacing:"0.12em", textTransform:"uppercase" }}>Loading</span>
+          <span style={{ fontFamily:MONO, fontSize:11, color:"rgba(201,168,76,0.70)", letterSpacing:"0.04em" }}>{progress}%</span>
+        </div>
       </div>
-    </section>
-  );
-}
-
-function FieldInput({ type, value, onChange }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return (
-    <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%", padding: "9px 12px",
-        background: C.fieldBg,
-        border: `1px solid ${C.border}`,
-        borderRadius: 4,
-        color: C.textPrimary,
-        fontFamily: F.body, fontSize: 13,
-        outline: "none", boxSizing: "border-box",
-        colorScheme: isDark ? "dark" : "light",
-        transition: "background 0.3s, border-color 0.3s, color 0.3s",
-      }} />
-  );
-}
-
-function GuestPicker({ value, onChange, min = 1, max = 20, style }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  const clamp = (n) => Math.max(min, Math.min(max, n));
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: C.fieldBg, border: `1px solid ${C.border}`, borderRadius: 4, transition: "background 0.3s, border-color 0.3s", ...style }}>
-      <button type="button" onClick={() => onChange(clamp(value-1))} disabled={value<=min} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: value<=min ? C.textMuted : C.gold, fontSize: 17, cursor: value<=min ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: value<=min ? 0.5 : 1 }}>−</button>
-      <div style={{ flex: 1, display: "grid", gap: 3 }}>
-        <div style={{ fontFamily: F.body, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textSub, textAlign: "center" }}>Guests</div>
-        <input type="text" inputMode="numeric" pattern="[0-9]*" value={String(value)}
-          onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g,""); const next = raw===""?min:Number(raw); if(!Number.isFinite(next))return; onChange(clamp(Math.round(next))); }}
-          style={{ width: "100%", height: 27, background: C.fieldBg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.textPrimary, fontFamily: F.body, fontSize: 13, textAlign: "center", outline: "none", transition: "background 0.3s, color 0.3s" }} />
-      </div>
-      <button type="button" onClick={() => onChange(clamp(value+1))} disabled={value>=max} style={{ width: 28, height: 28, borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: value>=max ? C.textMuted : C.gold, fontSize: 17, cursor: value>=max ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: value>=max ? 0.5 : 1 }}>+</button>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// TESTIMONIALS TICKER
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// PARTNERS & SPONSORS TICKER
-// ─────────────────────────────────────────────
-const PARTNERS = [
-  "Johnny’s Steak & Grill at Cellar XXII",
-  "Pastry Corner",
-  "Vue Bar",
-  "Azurea Spa",
-  "Jing Monis Salon",
-  "Pretty Looks",
-];
-
-function TestimonialsCarousel() {
+// ── HERO ───────────────────────────────────────────────────────────────────────
+function HeroSection({ loaded, onNavigateToVenues, onManageBooking }) {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
+  const isMobile = useIsMobile();
+  const [imgHov, setImgHov] = useState(null);
+  const [wingHov, setWingHov] = useState({});
+  const leftRef = useRef(null);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const run = async () => {
+      await loadGsap();
+      if (!leftRef.current) return;
+      const els = leftRef.current.querySelectorAll(".ha");
+      window.gsap.fromTo(els, { y:52, opacity:0 }, { y:0, opacity:1, duration:0.95, ease:"power3.out", stagger:0.10, delay:0.18 });
+    };
+    run().catch(console.error);
+  }, [loaded]);
+
+  const WINGS = [
+    { img:mainWingImg,  label:"Main Wing",  sub:"Corporate & Social Events",  num:"01", action: () => onNavigateToVenues("main-wing")  },
+    { img:towerWingImg, label:"Tower Wing", sub:"Grand Galas & Celebrations", num:"02", action: () => onNavigateToVenues("tower-wing") },
+  ];
+
+  if (isMobile) {
+    return (
+      <section style={{ background:C.heroBg, paddingTop:NAV_H, minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <div ref={leftRef} style={{ flex:1, padding:"32px 24px 48px", background:C.heroBg }}>
+          <div className="ha" style={{ display:"flex", alignItems:"center", gap:12, marginBottom:22, opacity:0 }}>
+            <div style={{ width:32, height:1, background:C.gold }} />
+            <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.44em", textTransform:"uppercase", color:C.gold }}>Est. Alabang, Manila</span>
+          </div>
+          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(44px,12vw,68px)", fontWeight:600, color:C.textPrimary, lineHeight:0.90, letterSpacing:"-0.03em", margin:"0 0 3px", opacity:0 }}>Reserve</h1>
+          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(44px,12vw,68px)", fontWeight:600, fontStyle:"italic", color:C.gold, lineHeight:0.90, letterSpacing:"-0.03em", margin:"0 0 3px", opacity:0 }}>Your Perfect</h1>
+          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(44px,12vw,68px)", fontWeight:600, color:C.textPrimary, lineHeight:0.96, letterSpacing:"-0.018em", margin:"0 0 22px", opacity:0 }}>Setting.</h1>
+          <p className="ha" style={{ fontFamily:BODY, fontSize:14, color:C.heroSub, lineHeight:1.85, marginBottom:28, opacity:0 }}>Two wings of premium event spaces and dining — from intimate boardrooms to grand ballrooms.</p>
+          <div className="ha" style={{ display:"flex", gap:14, alignItems:"center", flexWrap:"wrap", marginBottom:28, opacity:0 }}>
+            <button onClick={() => onNavigateToVenues()}
+              style={{ padding:"14px 32px", background:isDark?C.textPrimary:C.dark, color:isDark?C.dark:"#F0E8D0", border:"none", fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.20em", textTransform:"uppercase", cursor:"pointer", transition:"all 0.3s" }}
+              onMouseEnter={e=>{e.currentTarget.style.background=C.gold;e.currentTarget.style.color="#18140E";}}
+              onMouseLeave={e=>{e.currentTarget.style.background=isDark?C.textPrimary:C.dark;e.currentTarget.style.color=isDark?C.dark:"#F0E8D0";}}>
+              Browse Venues
+            </button>
+            <span onClick={onManageBooking} style={{ display:"flex", alignItems:"center", gap:8, fontFamily:BODY, fontSize:12, fontWeight:500, color:C.textMuted, cursor:"pointer" }}>
+              Manage Booking <ChevRight size={14} color={C.gold} strokeWidth={2.5} />
+            </span>
+          </div>
+          <div className="ha" style={{ display:"flex", border:`1px solid ${C.border}`, opacity:0 }}>
+            {[{n:"2",l:"Wings"},{n:"9",l:"Venues"}].map((s,i) => (
+              <div key={s.l} style={{ flex:1, padding:"8px 0", borderLeft:i===0?"none":`1px solid ${C.border}`, textAlign:"center" }}>
+                <div style={{ fontFamily:MONO, fontSize:14, fontWeight:300, color:C.textPrimary }}>{s.n}</div>
+                <div style={{ fontFamily:BODY, fontSize:6, fontWeight:600, color:C.textMuted, letterSpacing:"0.18em", textTransform:"uppercase", marginTop:1 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ width:"100%", height:340, overflow:"hidden", position:"relative", flexShrink:0, display:"flex", flexDirection:"column", marginTop:0 }}>
+          {WINGS.map((w) => {
+            const hov = wingHov[w.num] || false;
+            return (
+              <div key={w.num} onClick={w.action} onMouseEnter={() => setWingHov(prev => ({...prev, [w.num]: true}))} onMouseLeave={() => setWingHov(prev => ({...prev, [w.num]: false}))}
+                style={{ flex:1, position:"relative", overflow:"hidden", cursor:"pointer" }}>
+                <img src={w.img} alt="" style={{ position:"absolute", inset:"-10%", width:"120%", height:"120%", objectFit:"cover", filter:"blur(16px) brightness(0.22)", transform:hov?"scale(1.1)":"scale(1.05)", transition:"transform 0.3s ease", pointerEvents:"none" }} />
+                <img src={w.img} alt={w.label} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", filter:hov?"brightness(0.48)":"brightness(0.42)", transition:"filter 0.3s ease" }} />
+                <div style={{ position:"absolute", inset:0, background:hov?"linear-gradient(to top,rgba(201,168,76,0.15)0%,transparent 55%)":"linear-gradient(to top,rgba(14,13,9,0.82)0%,transparent 55%)", transition:"background 0.3s ease" }} />
+                <div style={{ position:"absolute", bottom:10, left:14, right:14, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <div style={{ fontFamily:DISPLAY, fontSize:13, fontWeight:600, color:hov?"#C9A84C":"#F0E8D0", transition:"color 0.3s ease" }}>{w.label}</div>
+                    <div style={{ fontFamily:BODY, fontSize:10, color:hov?"rgba(201,168,76,0.60)":"rgba(240,232,208,0.50)", transition:"color 0.3s ease" }}>{w.sub}</div>
+                  </div>
+                  <ChevRight size={16} color={hov?"#C9A84C":"#F0E8D0"} strokeWidth={2.5} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section style={{
-      background: isDark
-        ? "linear-gradient(180deg, #0E0D09 0%, #14120C 50%, #0E0D09 100%)"
-        : "linear-gradient(180deg, #F5F0E8 0%, #EDE7D9 50%, #F5F0E8 100%)",
-      padding: "clamp(40px,6vw,72px) 0",
-      position: "relative",
-      overflow: "hidden",
-      transition: "background 0.35s",
-    }}>
-
-      {/* Label */}
-      <div style={{
-        maxWidth: 1100,
-        margin: "0 auto clamp(0px,2vw,30px)",
-        padding: "0 clamp(5px,0vw,10px)",
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-      }}>
-        <div style={{ flex: 1, height: 1, background: isDark ? "rgba(201,168,76,0.15)" : "rgba(160,120,40,0.22)" }} />
-        <span style={{
-          fontFamily: F.body,
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: "0.32em",
-          textTransform: "uppercase",
-          color: C.gold,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
-        }}>Official Partners &amp; Sponsors</span>
-        <div style={{ flex: 1, height: 1, background: isDark ? "rgba(201,168,76,0.15)" : "rgba(160,120,40,0.22)" }} />
+    <section style={{ position:"relative", minHeight:"100vh", display:"flex", paddingTop:NAV_H, background:C.heroBg, overflow:"hidden" }}>
+      <div ref={leftRef} style={{ flex:"0 0 52%", display:"flex", flexDirection:"column", justifyContent:"center", padding:"80px 64px 80px 56px", position:"relative", zIndex:2 }}>
+        <div className="ha" style={{ display:"flex", alignItems:"center", gap:16, marginBottom:42, opacity:0 }}>
+          <div style={{ width:40, height:1, background:C.gold }} />
+          <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.44em", textTransform:"uppercase", color:C.gold }}>Est. Alabang, Manila</span>
+        </div>
+        <div style={{ overflow:"hidden", marginBottom:2 }}>
+          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(54px,6.5vw,102px)", fontWeight:600, color:C.textPrimary, lineHeight:0.88, letterSpacing:"-0.03em", margin:0, opacity:0 }}>Reserve</h1>
+        </div>
+        <div style={{ overflow:"hidden", marginBottom:2 }}>
+          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(54px,6.5vw,102px)", fontWeight:600, fontStyle:"italic", color:C.gold, lineHeight:0.88, letterSpacing:"-0.03em", margin:0, opacity:0 }}>Your Perfect</h1>
+        </div>
+        <div style={{ overflow:"hidden", marginBottom:44 }}>
+          <h1 className="ha" style={{ fontFamily:DISPLAY, fontSize:"clamp(54px,6.5vw,102px)", fontWeight:600, color:C.textPrimary, lineHeight:0.96, letterSpacing:"-0.018em", margin:0, opacity:0 }}>Setting.</h1>
+        </div>
+        <p className="ha" style={{ fontFamily:BODY, fontSize:15, color:C.heroSub, lineHeight:1.9, maxWidth:380, marginBottom:48, fontWeight:400, opacity:0 }}>Two wings of premium event spaces and dining — from intimate boardrooms to grand ballrooms.</p>
+        <div className="ha" style={{ display:"flex", gap:16, alignItems:"center", opacity:0 }}>
+          <button onClick={() => onNavigateToVenues()}
+            style={{ padding:"15px 44px", background:isDark?C.textPrimary:C.dark, color:isDark?C.dark:"#F0E8D0", border:"none", fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.20em", textTransform:"uppercase", cursor:"pointer", transition:"all 0.32s cubic-bezier(0.4,0,0.2,1)" }}
+            onMouseEnter={e=>{e.currentTarget.style.background=C.gold;e.currentTarget.style.color="#18140E";e.currentTarget.style.transform="translateY(-2px)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background=isDark?C.textPrimary:C.dark;e.currentTarget.style.color=isDark?C.dark:"#F0E8D0";e.currentTarget.style.transform="translateY(0)";}}>
+            Browse Venues
+          </button>
+          <span onClick={onManageBooking}
+            style={{ display:"flex", alignItems:"center", gap:10, fontFamily:BODY, fontSize:12, fontWeight:500, color:C.textMuted, cursor:"pointer", transition:"color 0.2s" }}
+            onMouseEnter={e=>e.currentTarget.style.color=C.gold}
+            onMouseLeave={e=>e.currentTarget.style.color=C.textMuted}>
+            Manage Booking
+            <span style={{ display:"flex", alignItems:"center", justifyContent:"center", width:22, height:22, borderRadius:"50%", border:`1.5px solid ${C.gold}`, flexShrink:0 }}>
+              <ChevRight size={12} color={C.gold} strokeWidth={2.5} />
+            </span>
+          </span>
+        </div>
+        <div style={{ position:"absolute", bottom:40, left:56, display:"flex", alignItems:"center", gap:12, opacity:loaded?0.30:0, transition:"opacity 1.2s 1.8s" }}>
+          <div style={{ width:1, height:48, background:C.border }} />
+          <span style={{ fontFamily:BODY, fontSize:9, letterSpacing:"0.32em", textTransform:"uppercase", color:C.textMuted, writingMode:"vertical-lr" }}>Scroll</span>
+        </div>
+        <div className="ha" style={{ position:"absolute", bottom:40, right:0, display:"flex", background:isDark?C.darkMid:"#DED4BC", border:`1px solid ${C.border}`, borderRight:"none", opacity:0 }}>
+          {[{n:"2",l:"Wings"},{n:"9",l:"Venues"}].map((s,i) => (
+            <div key={s.l} style={{ padding:"18px 32px", borderLeft:i===0?"none":`1px solid ${C.border}`, textAlign:"center" }}>
+              <div style={{ fontFamily:MONO, fontSize:22, fontWeight:300, color:C.textPrimary, lineHeight:1 }}>{s.n}</div>
+              <div style={{ fontFamily:BODY, fontSize:9, fontWeight:600, color:C.textMuted, letterSpacing:"0.18em", textTransform:"uppercase", marginTop:4 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Ticker */}
-      <div style={{ overflow: "hidden", width: "100%" }}>
-        <div style={{
-          display: "flex",
-          animation: "partners-scroll 28s linear infinite",
-          whiteSpace: "nowrap",
-        }}
-          onMouseEnter={(e) => (e.currentTarget.style.animationPlayState = "paused")}
-          onMouseLeave={(e) => (e.currentTarget.style.animationPlayState = "running")}
-        >
-          {[...PARTNERS, ...PARTNERS].map((name, i) => (
-            <span key={i} style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              marginRight: "clamp(40px,6vw,72px)",
-              fontFamily: F.body,
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: isDark ? "rgba(245,239,224,0.40)" : "rgba(26,22,18,0.38)",
-            }}>
-              <span style={{
-                width: 4,
-                height: 4,
-                borderRadius: "50%",
-                background: C.gold,
-                display: "inline-block",
-                flexShrink: 0,
-              }} />
+      <div style={{ flex:"0 0 48%", display:"flex", flexDirection:"column", overflow:"hidden", opacity:loaded?1:0, transform:loaded?"none":"translateX(30px)", transition:"opacity 0.9s 0.3s, transform 0.9s 0.3s" }}>
+        {WINGS.map((wing) => {
+          const hov = imgHov === wing.num;
+          return (
+            <div key={wing.num} onMouseEnter={() => setImgHov(wing.num)} onMouseLeave={() => setImgHov(null)} onClick={wing.action}
+              style={{ flex:"1 1 50%", position:"relative", overflow:"hidden", cursor:"pointer" }}>
+              <img src={wing.img} alt="" style={{ position:"absolute", inset:"-10%", width:"120%", height:"120%", objectFit:"cover", filter:"blur(20px) brightness(0.22)", transform:"scale(1.05)", pointerEvents:"none" }} />
+              <img src={wing.img} alt={wing.label} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", transform:hov?"scale(1.06)":"scale(1.00)", transition:"transform 0.75s cubic-bezier(0.22,1,0.36,1)", filter:hov?"brightness(0.48)":"brightness(0.38)" }} />
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(14,13,9,0.90)0%,rgba(14,13,9,0.10)60%,transparent 100%)" }} />
+              <div style={{ position:"absolute", top:20, right:24, fontFamily:MONO, fontSize:52, fontWeight:300, color:"rgba(240,232,208,0.06)", lineHeight:1, userSelect:"none", pointerEvents:"none" }}>{wing.num}</div>
+              <div style={{ position:"absolute", top:20, left:20, width:40, height:40, background:C.gold, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", opacity:hov?1:0, transform:hov?"scale(1)":"scale(0.65)", transition:"all 0.32s cubic-bezier(0.22,1,0.36,1)" }}>
+                <ChevRight size={18} color="#18140E" strokeWidth={2.8} />
+              </div>
+              <div style={{ position:"absolute", bottom:24, left:28, background:hov?"rgba(14,13,9,0.95)":"rgba(14,13,9,0.72)", backdropFilter:"blur(8px)", padding:"12px 18px", borderLeft:`3px solid ${C.gold}`, transition:"background 0.3s" }}>
+                <div style={{ fontFamily:BODY, fontSize:9, fontWeight:700, color:C.gold, letterSpacing:"0.24em", textTransform:"uppercase", marginBottom:5 }}>Wing {wing.num}</div>
+                <div style={{ fontFamily:DISPLAY, fontSize:16, fontWeight:600, color:"#F0E8D0", lineHeight:1.2 }}>{wing.label}</div>
+                <div style={{ fontFamily:BODY, fontSize:11, color:"rgba(240,232,208,0.48)", marginTop:3 }}>{wing.sub}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ── NAV DOT ────────────────────────────────────────────────────────────────────
+function NavDot({ disabled, icon, C, onClick }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button type="button" disabled={disabled} onClick={onClick}
+      onMouseEnter={() => { if (!disabled) setHov(true); }}
+      onMouseLeave={() => setHov(false)}
+      style={{ width:38, height:38, borderRadius:"50%", border:`1.5px solid ${disabled?"rgba(201,168,76,0.20)":C.gold}`, background:hov&&!disabled?C.gold:"transparent", cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.28:1, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.22s cubic-bezier(0.4,0,0.2,1)", flexShrink:0, outline:"none" }}>
+      {icon === "left"
+        ? <ChevLeft  size={16} color={hov&&!disabled?"#18140E":C.gold} strokeWidth={2.5} />
+        : <ChevRight size={16} color={hov&&!disabled?"#18140E":C.gold} strokeWidth={2.5} />
+      }
+    </button>
+  );
+}
+
+// ── DINING ─────────────────────────────────────────────────────────────────────
+function DiningSection({ initialRestaurantId, onNavigateToDining }) {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  const isMobile = useIsMobile();
+  const ref = useGsapScroll({ y:40, opacity:0, duration:0.9, selector:".da", stagger:0.10 });
+  const [activeR,   setActiveR]   = useState(0);
+  const [activeImg, setActiveImg] = useState(0);
+  const [hovLabel,  setHovLabel]  = useState(null);
+
+  const r    = RESTAURANTS[activeR];
+  const imgs = r?.imgs ?? [];
+
+  useEffect(() => {
+    if (!initialRestaurantId) return;
+    const idx = RESTAURANTS.findIndex(x => x.id === initialRestaurantId);
+    if (idx >= 0) setActiveR(idx);
+  }, [initialRestaurantId]);
+
+  useEffect(() => { setActiveImg(0); }, [activeR]);
+  useEffect(() => {
+    const id = setInterval(() => setActiveImg(n => (n + 1) % imgs.length), 4000);
+    return () => clearInterval(id);
+  }, [imgs.length]);
+
+  const diningBgStyle = isDark ? {
+    background: C.diningBg,
+    backgroundImage: `radial-gradient(ellipse 60% 40% at 30% 60%, rgba(201,168,76,0.05) 0%, transparent 70%), radial-gradient(ellipse 50% 60% at 75% 30%, rgba(201,168,76,0.04) 0%, transparent 70%)`,
+  } : {
+    background: C.diningBg,
+    backgroundImage: `radial-gradient(ellipse 60% 40% at 20% 70%, rgba(154,110,28,0.08) 0%, transparent 65%), radial-gradient(ellipse 50% 50% at 80% 25%, rgba(154,110,28,0.06) 0%, transparent 65%)`,
+  };
+
+  const imgBlock = (h) => (
+    <div style={{ height:h, position:"relative", overflow:"hidden", borderRadius:2 }}>
+      {imgs.map((src, i) => (
+        <img key={i} src={src} alt="" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", opacity:activeImg===i?1:0, transition:"opacity 0.6s ease" }} />
+      ))}
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(14,13,9,0.75)0%,transparent 50%)" }} />
+      <div style={{ position:"absolute", top:16, left:16, background:isDark?"rgba(0,0,0,0.56)":"rgba(255,255,255,0.90)", backdropFilter:"blur(12px)", padding:"6px 14px 6px 10px", display:"flex", alignItems:"center", gap:8, borderRadius:2 }}>
+        <div style={{ width:6, height:6, borderRadius:"50%", background:C.gold }} />
+        <span style={{ fontFamily:BODY, fontSize:10, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:C.gold }}>{r?.tag}</span>
+      </div>
+      <div style={{ position:"absolute", bottom:14, left:"50%", transform:"translateX(-50%)", display:"flex", gap:6 }}>
+        {imgs.map((_, i) => (
+          <button key={i} type="button" onClick={() => setActiveImg(i)}
+            style={{ width:i===activeImg?18:6, height:6, borderRadius:3, border:"none", padding:0, cursor:"pointer", background:i===activeImg?C.gold:"rgba(255,255,255,0.35)", transition:"all 0.3s ease" }} />
+        ))}
+      </div>
+    </div>
+  );
+
+  const chips = () => (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:isMobile?6:8, marginBottom:isMobile?18:28 }}>
+      {(r?.diningTimes ?? []).map(d => {
+        const hov = hovLabel === d.label;
+        return (
+          <div key={d.label} onMouseEnter={() => setHovLabel(d.label)} onMouseLeave={() => setHovLabel(null)}
+            style={{ padding:isMobile?"5px 10px":"7px 14px", background:hov?C.goldFaint:"transparent", border:`1px solid ${hov?C.gold:C.border}`, display:"flex", flexDirection:"column", transition:"all 0.22s cubic-bezier(0.4,0,0.2,1)", userSelect:"none", cursor:"default", borderRadius:2 }}>
+            <div style={{ fontFamily:BODY, fontSize:isMobile?11:12, fontWeight:700, letterSpacing:"0.06em", color:C.gold }}>{d.label}</div>
+            {d.hours && <div style={{ fontFamily:BODY, fontSize:isMobile?10:11, color:C.textMuted, marginTop:2 }}>{d.hours}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const thumbs = () => (
+    <div style={{ display:"flex", gap:isMobile?6:8 }}>
+      {imgs.map((src, i) => (
+        <div key={i} onClick={() => setActiveImg(i)}
+          style={{ flex:1, height:isMobile?50:60, overflow:"hidden", cursor:"pointer", border:activeImg===i?`2px solid ${C.gold}`:"2px solid transparent", transition:"border 0.22s", borderRadius:2 }}>
+          <img src={src} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", transition:"transform 0.4s" }}
+            onMouseEnter={e => e.currentTarget.style.transform="scale(1.08)"}
+            onMouseLeave={e => e.currentTarget.style.transform="scale(1)"} />
+        </div>
+      ))}
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <section ref={ref} style={{ ...diningBgStyle, padding:"36px 16px 48px", overflow:"hidden", transition:"background 0.35s" }}>
+        <div style={{ maxWidth:520, margin:"0 auto" }}>
+          <div className="da" style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:16, marginTop:20, opacity:0 }}>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                <div style={{ width:24, height:1, background:C.gold }} />
+                <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.36em", textTransform:"uppercase", color:C.gold }}>Fine Dining</span>
+              </div>
+              <h2 style={{ fontFamily:DISPLAY, fontSize:28, fontWeight:600, color:C.textPrimary, lineHeight:1, letterSpacing:"-0.01em", margin:0 }}>{r?.name}</h2>
+            </div>
+            <div style={{ display:"flex", gap:6, paddingTop:4 }}>
+              <NavDot disabled={activeR===0}                    icon="left"  C={C} onClick={() => setActiveR(n => Math.max(0,n-1))} />
+              <NavDot disabled={activeR===RESTAURANTS.length-1} icon="right" C={C} onClick={() => setActiveR(n => Math.min(RESTAURANTS.length-1,n+1))} />
+            </div>
+          </div>
+          <div className="da" style={{ marginBottom:12, opacity:0 }}>{imgBlock(220)}</div>
+          <div className="da" style={{ marginBottom:14, opacity:0 }}>{thumbs()}</div>
+          <div className="da" style={{ opacity:0 }}>
+            <p style={{ fontFamily:BODY, fontSize:13, color:C.textMuted, lineHeight:1.78, marginBottom:16 }}>{r?.description}</p>
+            {chips()}
+            <button type="button" onClick={onNavigateToDining}
+              className={`dining-reserve-btn${isDark?"":" dining-reserve-btn-light"}`}
+              style={{ width:"100%", justifyContent:"center", marginTop:8 }}>
+              Reserve a Dining Venue
+              <ChevRight size={14} color="currentColor" strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section ref={ref} style={{ ...diningBgStyle, padding:"clamp(80px,10vw,120px) clamp(20px,5vw,56px)", overflow:"hidden", transition:"background 0.35s" }}>
+      <div style={{ maxWidth:1100, margin:"0 auto" }}>
+        <div className="da" style={{ display:"flex", alignItems:"center", gap:14, marginBottom:60, opacity:0 }}>
+          <div style={{ width:32, height:1, background:C.gold }} />
+          <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.44em", textTransform:"uppercase", color:C.gold }}>Fine Dining</span>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"clamp(52px,6vw,88px)", alignItems:"start" }}>
+          <div className="da" style={{ opacity:0 }}>
+            {imgBlock(440)}
+            <div style={{ marginTop:10 }}>{thumbs()}</div>
+          </div>
+          <div className="da" style={{ paddingTop:8, opacity:0 }}>
+            <div style={{ display:"flex", gap:8, marginBottom:24 }}>
+              <NavDot disabled={activeR===0}                    icon="left"  C={C} onClick={() => setActiveR(n => Math.max(0,n-1))} />
+              <NavDot disabled={activeR===RESTAURANTS.length-1} icon="right" C={C} onClick={() => setActiveR(n => Math.min(RESTAURANTS.length-1,n+1))} />
+              <span style={{ fontFamily:MONO, fontSize:11, color:C.textFaint, alignSelf:"center", marginLeft:4 }}>
+                {String(activeR+1).padStart(2,"0")} / {String(RESTAURANTS.length).padStart(2,"0")}
+              </span>
+            </div>
+            <h2 style={{ fontFamily:DISPLAY, fontSize:"clamp(32px,4vw,56px)", fontWeight:600, color:C.textPrimary, marginBottom:14, lineHeight:0.95, letterSpacing:"-0.01em" }}>{r?.name}</h2>
+            <p style={{ fontFamily:BODY, fontSize:14, color:C.textMuted, lineHeight:1.88, marginBottom:28, maxWidth:380 }}>{r?.description}</p>
+            {chips()}
+            <button type="button" onClick={onNavigateToDining}
+              className={`dining-reserve-btn${isDark?"":" dining-reserve-btn-light"}`}>
+              Reserve a Dining Venue
+              <ChevRight size={14} color="currentColor" strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── MARQUEE ────────────────────────────────────────────────────────────────────
+function Marquee() {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  const bg = isDark ? "#0E0D09" : "#18140E";
+  return (
+    // ✅ borderTop removed — was causing the visible line on scroll
+    <div style={{ background:bg, padding:"28px 0", overflow:"hidden" }}>
+      <div style={{ maxWidth:1100, margin:"0 auto clamp(10px,1.5vw,16px)", padding:"0 24px", display:"flex", alignItems:"center", gap:1 }}>
+        <div style={{ flex:1, height:1, background:"rgba(201,168,76,0.15)" }} />
+        <span style={{ fontFamily:BODY, fontSize:9, fontWeight:700, letterSpacing:"0.32em", textTransform:"uppercase", color:C.gold, flexShrink:0, whiteSpace:"nowrap", padding:"0 16px" }}>Official Partners &amp; Sponsors</span>
+        <div style={{ flex:1, height:1, background:"rgba(201,168,76,0.15)" }} />
+      </div>
+      <div style={{ position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", left:0, top:0, bottom:0, width:80, background:`linear-gradient(to right,${bg},transparent)`, zIndex:2, pointerEvents:"none" }} />
+        <div style={{ position:"absolute", right:0, top:0, bottom:0, width:80, background:`linear-gradient(to left,${bg},transparent)`, zIndex:2, pointerEvents:"none" }} />
+        <div style={{ display:"flex", animation:"partners-scroll 28s linear infinite", whiteSpace:"nowrap" }}
+          onMouseEnter={e => e.currentTarget.style.animationPlayState="paused"}
+          onMouseLeave={e => e.currentTarget.style.animationPlayState="running"}>
+          {[...PARTNERS,...PARTNERS].map((name, i) => (
+            <span key={i} style={{ display:"inline-flex", alignItems:"center", gap:10, marginRight:"clamp(40px,6vw,72px)", fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.22em", textTransform:"uppercase", color:"rgba(240,232,208,0.22)" }}>
+              <span style={{ width:4, height:4, borderRadius:"50%", background:C.gold, display:"inline-block", flexShrink:0 }} />
               {name}
             </span>
           ))}
         </div>
       </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes partners-scroll {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      ` }} />
-    </section>
+    </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// NEWSLETTER
-// ─────────────────────────────────────────────
+// ── NEWSLETTER ─────────────────────────────────────────────────────────────────
 function NewsletterSection() {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [ref, vis] = useScrollReveal(0.2);
-
+  const isMobile = useIsMobile();
+  const ref = useGsapScroll({ y:30, opacity:0, duration:0.9, delay:0.05 });
   return (
-    <section ref={ref} style={{ position: "relative", overflow: "hidden", background: C.nlBg, borderTop: `1px solid ${C.borderLight}`, transition: "background 0.35s ease" }}>
-      <div style={{ position: "absolute", inset: 0, opacity: isDark ? 0.03 : 0.04, backgroundImage: `linear-gradient(${C.gold} 1px,transparent 1px),linear-gradient(90deg,${C.gold} 1px,transparent 1px)`, backgroundSize: "60px 60px" }} />
-      <div style={{ position: "relative", maxWidth: 1100, margin: "0 auto", padding: "clamp(44px,6vw,72px) clamp(16px,5vw,60px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 36, flexWrap: "wrap", opacity: vis ? 1 : 0, transition: "opacity 0.8s" }}>
+    // ✅ borderTop removed — was causing the visible line on scroll
+    <section ref={ref} style={{ position:"relative", overflow:"hidden", background:C.nlBg, transition:"background 0.35s" }}>
+      <div style={{ position:"absolute", inset:0, opacity:isDark?0.03:0.04, backgroundImage:`linear-gradient(${C.gold} 1px,transparent 1px),linear-gradient(90deg,${C.gold} 1px,transparent 1px)`, backgroundSize:"60px 60px", pointerEvents:"none" }} />
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${C.gold},transparent)` }} />
+      <div style={{ position:"relative", maxWidth:1100, margin:"0 auto", padding:"clamp(36px,6vw,72px) clamp(20px,5vw,60px)", display:"flex", alignItems:isMobile?"flex-start":"center", justifyContent:"space-between", flexDirection:isMobile?"column":"row", gap:isMobile?24:36, flexWrap:"wrap" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <GoldLine width={20} />
-            <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: C.gold }}>Stay Connected</span>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
+            <div style={{ width:24, height:1, background:C.gold }} />
+            <span style={{ fontFamily:BODY, fontSize:12, fontWeight:700, letterSpacing:"0.22em", textTransform:"uppercase", color:C.gold }}>Stay Connected</span>
           </div>
-          <h3 style={{ fontFamily: F.display, fontSize: "clamp(22px,3.5vw,34px)", fontWeight: 600, color: C.textPrimary, lineHeight: 1.2, margin: 0, transition: "color 0.35s" }}>Via email</h3>
+          <h3 style={{ fontFamily:DISPLAY, fontSize:"clamp(22px,3.5vw,42px)", fontWeight:600, color:C.textPrimary, lineHeight:1.1, margin:0 }}>
+            Let's plan your<br /><em style={{ color:C.gold }}>event together.</em>
+          </h3>
+          <p style={{ fontFamily:BODY, fontSize:13, color:C.textMuted, lineHeight:1.85, maxWidth:400, marginTop:12 }}>Our events team is available to help you find the perfect space and ensure a flawless occasion.</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-end" }}>
-          <div style={{ display: "flex", overflow: "hidden", borderRadius: 3, border: `1px solid ${C.border}` }}>
-            <input
-              type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              style={{
-                padding: "12px 18px",
-                background: C.fieldBg,
-                border: "none",
-                color: C.textPrimary,
-                fontFamily: F.body, fontSize: 13, outline: "none",
-                width: "clamp(180px,22vw,250px)",
-                transition: "background 0.3s, color 0.3s",
-              }} />
-            <button type="button" onClick={() => { if (!email) return; setSent(true); setTimeout(() => { setSent(false); setEmail(""); }, 2500); }}
-              style={{
-                padding: "12px 16px",
-                background: sent ? C.gold : C.fieldBg,
-                border: "none", cursor: "pointer",
-                color: sent ? C.btnPrimaryText : C.gold,
-                transition: "all 0.25s", fontFamily: F.body, fontSize: 15,
-              }}>
-              {sent ? "✓" : "→"}
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:14, alignItems:isMobile?"flex-start":"flex-end", flexShrink:0 }}>
+          <a href="mailto:reservations@thebellevue.com"
+            style={{ fontFamily:DISPLAY, fontSize:"clamp(14px,1.6vw,19px)", fontStyle:"italic", color:C.gold, textDecoration:"none", borderBottom:`1px solid ${C.border}`, paddingBottom:3, letterSpacing:"0.02em", transition:"color 0.2s,border-color 0.2s" }}
+            onMouseEnter={e=>{e.currentTarget.style.color=C.goldLight;e.currentTarget.style.borderBottomColor=C.gold;}}
+            onMouseLeave={e=>{e.currentTarget.style.color=C.gold;e.currentTarget.style.borderBottomColor=C.border;}}>
+            reservations@thebellevue.com
+          </a>
+          <div style={{ display:"flex", gap:8 }}>
             {[["f","Facebook","https://www.facebook.com/thebellevuemanila/"],["t","X","https://x.com/bellevuemanila"],["i","Instagram","https://www.instagram.com/bellevuemanila/"],["y","YouTube","https://www.youtube.com/channel/UC01W6kRH_R-T0ok6RDT3aGg"]].map(([icon,label,href]) => (
               <a key={label} href={href} target="_blank" rel="noreferrer" title={label}
-                style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: F.body, fontSize: 13, fontWeight: 700, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMuted; }}>
+                style={{ width:36, height:36, borderRadius:"50%", border:`1px solid ${C.border}`, color:C.textMuted, fontFamily:BODY, fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", textDecoration:"none", transition:"all 0.2s" }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=C.gold;e.currentTarget.style.color=C.gold;e.currentTarget.style.transform="translateY(-3px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textMuted;e.currentTarget.style.transform="translateY(0)";}}>
                 {icon}
               </a>
             ))}
@@ -844,88 +704,78 @@ function NewsletterSection() {
   );
 }
 
-// ─────────────────────────────────────────────
-// FOOTER
-// ─────────────────────────────────────────────
-function Footer({ onNavigate, onManageBooking }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-
-  return (
-    <footer style={{ background: C.footerBg, borderTop: `1px solid ${C.borderLight}`, transition: "background 0.35s ease" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(44px,6vw,72px) clamp(16px,5vw,60px) clamp(28px,4vw,44px)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: "clamp(24px,4vw,40px)", marginBottom: 44 }}>
-          <div>
-            <div style={{ marginBottom: 16 }}>
-              <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height: 36, width: "auto", display: "block", filter: isDark ? "none" : "brightness(0) saturate(100%) invert(30%) sepia(50%) saturate(400%) hue-rotate(5deg)", transition: "filter 0.35s" }} />
-            </div>
-            <p style={{ fontFamily: F.body, fontSize: 13, color: C.textFaint, lineHeight: 1.85, margin: "0 0 14px", transition: "color 0.35s" }}>
-              Luxury event spaces and seamless reservations in the heart of Alabang.
-            </p>
-            <button type="button" onClick={onManageBooking}
-              style={{ padding: "8px 15px", background: C.gold, border: "none", borderRadius: 0, fontFamily: F.body, fontSize: 11, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.btnPrimaryText, cursor: "pointer", transition: "background 0.2s, color 0.35s" }}
-              onMouseEnter={e => e.currentTarget.style.background = C.goldLight}
-              onMouseLeave={e => e.currentTarget.style.background = C.gold}>
-              Manage My Booking →
-            </button>
-          </div>
-          <div>
-            <FooterHeading>Venues</FooterHeading>
-            <FooterLink onClick={() => onNavigate("main-wing")}>Main Wing</FooterLink>
-            <FooterLink onClick={() => onNavigate("tower-wing")}>Tower Wing</FooterLink>
-            <FooterLink onClick={() => onNavigate("dining")}>Dining</FooterLink>
-          </div>
-          <div>
-            <FooterHeading>Reservations</FooterHeading>
-            <FooterLink onClick={() => onNavigate("main-wing")}>Book a Seat</FooterLink>
-            <FooterLink onClick={() => onNavigate("dining")}>Book a Table</FooterLink>
-            <FooterLink onClick={onManageBooking}>Manage Booking</FooterLink>
-          </div>
-          <div>
-            <FooterHeading>Contact</FooterHeading>
-            <p style={{ fontFamily: F.body, fontSize: 13, color: C.textFaint, lineHeight: 2, margin: 0, transition: "color 0.35s" }}>
-              02 871 8181 5139<br />
-              North Bridgeway, Filinvest City<br />
-              Alabang, Muntinlupa City<br />
-              <a href="mailto:reservations@thebellevue.com" style={{ color: C.goldDark, textDecoration: "none" }}>reservations@thebellevue.com</a>
-            </p>
-          </div>
-        </div>
-        <Divider mb={22} />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <span style={{ fontFamily: F.body, fontSize: 12, color: C.textDeep, transition: "color 0.35s" }}>© {new Date().getFullYear()} The Bellevue Manila. All rights reserved.</span>
-          <span style={{ fontFamily: F.body, fontSize: 12, color: C.textDeep, transition: "color 0.35s" }}>Seat & Table Management System</span>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-function FooterHeading({ children }) {
-  const { isDark } = useTheme();
-  const C = getTokens(isDark);
-  return <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: C.gold, marginBottom: 13 }}>{children}</div>;
-}
-
+// ── FOOTER ─────────────────────────────────────────────────────────────────────
 function FooterLink({ children, onClick }) {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
   const [hov, setHov] = useState(false);
   return (
     <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ fontFamily: F.body, fontSize: 13, color: hov ? C.gold : C.footerLinkDefault, marginBottom: 9, cursor: "pointer", transition: "color 0.2s" }}>
+      style={{ fontFamily:BODY, fontSize:13, color:hov?C.gold:C.footerLink, marginBottom:9, cursor:"pointer", transition:"color 0.2s" }}>
       {children}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// ROOT
-// ─────────────────────────────────────────────
+function Footer({ onNavigate, onManageBooking }) {
+  const { isDark } = useTheme();
+  const C = getTokens(isDark);
+  const ref = useGsapScroll({ y:24, opacity:0, duration:0.85, selector:".fc", stagger:0.08 });
+  return (
+    <footer ref={ref} style={{ background:C.footerBg, borderTop:`1px solid ${C.borderLight}`, transition:"background 0.35s" }}>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"clamp(44px,6vw,72px) clamp(20px,5vw,60px) clamp(28px,4vw,44px)" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))", gap:"clamp(24px,4vw,40px)", marginBottom:44 }}>
+          <div className="fc">
+            <div style={{ marginBottom:16 }}>
+              <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:36, width:"auto", display:"block", filter:isDark?"none":"brightness(0) saturate(100%) invert(30%) sepia(50%) saturate(400%) hue-rotate(5deg)", transition:"filter 0.35s" }} />
+            </div>
+            <p style={{ fontFamily:BODY, fontSize:13, color:C.textFaint, lineHeight:1.85, margin:"0 0 14px" }}>Luxury event spaces and seamless reservations in the heart of Alabang.</p>
+          </div>
+          <div className="fc">
+            <div style={{ fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:C.gold, marginBottom:13 }}>Venues</div>
+            <FooterLink onClick={() => onNavigate("main-wing")}>Main Wing</FooterLink>
+            <FooterLink onClick={() => onNavigate("tower-wing")}>Tower Wing</FooterLink>
+            <FooterLink onClick={() => onNavigate("dining")}>Dining</FooterLink>
+          </div>
+          <div className="fc">
+            <div style={{ fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:C.gold, marginBottom:13 }}>Reservations</div>
+            <FooterLink onClick={() => onNavigate("main-wing")}>Book a Seat</FooterLink>
+            <FooterLink onClick={() => onNavigate("dining")}>Book a Table</FooterLink>
+            <FooterLink onClick={onManageBooking}>Manage Booking</FooterLink>
+          </div>
+          <div className="fc">
+            <div style={{ fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:C.gold, marginBottom:13 }}>Contact</div>
+            <p style={{ fontFamily:BODY, fontSize:13, color:C.textFaint, lineHeight:2, margin:0 }}>
+              02 871 8181 5139<br />
+              North Bridgeway, Filinvest City<br />
+              Alabang, Muntinlupa City
+            </p>
+          </div>
+        </div>
+        <div style={{ height:1, background:C.borderLight, margin:"0 0 24px" }} />
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+          <span style={{ fontFamily:BODY, fontSize:12, color:C.textDeep }}>© {new Date().getFullYear()} The Bellevue Manila. All rights reserved.</span>
+          <span style={{ fontFamily:BODY, fontSize:12, color:C.textDeep }}>Seat &amp; Table Management System</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ── ROOT ───────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [diningRestaurantId, setDiningRestaurantId] = useState(null);
+  const [loaded, setLoaded]   = useState(false);
+  const [diningRestaurantId]  = useState(null);
+
+  // ✅ Scroll state wired up — used by SharedNavbar
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const [isDark, setIsDark] = useState(() => {
     try {
@@ -935,58 +785,61 @@ export default function HomePage() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
 
-  const toggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      try { localStorage.setItem("bellevue-theme", next ? "dark" : "light"); } catch {}
-      return next;
-    });
-  };
+  const toggleTheme = () => setIsDark(prev => {
+    const next = !prev;
+    try { localStorage.setItem("bellevue-theme", next?"dark":"light"); } catch {}
+    return next;
+  });
 
   const C = getTokens(isDark);
-  const goToVenues = (section) => { if (section) navigate(`/venues?section=${section}`); else navigate("/venues"); };
+
+  const goToVenues        = (section) => section ? navigate(`/venues?section=${section}`) : navigate("/venues");
+  const goToDining        = () => navigate("/venues?section=dining");
   const goToManageBooking = () => navigate("/manage-booking");
 
   useEffect(() => {
-    const headerH = NAV_H; const markerY = headerH + 8;
-    const inView = (id) => { const el = document.getElementById(id); if (!el) return false; const r = el.getBoundingClientRect(); return r.top <= markerY && r.bottom > markerY; };
+    const state = location.state;
+    if (!state) return;
+    if (state.scrollTo === "dining") {
+      requestAnimationFrame(() => {
+        const el = document.getElementById("home-dining");
+        if (el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+      });
+    }
+    if (state.scrollTo === "event") {
+      window.scrollTo({ top:0, behavior:"smooth" });
+    }
+    navigate(".", { replace:true, state:null });
+  }, [location.state, navigate]);
+
+  useEffect(() => {
+    const markerY = NAV_H + 8;
+    const inView = (id) => {
+      const el = document.getElementById(id); if (!el) return false;
+      const r = el.getBoundingClientRect(); return r.top <= markerY && r.bottom > markerY;
+    };
     const onScroll = () => window.dispatchEvent(new CustomEvent("homeActiveSection", { detail: inView("home-dining") ? "dining" : null }));
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive:true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    if (location.pathname === "/" && location.state?.scrollTo === "dining") {
-      requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-      navigate(".", { replace: true, state: null });
-    }
-  }, [location.pathname, location.state, navigate]);
-
-  const handleNavigate = (target) => {
-    if (target === "venue") { navigate("/venues"); return; }
-    if (target === "dining") {
-      requestAnimationFrame(() => { const el = document.getElementById("home-dining"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-    }
-  };
-
   return (
-    <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
-      <div style={{ background: C.pageBg, minHeight: "100vh", transition: "background 0.35s ease" }}>
-        <SharedNavbar 
-          isDark={isDark} 
-          toggle={toggleTheme} 
-          showNavigation={true} 
-          scrolled={false}
-          height={64}
-        />
-        <HeroBrowseSection onNavigateToVenues={goToVenues} onManageBooking={goToManageBooking} />
-        <div id="home-dining">
-          <DiningSection onNavigate={handleNavigate} initialRestaurantId={diningRestaurantId} />
+    <ThemeContext.Provider value={{ isDark, toggle:toggleTheme }}>
+      <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
+      <div style={{ background:C.pageBg, minHeight:"100vh", transition:"background 0.35s" }}>
+        {!loaded && <Loader onDone={() => setLoaded(true)} />}
+        <div style={{ opacity:loaded?1:0, transition:"opacity 0.7s" }}>
+          {/* ✅ scrolled is now live — but SharedNavbar ignores border when showNavigation=false anyway */}
+          <SharedNavbar isDark={isDark} toggle={toggleTheme} showNavigation={true} scrolled={scrolled} height={NAV_H} />
+          <HeroSection loaded={loaded} onNavigateToVenues={goToVenues} onManageBooking={goToManageBooking} />
+          <div id="home-dining">
+            <DiningSection initialRestaurantId={diningRestaurantId} onNavigateToDining={goToDining} />
+          </div>
+          <Marquee />
+          <NewsletterSection />
+          <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
         </div>
-        <TestimonialsCarousel />
-        <NewsletterSection />
-        <Footer onNavigate={goToVenues} onManageBooking={goToManageBooking} />
       </div>
     </ThemeContext.Provider>
   );
