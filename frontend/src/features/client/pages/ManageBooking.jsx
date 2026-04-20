@@ -10,13 +10,7 @@ import {
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-<<<<<<< HEAD
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-=======
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-const WING = "Main Wing";
-const ROOM = "Alabang Function Room";
->>>>>>> 4b504ec8bad2d0cca724238cddf5a22acb79a73a
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });

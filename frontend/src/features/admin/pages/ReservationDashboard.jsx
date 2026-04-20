@@ -1,15 +1,10 @@
 // src/features/admin/pages/ReservationDashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import { fetchReservations, approveReservation, rejectReservation, getReservationStats } from "../../../utils/api";
-import { subscribeToReservationUpdates } from "../../../utils/websocket";
 
-
-const RESERVATIONS_KEY = "bellevue_reservations";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-const POLLING_INTERVAL_MS = 15000;
-const WS_CONNECT_GRACE_MS = 7000;
 
 // ─── Design Tokens (light only) ───────────────────────────────────────────────
 const C = {
@@ -101,31 +96,6 @@ function StatusBadge({ status }) {
       {s.charAt(0).toUpperCase()+s.slice(1)}
     </span>
   );
-}
-
-// ─── Email notification API call ──────────────────────────────────────────────
-async function sendStatusEmail(reservationId, status, rejectionReason="") {
-  try {
-    console.log(`[Email] Sending ${status} email for reservation ${reservationId}`);
-    const res=await fetch(`${API_BASE_URL}/reservations/${reservationId}/notify`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json",Accept:"application/json"},
-      body:JSON.stringify({status,rejection_reason:rejectionReason}),
-    });
-    
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`[Email] Failed to send email: ${res.status} - ${errorText}`);
-      return false;
-    }
-    
-    const result = await res.json();
-    console.log(`[Email] Email sent successfully:`, result);
-    return result.success || true;
-  } catch (error) {
-    console.error(`[Email] Error sending email:`, error);
-    return false;
-  }
 }
 
 // ─── Reject Reason Modal ──────────────────────────────────────────────────────
@@ -505,13 +475,7 @@ export default function ReservationDashboard() {
   const [pagination,setPagination]=useState({currentPage:1,lastPage:1,totalItems:0});
   const [loading,setLoading]=useState(true);
   const [searchFocused,setSearchFocused]=useState(false);
-  const [syncMode, setSyncMode] = useState("connecting");
-
-  // ─── Selection state ────────────────────────────────────────────────────────
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [syncMode,setSyncMode]=useState("connecting");
 
   const [windowWidth,setWindowWidth]=useState(window.innerWidth);
   useEffect(()=>{
@@ -523,46 +487,46 @@ export default function ReservationDashboard() {
   const isMobile=windowWidth<640;
   const isTablet=windowWidth<960;
 
+  // ─── Fetch / refresh data ───────────────────────────────────────────────────
   const refreshDashboardData = useCallback(async (silent = true) => {
-  if (!silent) setLoading(true);
-  try {
-    const [reservationsData, statsData] = await Promise.all([
-      fetchReservations(),
-      getReservationStats(),
-    ]);
-    if (reservationsData?.data) setReservations(reservationsData.data);
-    if (statsData) setStats(statsData);
-  } catch (err) {
-    console.error("[Dashboard] Refresh error:", err);
-  } finally {
-    if (!silent) setLoading(false);
-  }
-}, []);
+    if (!silent) setLoading(true);
+    try {
+      const [reservationsData, statsData] = await Promise.all([
+        fetchReservations(),
+        getReservationStats(),
+      ]);
+      if (reservationsData?.data) setReservations(reservationsData.data);
+      if (statsData) setStats(statsData);
+    } catch (err) {
+      console.error("[Dashboard] Refresh error:", err);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
 
-  // WebSocket with enhanced connection management and polling fallback
+  // Initial load
   useEffect(()=>{
-    const wsHost=import.meta.env.VITE_WS_HOST||"localhost",wsPort=import.meta.env.VITE_WS_PORT||"6001";
+    refreshDashboardData(false);
+  },[refreshDashboardData]);
+
+  // ─── WebSocket with polling fallback ────────────────────────────────────────
+  useEffect(()=>{
+    const wsHost=import.meta.env.VITE_WS_HOST||"localhost";
+    const wsPort=import.meta.env.VITE_WS_PORT||"6001";
     const protocol=window.location.protocol==="https:"?"wss:":"ws:";
     const wsUrl=`${protocol}//${wsHost}:${wsPort}`;
-    
+
     let ws=null;
     let retryCount=0;
     const maxRetries=3;
     const retryDelay=5000;
     let pollingInterval=null;
     let isPolling=false;
-    
-    const setConnectionStatus=(status)=>{
-      console.log(`[ReservationDashboard] Connection status: ${status}`);
-      // Update UI if needed (could add status indicator later)
-    };
-    
+
     const startPolling=()=>{
-      if(isPolling) return;
+      if(isPolling)return;
       isPolling=true;
-      setConnectionStatus('polling');
-      console.log('[ReservationDashboard] Starting polling fallback');
-      
+      setSyncMode("polling");
       pollingInterval=setInterval(async()=>{
         try{
           const resp=await fetch(`${API_BASE_URL}/admin/reservations/recent`);
@@ -572,109 +536,81 @@ export default function ReservationDashboard() {
               data.forEach(updated=>{
                 setReservations(prev=>{
                   const idx=prev.findIndex(r=>r.id===updated.id);
-                  if(idx>=0){
-                    const arr=[...prev];
-                    arr[idx]=updated;
-                    return arr;
-                  }
+                  if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
                   return[...prev,updated];
                 });
               });
             }
           }
         }catch(err){
-          console.error('[ReservationDashboard] Polling error:', err);
+          console.error("[Dashboard] Polling error:",err);
         }
-      },10000); // Poll every 10 seconds
+      },10000);
     };
-    
+
     const stopPolling=()=>{
-      if(pollingInterval){
-        clearInterval(pollingInterval);
-        pollingInterval=null;
-        isPolling=false;
-        setConnectionStatus('disconnected');
-      }
+      if(pollingInterval){clearInterval(pollingInterval);pollingInterval=null;isPolling=false;}
     };
-    
+
     const connect=()=>{
       try{
         ws=new WebSocket(wsUrl);
-        
+
         ws.onopen=()=>{
-          setConnectionStatus('connected');
+          setSyncMode("websocket");
           retryCount=0;
-          stopPolling(); // Stop polling when WebSocket connects
-          console.log('[ReservationDashboard] WebSocket connected');
+          stopPolling();
         };
-        
+
         ws.onclose=()=>{
-          setConnectionStatus('disconnected');
+          setSyncMode("connecting");
           if(retryCount<maxRetries){
             retryCount++;
-            const delay=retryDelay*Math.pow(2,retryCount-1);
-            setTimeout(connect,delay);
+            setTimeout(connect,retryDelay*Math.pow(2,retryCount-1));
           }else{
-            console.log('[ReservationDashboard] Max retries reached, switching to polling');
             startPolling();
           }
         };
-        
-        ws.onerror=(error)=>{
-          setConnectionStatus('error');
-          if(retryCount===0){
-            console.error('[ReservationDashboard] Connection error:', error);
-          }
+
+        ws.onerror=()=>{
           if(retryCount<maxRetries){
             retryCount++;
-            const delay=retryDelay*Math.pow(2,retryCount-1);
-            setTimeout(connect,delay);
+            setTimeout(connect,retryDelay*Math.pow(2,retryCount-1));
           }else{
-            console.log('[ReservationDashboard] Connection error max retries, switching to polling');
             startPolling();
           }
         };
-        
+
         ws.onmessage=event=>{
           try{
             const data=JSON.parse(event.data);
-            console.log('[ReservationDashboard WS] Received event:', data.event);
-            
             const updated=data?.payload?.reservation||data?.reservation;
             if(updated){
               setReservations(prev=>{
                 const idx=prev.findIndex(r=>r.id===updated.id);
-                if(idx>=0){
-                  const arr=[...prev];
-                  arr[idx]=updated;
-                  return arr;
-                }
+                if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
                 return[...prev,updated];
               });
             }
           }catch(err){
-            console.error('[ReservationDashboard WS] Parse error:', err);
+            console.error("[Dashboard WS] Parse error:",err);
           }
         };
-        
       }catch(err){
-        console.error('[ReservationDashboard] Failed to create WebSocket:', err);
+        console.error("[Dashboard] WebSocket init failed:",err);
         startPolling();
       }
     };
-    
+
     connect();
-    
-    return ()=>{
+
+    return()=>{
       stopPolling();
-      if(ws){
-        ws.close();
-        ws=null;
-      }
+      if(ws){ws.close();ws=null;}
     };
   },[]);
 
-  // Filter
+  // ─── Filter ─────────────────────────────────────────────────────────────────
   useEffect(()=>{
     let filtered=reservations;
     if(filterStatus!=="ALL"){
@@ -688,11 +624,24 @@ export default function ReservationDashboard() {
     }
     if(search.trim()){
       const q=search.toLowerCase();
-      filtered=filtered.filter((r)=>r.name?.toLowerCase().includes(q)||r.email?.toLowerCase().includes(q)||r.reference_code?.toLowerCase().includes(q));
+      filtered=filtered.filter((r)=>
+        r.name?.toLowerCase().includes(q)||
+        r.email?.toLowerCase().includes(q)||
+        r.reference_code?.toLowerCase().includes(q)
+      );
     }
     setFilteredReservations(filtered);
     setPagination((p)=>({...p,lastPage:Math.ceil(filtered.length/10)||1,totalItems:filtered.length,currentPage:1}));
   },[reservations,filterStatus,search]);
+
+  // Recompute stats from local state so counts stay in sync
+  useEffect(()=>{
+    const total=reservations.length;
+    const pending=reservations.filter(r=>r.status?.toLowerCase()==="pending").length;
+    const approved=reservations.filter(r=>r.status?.toLowerCase()==="approved"||r.status?.toLowerCase()==="reserved").length;
+    const rejected=reservations.filter(r=>r.status?.toLowerCase()==="rejected").length;
+    setStats({total,pending,approved,rejected});
+  },[reservations]);
 
   const handlePageChange=(page)=>{
     if(page<1||page>pagination.lastPage)return;
@@ -711,16 +660,13 @@ export default function ReservationDashboard() {
     return pages;
   };
 
-  // Approve
+  // ─── Approve ────────────────────────────────────────────────────────────────
   const handleApprove=async(reservation)=>{
     try{
       const result=await approveReservation(reservation.db_id);
       if(result.success){
         setReservations((prev)=>prev.map((r)=>r.id===reservation.id?{...r,status:"approved"}:r));
-        setToast({
-          message:`Approved! Confirmation email sent to ${reservation.email}.`,
-          type:"success",
-        });
+        setToast({message:`Approved! Confirmation email sent to ${reservation.email}.`,type:"success"});
       }else{
         setToast({message:result.message||"Failed to approve",type:"error"});
       }
@@ -729,16 +675,13 @@ export default function ReservationDashboard() {
     }
   };
 
-  // Reject
+  // ─── Reject ─────────────────────────────────────────────────────────────────
   const handleReject=async(reservation,reason)=>{
     try{
       const result=await rejectReservation(reservation.db_id,reason);
       if(result.success){
         setReservations((prev)=>prev.map((r)=>r.id===reservation.id?{...r,status:"rejected"}:r));
-        setToast({
-          message:`Rejected. Notification email sent to ${reservation.email}.`,
-          type:"success",
-        });
+        setToast({message:`Rejected. Notification email sent to ${reservation.email}.`,type:"success"});
       }else{
         setToast({message:result.message||"Failed to reject",type:"error"});
       }
@@ -748,7 +691,7 @@ export default function ReservationDashboard() {
   };
 
   const statCards=[
-    {label:"Total",    count:stats.total,    filter:"ALL",      color:C.gold,               bg:C.goldFaint,           border:C.borderAccent                  },
+    {label:"Total",    count:stats.total,    filter:"ALL",      color:C.gold,               bg:C.goldFaint,           border:C.borderAccent              },
     {label:"Pending",  count:stats.pending,  filter:"PENDING",  color:C.badgePending.color,  bg:C.statusNote.pending,  border:C.statusNoteBorder.pending  },
     {label:"Approved", count:stats.approved, filter:"APPROVED", color:C.badgeApproved.color, bg:C.statusNote.approved, border:C.statusNoteBorder.approved },
     {label:"Rejected", count:stats.rejected, filter:"REJECTED", color:C.badgeRejected.color, bg:C.statusNote.rejected, border:C.statusNoteBorder.rejected },
@@ -783,7 +726,6 @@ export default function ReservationDashboard() {
             activeNav="reservations"
           />
 
-          {/* Main — flex:1, no hardcoded marginLeft */}
           <div style={{flex:1,minWidth:0,height:"calc(100vh - 60px)",background:C.pageBg,overflow:"auto"}}>
 
             {/* Top bar */}
@@ -803,28 +745,18 @@ export default function ReservationDashboard() {
                 <span style={{color:C.textTertiary,fontSize:11}}>·</span>
                 <span style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.14em",color:C.textSecondary,fontWeight:600,textTransform:"uppercase"}}>Reservation Management</span>
                 <span style={{
-                  display:"inline-flex",
-                  alignItems:"center",
-                  gap:5,
-                  marginLeft:4,
-                  padding:"2px 8px",
-                  borderRadius:20,
-                  border:`1px solid ${syncMode === "websocket" ? C.greenBorder : syncMode === "polling" ? C.borderAccent : C.borderDefault}`,
-                  background:syncMode === "websocket" ? C.greenFaint : syncMode === "polling" ? C.goldFaint : "transparent",
-                  color:syncMode === "websocket" ? C.green : syncMode === "polling" ? C.gold : C.textSecondary,
-                  fontFamily:F.label,
-                  fontSize:8,
-                  fontWeight:700,
-                  letterSpacing:"0.10em",
-                  textTransform:"uppercase",
+                  display:"inline-flex",alignItems:"center",gap:5,marginLeft:4,
+                  padding:"2px 8px",borderRadius:20,
+                  border:`1px solid ${syncMode==="websocket"?C.greenBorder:syncMode==="polling"?C.borderAccent:C.borderDefault}`,
+                  background:syncMode==="websocket"?C.greenFaint:syncMode==="polling"?C.goldFaint:"transparent",
+                  color:syncMode==="websocket"?C.green:syncMode==="polling"?C.gold:C.textSecondary,
+                  fontFamily:F.label,fontSize:8,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",
                 }}>
                   <span style={{
-                    width:5,
-                    height:5,
-                    borderRadius:"50%",
-                    background:syncMode === "websocket" ? C.green : syncMode === "polling" ? C.gold : C.textTertiary,
+                    width:5,height:5,borderRadius:"50%",
+                    background:syncMode==="websocket"?C.green:syncMode==="polling"?C.gold:C.textTertiary,
                   }}/>
-                  {syncMode === "websocket" ? "Live" : syncMode === "polling" ? "Polling" : "Connecting"}
+                  {syncMode==="websocket"?"Live":syncMode==="polling"?"Polling":"Connecting"}
                 </span>
               </div>
               <div style={{position:"relative"}}>
@@ -1057,7 +989,7 @@ export default function ReservationDashboard() {
           </div>
         </div>
 
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {toast&&<Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)}/>}
 
         {showModal&&selectedReservation&&(
           <DetailModal
