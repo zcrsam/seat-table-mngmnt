@@ -1228,6 +1228,95 @@ export default function ManageBooking() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
   const toggleTheme = () => setIsDark((p) => {
+
+function CancelSuccessModal({ reference, onClose, C }) {
+  return (
+    <ModalShell onClose={onClose} C={C} maxWidth={430}>
+      <div style={{ padding: "26px 26px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            flexShrink: 0,
+            background: C.statusNote.approved,
+            border: `1px solid ${C.statusNoteBorder.approved}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+
+          <div>
+            <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.green, fontWeight: 700, textTransform: "uppercase", marginBottom: 3 }}>
+              Booking Cancelled
+            </div>
+            <div style={{ fontFamily: F.display, fontSize: 22, fontWeight: 400, color: C.textPrimary, lineHeight: 1.2 }}>
+              Cancellation Successful
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          padding: "12px 14px",
+          borderRadius: 10,
+          background: C.greenFaint,
+          border: `1px solid ${C.greenBorder}`,
+          color: C.textPrimary,
+          fontFamily: F.body,
+          fontSize: 13,
+          lineHeight: 1.55,
+          marginBottom: 14,
+        }}>
+          Your booking has been cancelled successfully.
+        </div>
+
+        {!!reference && (
+          <div style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: C.goldFaintest,
+            border: `1px solid ${C.borderAccent}`,
+            marginBottom: 18,
+          }}>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.18em", fontWeight: 700, textTransform: "uppercase", color: C.textTertiary, marginBottom: 6 }}>
+              Reference Code
+            </div>
+            <div style={{ fontFamily: F.mono, fontSize: 18, fontWeight: 800, color: C.textPrimary, letterSpacing: "0.08em" }}>
+              {reference}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          style={{
+            width: "100%",
+            padding: "12px",
+            border: "none",
+            borderRadius: 8,
+            background: C.gold,
+            color: C.textOnAccent,
+            fontFamily: F.label,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            transition: "all 0.18s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = C.goldLight; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = C.gold; }}
+        >
+          Done
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
     const n = !p;
     try { localStorage.setItem("bellevue-theme", n ? "dark" : "light"); } catch {}
     return n;
@@ -1241,6 +1330,8 @@ export default function ManageBooking() {
   const [saving, setSaving]                   = useState(false);
   const [cancelling, setCancelling]           = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showCancelSuccessModal, setShowCancelSuccessModal] = useState(false);
+  const [cancelledReference, setCancelledReference] = useState("");
   const [error, setError]                     = useState("");
   const [booking, setBooking]                 = useState(null);
   const [editing, setEditing]                 = useState(false);
@@ -1383,7 +1474,10 @@ export default function ManageBooking() {
         throw new Error(data?.message || `HTTP ${response.status}`);
       }
 
+      const cancelledCode = booking?.reference_code || booking?.id || referenceCode;
       setShowCancelModal(false);
+      setCancelledReference(cancelledCode || "");
+      setShowCancelSuccessModal(true);
       setBooking(null);
       setReferenceCode("");
     } catch (err) {
@@ -1847,6 +1941,17 @@ export default function ManageBooking() {
           onConfirm={handleCancelConfirm}
           onDismiss={() => setShowCancelModal(false)}
           cancelling={cancelling}
+          C={C}
+        />
+      )}
+
+      {showCancelSuccessModal && (
+        <CancelSuccessModal
+          reference={cancelledReference}
+          onClose={() => {
+            setShowCancelSuccessModal(false);
+            setCancelledReference("");
+          }}
           C={C}
         />
       )}
