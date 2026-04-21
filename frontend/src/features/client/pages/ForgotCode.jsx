@@ -189,8 +189,10 @@ function clientFilter(list, surname, phone) {
     const lastWord = parts[parts.length - 1]?.toLowerCase() || "";
     const exactSurnameMatch = lastWord === sLow;
     const nameMatch = exactSurnameMatch ||
+    const nameMatch = exactSurnameMatch ||
       parts.some((p) => p.toLowerCase().startsWith(sLow)) ||
       fullName.toLowerCase().includes(sLow);
+    const ph = String(r.phone || r.contact_number || r.mobile || r.phone_number || "").replace(/\D/g, "");
     const ph = String(r.phone || r.contact_number || r.mobile || r.phone_number || "").replace(/\D/g, "");
     const phoneMatch = ph.length >= 2 && ph.slice(-2) === phone;
     return nameMatch && phoneMatch;
@@ -255,6 +257,7 @@ function StatusBadge({ status, C }) {
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
 function ThemeToggle() {
   const { isDark, toggle } = useTheme();
+  const C = getTokens(isDark);
   const C = getTokens(isDark);
   return (
 <<<<<<< Updated upstream
@@ -323,7 +326,23 @@ function NavBar() {
       borderBottom: `1px solid ${C.navBorder}`,
       boxSizing: "border-box", transition: "background 0.30s",
     }}>
+    <nav style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000,
+      height: 64, display: "flex", alignItems: "center",
+      justifyContent: "space-between", padding: "0 clamp(20px,5vw,64px)",
+      background: C.navBg, backdropFilter: "blur(24px)",
+      WebkitBackdropFilter: "blur(24px)",
+      borderBottom: `1px solid ${C.navBorder}`,
+      boxSizing: "border-box", transition: "background 0.30s",
+    }}>
       <img src={bellevueLogo} alt="The Bellevue Manila" onClick={() => navigate("/")}
+        style={{
+          height: 26, width: "auto", cursor: "pointer", display: "block", flexShrink: 0,
+          filter: isDark
+            ? "brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)"
+            : "brightness(0) saturate(100%)",
+          transition: "filter 0.30s",
+        }} />
         style={{
           height: 26, width: "auto", cursor: "pointer", display: "block", flexShrink: 0,
           filter: isDark
