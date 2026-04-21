@@ -72,6 +72,36 @@ function getTokens(isDark) {
         navBorder: "rgba(140,107,42,0.14)",
         divider: "rgba(0,0,0,0.05)",
         inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
+        gold: "#8C6B2A",
+        goldLight: "#A07D38",
+        goldDim: "#6B5020",
+        goldFaint: "rgba(140,107,42,0.07)",
+        goldFaintest: "rgba(140,107,42,0.04)",
+        pageBg: "#F7F4EE",
+        surfaceBase: "#FFFFFF",
+        surfaceRaised: "#FAF8F4",
+        surfaceInput: "#FFFFFF",
+        borderFaint: "rgba(0,0,0,0.04)",
+        borderDefault: "rgba(0,0,0,0.08)",
+        borderStrong: "rgba(0,0,0,0.13)",
+        borderAccent: "rgba(140,107,42,0.28)",
+        textPrimary: "#18140E",
+        textSecondary: "#7A7060",
+        textTertiary: "rgba(24,20,14,0.35)",
+        textOnAccent: "#FFFFFF",
+        red: "#A03838",
+        redFaint: "rgba(160,56,56,0.07)",
+        redBorder: "rgba(160,56,56,0.18)",
+        green: "#2E7A5A",
+        greenFaint: "rgba(46,122,90,0.07)",
+        greenBorder: "rgba(46,122,90,0.18)",
+        badgePending:  { bg: "rgba(140,107,42,0.09)",  color: "#8C6B2A",  dot: "#8C6B2A"  },
+        badgeApproved: { bg: "rgba(46,122,90,0.09)",   color: "#2E7A5A",  dot: "#2E7A5A"  },
+        badgeRejected: { bg: "rgba(160,56,56,0.09)",   color: "#A03838",  dot: "#A03838"  },
+        navBg: "rgba(247,244,238,0.96)",
+        navBorder: "rgba(140,107,42,0.14)",
+        divider: "rgba(0,0,0,0.05)",
+        inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
       };
 }
 
@@ -331,7 +361,20 @@ export default function ForgotCode() {
         position: "relative",
         transition: "background 0.30s",
       }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @keyframes spin   { to { transform: rotate(360deg) } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
 
+      <div style={{
+        minHeight: "100vh", fontFamily: F.body,
+        background: C.pageBg,
+        position: "relative",
+        transition: "background 0.30s",
+      }}>
+
+        {/* Background image */}
         {/* Background image */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
           <div style={{
@@ -821,6 +864,7 @@ export default function ForgotCode() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
       </div>

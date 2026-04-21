@@ -79,6 +79,7 @@ function getTokens(isDark) {
         textPrimary: "#18140E",
         textSecondary: "#7A7060",
         textTertiary: "rgba(24,20,14,0.35)",
+        textTertiary: "rgba(24,20,14,0.35)",
         textOnAccent: "#FFFFFF",
         red: "#A03838",
         redFaint: "rgba(160,56,56,0.07)",
@@ -105,6 +106,7 @@ function getTokens(isDark) {
 }
 
 const F = {
+  display: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   display: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   mono: "'Inter', 'Helvetica Neue', Arial, sans-serif",
@@ -197,18 +199,26 @@ function CloseBtn({ onClick, disabled = false, C, light = false }) {
         width: 34, height: 34, borderRadius: "50%",
         background: light ? "rgba(255,255,255,0.06)" : C.surfaceRaised,
         border: `1px solid ${light ? "rgba(255,255,255,0.12)" : C.borderDefault}`,
+        width: 34, height: 34, borderRadius: "50%",
+        background: light ? "rgba(255,255,255,0.06)" : C.surfaceRaised,
+        border: `1px solid ${light ? "rgba(255,255,255,0.12)" : C.borderDefault}`,
         cursor: disabled ? "not-allowed" : "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0, padding: 0, transition: "all 0.20s",
         flexShrink: 0, padding: 0, transition: "all 0.20s",
       }}
       onMouseEnter={(e) => {
         if (!disabled) {
           e.currentTarget.style.background = light ? "rgba(255,255,255,0.12)" : C.goldFaint;
           e.currentTarget.style.borderColor = light ? "rgba(196,163,90,0.35)" : C.borderAccent;
+          e.currentTarget.style.background = light ? "rgba(255,255,255,0.12)" : C.goldFaint;
+          e.currentTarget.style.borderColor = light ? "rgba(196,163,90,0.35)" : C.borderAccent;
         }
       }}
       onMouseLeave={(e) => {
         if (!disabled) {
+          e.currentTarget.style.background = light ? "rgba(255,255,255,0.06)" : C.surfaceRaised;
+          e.currentTarget.style.borderColor = light ? "rgba(255,255,255,0.12)" : C.borderDefault;
           e.currentTarget.style.background = light ? "rgba(255,255,255,0.06)" : C.surfaceRaised;
           e.currentTarget.style.borderColor = light ? "rgba(255,255,255,0.12)" : C.borderDefault;
         }
@@ -331,6 +341,7 @@ function ThemeToggle() {
       style={{
         display: "flex", alignItems: "center", gap: 8,
         padding: "6px 12px 6px 8px",
+        padding: "6px 12px 6px 8px",
         background: "transparent",
         border: `1px solid ${C.borderDefault}`,
         borderRadius: 20, cursor: "pointer", flexShrink: 0,
@@ -339,7 +350,13 @@ function ThemeToggle() {
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
     >
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
+    >
       <span style={{
+        position: "relative", width: 28, height: 16, borderRadius: 8,
+        background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.08)",
         position: "relative", width: 28, height: 16, borderRadius: 8,
         background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.08)",
         display: "inline-flex", alignItems: "center", flexShrink: 0,
@@ -347,6 +364,9 @@ function ThemeToggle() {
       }}>
         <span style={{
           position: "absolute",
+          left: isDark ? 2 : "calc(100% - 14px)",
+          width: 12, height: 12, borderRadius: "50%",
+          background: isDark ? "#C4A35A" : "#8C6B2A",
           left: isDark ? 2 : "calc(100% - 14px)",
           width: 12, height: 12, borderRadius: "50%",
           background: isDark ? "#C4A35A" : "#8C6B2A",
@@ -1226,6 +1246,7 @@ export default function ManageBooking() {
   const navigate = useNavigate();
 
   const [isDark, setIsDark] = useState(() => {
+    try { const s = localStorage.getItem("bellevue-theme"); if (s !== null) return s === "dark"; } catch {}
     try { const s = localStorage.getItem("bellevue-theme"); if (s !== null) return s === "dark"; } catch {}
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
