@@ -775,7 +775,38 @@ export default function VenuesPage() {
       // No subroom selected — fall through to default
     }
 
-    // ── 20/20 Function Room sub-room routing ──────────────────────────────────
+    // Tower Ballroom sub-room routing
+    if (id === "tower-ballroom") {
+      if (subRoom === "Tower 1") {
+        navigate("/tower1", { state: { openRoomId: "tower1" } });
+        return;
+      }
+      if (subRoom === "Tower 2") {
+        navigate("/tower2", { state: { openRoomId: "tower2" } });
+        return;
+      }
+      if (subRoom === "Tower 3") {
+        navigate("/tower3", { state: { openRoomId: "tower3" } });
+        return;
+      }
+      // No subroom selected — fall through to default
+    }
+
+    // Direct Tower venue object IDs (used from modal / section cards)
+    if (id === "tower1") {
+      navigate("/tower1", { state: { openRoomId: id } });
+      return;
+    }
+    if (id === "tower2") {
+      navigate("/tower2", { state: { openRoomId: id } });
+      return;
+    }
+    if (id === "tower3") {
+      navigate("/tower3", { state: { openRoomId: id } });
+      return;
+    }
+
+    // 20/20 Function Room sub-room routing ──────────────────────────────────
     if (id === "20-20") {
       if (subRoom === "20/20 A") {
         navigate("/twenty-twenty-a", { state: { openRoomId: "20-20-function-room-a" } });
@@ -792,7 +823,38 @@ export default function VenuesPage() {
       // No subroom selected — fall through to default
     }
 
-    // ── Direct 20/20 venue object IDs (used from modal / section cards)
+    // Grand Ballroom sub-room routing
+    if (id === "grand-ballroom") {
+      if (subRoom === "Grand A") {
+        navigate("/grand-ballroom-a", { state: { openRoomId: "grand-ballroom-a" } });
+        return;
+      }
+      if (subRoom === "Grand B") {
+        navigate("/grand-ballroom-b", { state: { openRoomId: "grand-ballroom-b" } });
+        return;
+      }
+      if (subRoom === "Grand C") {
+        navigate("/grand-ballroom-c", { state: { openRoomId: "grand-ballroom-c" } });
+        return;
+      }
+      // No subroom selected — fall through to default
+    }
+
+    // Direct Grand Ballroom venue object IDs (used from modal / section cards)
+    if (id === "grand-ballroom-a") {
+      navigate("/grand-ballroom-a", { state: { openRoomId: id } });
+      return;
+    }
+    if (id === "grand-ballroom-b") {
+      navigate("/grand-ballroom-b", { state: { openRoomId: id } });
+      return;
+    }
+    if (id === "grand-ballroom-c") {
+      navigate("/grand-ballroom-c", { state: { openRoomId: id } });
+      return;
+    }
+
+    // Direct 20/20 venue object IDs (used from modal / section cards)
     if (id === "20-20-function-room-a") {
       navigate("/twenty-twenty-a", { state: { openRoomId: id } });
       return;
@@ -824,7 +886,13 @@ export default function VenuesPage() {
       "20-20":          "/alabang-reserve",
       "business-center":"/business-center-reserve",
       "tower-ballroom": "/tower-ballroom",
+      "tower1":         "/tower1",
+      "tower2":         "/tower2",
+      "tower3":         "/tower3",
       "grand-ballroom": "/grand-ballroom",
+      "grand-ballroom-a": "/grand-ballroom-a",
+      "grand-ballroom-b": "/grand-ballroom-b",
+      "grand-ballroom-c": "/grand-ballroom-c",
       "qsina":          "/qsina",
       "hanakazu":       "/hanakazu",
       "phoenix-court":  "/phoenix-court",

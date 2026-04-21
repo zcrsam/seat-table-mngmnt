@@ -36,8 +36,8 @@ const C = {
   divider: "rgba(0,0,0,0.05)",
   inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
   modalOverlay: "rgba(0,0,0,0.42)",
-  statusNote:       { pending: "rgba(140,107,42,0.05)", approved: "rgba(46,122,90,0.05)", rejected: "rgba(160,56,56,0.05)" },
-  statusNoteBorder: { pending: "rgba(140,107,42,0.18)", approved: "rgba(46,122,90,0.18)", rejected: "rgba(160,56,56,0.18)" },
+  statusNote:       { pending: "rgba(140,107,42,0.05)", approved: "rgba(46,122,90,0.05)", rejected: "rgba(160,56,56,0.05)", cancelled: "rgba(160,56,56,0.05)" },
+  statusNoteBorder: { pending: "rgba(140,107,42,0.18)", approved: "rgba(46,122,90,0.18)", rejected: "rgba(160,56,56,0.18)", cancelled: "rgba(160,56,56,0.18)" },
   headerGradient: "linear-gradient(160deg,#FAF8F4 0%,#F2EFE8 100%)",
   spinnerBorder: "rgba(0,0,0,0.12)",
   spinnerTop: "#8C6B2A",
@@ -79,7 +79,7 @@ function SectionLabel({ children, style={} }) {
 
 function StatusBadge({ status }) {
   const s=(status||"pending").toLowerCase();
-  const map={pending:C.badgePending,approved:C.badgeApproved,rejected:C.badgeRejected};
+  const map={pending:C.badgePending,approved:C.badgeApproved,rejected:C.badgeRejected,cancelled:C.badgeRejected};
   const badge=map[s]||C.badgePending;
   return (
     <span style={{
@@ -529,9 +529,27 @@ export default function ReservationDashboard() {
       setSyncMode("polling");
       pollingInterval=setInterval(async()=>{
         try{
-          const resp=await fetch(`${API_BASE_URL}/admin/reservations/recent`);
-          if(resp.ok){
-            const data=await resp.json();
+          // Fetch both recent reservations and cancelled reservations
+          const [recentResp, cancelledResp] = await Promise.all([
+            fetch(`${API_BASE_URL}/admin/reservations/recent`),
+            fetch(`${API_BASE_URL}/admin/reservations/cancelled`)
+          ]);
+          
+          if(recentResp.ok){
+            const data=await recentResp.json();
+            if(Array.isArray(data)){
+              data.forEach(updated=>{
+                setReservations(prev=>{
+                  const idx=prev.findIndex(r=>r.id===updated.id);
+                  if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
+                  return[...prev,updated];
+                });
+              });
+            }
+          }
+          
+          if(cancelledResp.ok){
+            const data=await cancelledResp.json();
             if(Array.isArray(data)){
               data.forEach(updated=>{
                 setReservations(prev=>{
@@ -545,7 +563,7 @@ export default function ReservationDashboard() {
         }catch(err){
           console.error("[Dashboard] Polling error:",err);
         }
-      },10000);
+      },1000);
     };
 
     const stopPolling=()=>{
@@ -640,7 +658,8 @@ export default function ReservationDashboard() {
     const pending=reservations.filter(r=>r.status?.toLowerCase()==="pending").length;
     const approved=reservations.filter(r=>r.status?.toLowerCase()==="approved"||r.status?.toLowerCase()==="reserved").length;
     const rejected=reservations.filter(r=>r.status?.toLowerCase()==="rejected").length;
-    setStats({total,pending,approved,rejected});
+    const cancelled=reservations.filter(r=>r.status?.toLowerCase()==="cancelled").length;
+    setStats({total,pending,approved,rejected,cancelled});
   },[reservations]);
 
   const handlePageChange=(page)=>{
@@ -695,6 +714,7 @@ export default function ReservationDashboard() {
     {label:"Pending",  count:stats.pending,  filter:"PENDING",  color:C.badgePending.color,  bg:C.statusNote.pending,  border:C.statusNoteBorder.pending  },
     {label:"Approved", count:stats.approved, filter:"APPROVED", color:C.badgeApproved.color, bg:C.statusNote.approved, border:C.statusNoteBorder.approved },
     {label:"Rejected", count:stats.rejected, filter:"REJECTED", color:C.badgeRejected.color, bg:C.statusNote.rejected, border:C.statusNoteBorder.rejected },
+    {label:"Cancelled", count:stats.cancelled, filter:"CANCELLED", color:C.badgeRejected.color, bg:C.statusNote.cancelled, border:C.statusNoteBorder.cancelled },
   ];
 
   const pagedReservations=filteredReservations.slice(
@@ -744,20 +764,6 @@ export default function ReservationDashboard() {
                 <span style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.20em",color:C.gold,fontWeight:700,textTransform:"uppercase"}}>Admin</span>
                 <span style={{color:C.textTertiary,fontSize:11}}>·</span>
                 <span style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.14em",color:C.textSecondary,fontWeight:600,textTransform:"uppercase"}}>Reservation Management</span>
-                <span style={{
-                  display:"inline-flex",alignItems:"center",gap:5,marginLeft:4,
-                  padding:"2px 8px",borderRadius:20,
-                  border:`1px solid ${syncMode==="websocket"?C.greenBorder:syncMode==="polling"?C.borderAccent:C.borderDefault}`,
-                  background:syncMode==="websocket"?C.greenFaint:syncMode==="polling"?C.goldFaint:"transparent",
-                  color:syncMode==="websocket"?C.green:syncMode==="polling"?C.gold:C.textSecondary,
-                  fontFamily:F.label,fontSize:8,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",
-                }}>
-                  <span style={{
-                    width:5,height:5,borderRadius:"50%",
-                    background:syncMode==="websocket"?C.green:syncMode==="polling"?C.gold:C.textTertiary,
-                  }}/>
-                  {syncMode==="websocket"?"Live":syncMode==="polling"?"Polling":"Connecting"}
-                </span>
               </div>
               <div style={{position:"relative"}}>
                 <svg style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}

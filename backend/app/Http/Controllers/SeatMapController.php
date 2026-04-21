@@ -42,24 +42,47 @@ class SeatMapController extends Controller
                 ->whereIn('status', ['pending', 'approved'])
                 ->get();
 
-            // Build seatmap data structure
-            $seatData = [];
+            // Group seats by table to match frontend structure
+            $tables = [];
             foreach ($seats as $seat) {
+                $tableNumber = $seat->table_number;
+                
+                // Initialize table if not exists
+                if (!isset($tables[$tableNumber])) {
+                    $tables[$tableNumber] = [
+                        'id' => $tableNumber,
+                        'seats' => []
+                    ];
+                }
+                
                 // Check if seat is reserved
                 $reservation = $reservations->firstWhere('seat_number', $seat->seat_number);
+                $status = $reservation ? $reservation->status : ($seat->status ?? 'available');
                 
-                $seatData[] = [
-                    'table' => $seat->table_number,
-                    'seat' => $seat->seat_number,
-                    'status' => $reservation ? $reservation->status : $seat->status,
-                    'x_position' => $seat->x_position,
-                    'y_position' => $seat->y_position,
+                // Add seat to table
+                $tables[$tableNumber]['seats'][] = [
+                    'id' => $seat->seat_number,
+                    'num' => $seat->seat_number,
+                    'status' => $status,
+                    'x' => $seat->x_position,
+                    'y' => $seat->y_position,
                 ];
             }
 
+            // Convert to array and sort by table ID
+            $tableArray = array_values($tables);
+            usort($tableArray, function($a, $b) {
+                return strcasecmp($a['id'], $b['id']);
+            });
+
             return response()->json([
                 'success' => true,
-                'data' => $seatData,
+                'data' => [
+                    'v' => 2,
+                    'tables' => $tableArray,
+                    'labels' => null,
+                    'standaloneSeats' => []
+                ],
                 'venue' => [
                     'id' => $venue->id,
                     'name' => $venue->name,
@@ -92,24 +115,47 @@ class SeatMapController extends Controller
                 ->whereIn('status', ['pending', 'approved'])
                 ->get();
 
-            // Build seatmap data structure
-            $seatData = [];
+            // Group seats by table to match frontend structure
+            $tables = [];
             foreach ($seats as $seat) {
+                $tableNumber = $seat->table_number;
+                
+                // Initialize table if not exists
+                if (!isset($tables[$tableNumber])) {
+                    $tables[$tableNumber] = [
+                        'id' => $tableNumber,
+                        'seats' => []
+                    ];
+                }
+                
                 // Check if seat is reserved
                 $reservation = $reservations->firstWhere('seat_number', $seat->seat_number);
+                $status = $reservation ? $reservation->status : ($seat->status ?? 'available');
                 
-                $seatData[] = [
-                    'table' => $seat->table_number,
-                    'seat' => $seat->seat_number,
-                    'status' => $reservation ? $reservation->status : $seat->status,
-                    'x_position' => $seat->x_position,
-                    'y_position' => $seat->y_position,
+                // Add seat to table
+                $tables[$tableNumber]['seats'][] = [
+                    'id' => $seat->seat_number,
+                    'num' => $seat->seat_number,
+                    'status' => $status,
+                    'x' => $seat->x_position,
+                    'y' => $seat->y_position,
                 ];
             }
 
+            // Convert to array and sort by table ID
+            $tableArray = array_values($tables);
+            usort($tableArray, function($a, $b) {
+                return strcasecmp($a['id'], $b['id']);
+            });
+
             return response()->json([
                 'success' => true,
-                'data' => $seatData,
+                'data' => [
+                    'v' => 2,
+                    'tables' => $tableArray,
+                    'labels' => null,
+                    'standaloneSeats' => []
+                ],
                 'venue' => [
                     'id' => $venue->id,
                     'name' => $venue->name,

@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import heroBanner      from "../../../assets/banner-grandroom.jpg";
 import mainWingImg     from "../../../assets/main-wing.jpeg";
 import towerWingImg    from "../../../assets/tower-wing.jpeg";
 import SharedNavbar    from "../../../components/SharedNavbar.jsx";
@@ -14,27 +13,31 @@ import hanakazuImg2    from "../../../assets/hanakazu2.jpeg";
 import hanakazuImg3    from "../../../assets/hanakazu3.jpeg";
 import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
 import bellevueLogo    from "../../../assets/bellevue-logo.png";
-import Loader           from "../../../components/Loader.jsx";
-import HeroSection       from "../../../components/HeroSection.jsx";
+import Loader          from "../../../components/Loader.jsx";
+import HeroSection     from "../../../components/HeroSection.jsx";
 
-// ChevRight component (from VenuesPage.jsx)
-const ChevRight = ({ size = 14, color = "currentColor" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+// ── CHEVRONS ──────────────────────────────────────────────────────────────────
+const ChevRight = ({ size = 14, color = "currentColor", strokeWidth = 2.5 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+    style={{ display: "block", flexShrink: 0 }}>
     <polyline points="9 18 15 12 9 6"/>
   </svg>
 );
 
-const ChevLeft = ({ size = 14, color = "currentColor" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+const ChevLeft = ({ size = 14, color = "currentColor", strokeWidth = 2.5 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+    style={{ display: "block", flexShrink: 0 }}>
     <polyline points="15 18 9 12 15 6"/>
   </svg>
 );
 
-// ── THEME CONTEXT ──────────────────────────────────────────────────────────────
+// ── THEME CONTEXT ─────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
-// ── DESIGN TOKENS ──────────────────────────────────────────────────────────────
+// ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
 function getTokens(isDark) {
   return isDark ? {
     gold:        "#C9A84C",
@@ -88,57 +91,17 @@ const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  @keyframes loader-exit {
-    0%   { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-100%); }
-  }
-  @keyframes counter-in     { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes bar-grow       { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-  @keyframes partners-scroll{ from { transform:translateX(0); } to { transform:translateX(-50%); } }
-
-  @keyframes logo-breathe {
-    0%, 100% { transform: scale(1);    opacity: 0.9; }
-    50%       { transform: scale(1.08); opacity: 1;   }
-  }
-  @keyframes logo-zoom-in {
-    from { transform: scale(0.55); opacity: 0; }
-    to   { transform: scale(1);    opacity: 1; }
-  }
-  @keyframes dot-bounce {
-    0%, 80%, 100% { transform: scale(0.85) translateY(0);   opacity: 0.55; }
-    40%            { transform: scale(1.18) translateY(-6px); opacity: 1;   }
-  }
-  @keyframes shimmer-line {
-    0%   { transform: translateX(-100%); opacity: 0; }
-    20%  { opacity: 1; }
-    100% { transform: translateX(300%);  opacity: 0; }
-  }
-  @keyframes progress-fill {
-    from { width: 0%; }
-    to   { width: 100%; }
-  }
-  @keyframes fade-up {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+  @keyframes partners-scroll { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   .dining-reserve-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
+    display: inline-flex; align-items: center; gap: 10px;
     padding: 14px 32px;
-    background: #C9A84C;
-    border: 2px solid #C9A84C;
-    color: #18140E;
-    font-family: 'Inter', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    cursor: pointer;
-    border-radius: 4px;
-    position: relative;
-    overflow: hidden;
+    background: #C9A84C; border: 2px solid #C9A84C; color: #18140E;
+    font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    cursor: pointer; border-radius: 4px;
+    position: relative; overflow: hidden;
     transition: background 0.32s cubic-bezier(0.4,0,0.2,1),
                 color 0.32s cubic-bezier(0.4,0,0.2,1),
                 border-color 0.32s cubic-bezier(0.4,0,0.2,1),
@@ -146,39 +109,22 @@ const GLOBAL_CSS = `
                 transform 0.22s cubic-bezier(0.4,0,0.2,1);
   }
   .dining-reserve-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
+    content: ''; position: absolute; inset: 0;
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
-    transform: translateX(-100%);
-    transition: transform 0s;
+    transform: translateX(-100%); transition: transform 0s;
   }
   .dining-reserve-btn:hover {
-    background: transparent;
-    border-color: #C9A84C;
-    color: #C9A84C;
-    box-shadow: 0 0 0 3px rgba(201,168,76,0.15);
-    transform: translateY(-2px);
+    background: transparent; border-color: #C9A84C; color: #C9A84C;
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.15); transform: translateY(-2px);
   }
-  .dining-reserve-btn:hover::before {
-    transform: translateX(300%);
-    transition: transform 0.6s ease;
-  }
-  .dining-reserve-btn-light {
-    background: #9A6E1C;
-    border-color: #9A6E1C;
-    color: #F4EFE4;
-  }
-  .dining-reserve-btn-light:hover {
-    background: transparent;
-    border-color: #9A6E1C;
-    color: #9A6E1C;
-  }
+  .dining-reserve-btn:hover::before { transform: translateX(300%); transition: transform 0.6s ease; }
+  .dining-reserve-btn-light { background: #9A6E1C; border-color: #9A6E1C; color: #F4EFE4; }
+  .dining-reserve-btn-light:hover { background: transparent; border-color: #9A6E1C; color: #9A6E1C; }
 
   @media (max-width:767px) { * { -webkit-tap-highlight-color: transparent; } body { overflow-x:hidden; } }
 `;
 
-// ── DATA ───────────────────────────────────────────────────────────────────────
+// ── DATA ──────────────────────────────────────────────────────────────────────
 const RESTAURANTS = [
   { id:"qsina", name:"Qsina", tag:"All-Day Dining",
     description:"Qsina offers diverse culinary delights with both international buffets and à la carte options. From lavish breakfast spreads to intimate candlelit dinner experiences.",
@@ -199,7 +145,7 @@ const RESTAURANTS = [
 
 const PARTNERS = ["Johnny's Steak & Grill at Cellar XXII","Pastry Corner","Vue Bar","Azurea Spa","Jing Monis Salon","Pretty Looks"];
 
-// ── HOOKS ──────────────────────────────────────────────────────────────────────
+// ── HOOKS ─────────────────────────────────────────────────────────────────────
 function useIsMobile(bp = 768) {
   const [m, setM] = useState(() => typeof window !== "undefined" ? window.innerWidth < bp : false);
   useEffect(() => {
@@ -248,25 +194,37 @@ function useGsapScroll(options = {}) {
   return ref;
 }
 
-// ── NAV DOT ────────────────────────────────────────────────────────────────────
+// ── NAV DOT ───────────────────────────────────────────────────────────────────
 function NavDot({ disabled, icon, C, onClick }) {
   const [hov, setHov] = useState(false);
+  const active = !disabled;
+  const iconColor = hov && active ? "#18140E" : C.gold;
+
   return (
-    <button type="button" disabled={disabled} onClick={onClick}
-      onMouseEnter={() => { if (!disabled) setHov(true); }}
+    <button
+      type="button" disabled={disabled} onClick={onClick}
+      onMouseEnter={() => { if (active) setHov(true); }}
       onMouseLeave={() => setHov(false)}
-      style={{ width:38, height:38, borderRadius:"50%", border:`1.5px solid ${disabled?"rgba(201,168,76,0.20)":C.gold}`, background:hov&&!disabled?C.gold:"transparent", cursor:disabled?"not-allowed":"pointer", opacity:disabled?0.28:1, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.22s cubic-bezier(0.4,0,0.2,1)", flexShrink:0, outline:"none" }}>
+      style={{
+        width: 38, height: 38, borderRadius: "50%",
+        border: `1.5px solid ${active ? C.gold : "rgba(201,168,76,0.22)"}`,
+        background: hov && active ? C.gold : "transparent",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.28 : 1,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "all 0.22s cubic-bezier(0.4,0,0.2,1)",
+        flexShrink: 0, outline: "none",
+      }}
+    >
       {icon === "left"
-        ? <ChevLeft  size={16} color={hov&&!disabled?"#18140E":C.gold} strokeWidth={2.5} />
-        : <ChevRight size={16} color={hov&&!disabled?"#18140E":C.gold} strokeWidth={2.5} />
+        ? <ChevLeft  size={16} color={iconColor} strokeWidth={2.5} />
+        : <ChevRight size={16} color={iconColor} strokeWidth={2.5} />
       }
     </button>
   );
 }
 
-// ─────────────────────────────────────────────
-// THEME TOGGLE — "DARK ◐ LIGHT" pill matching screenshot
-// ─────────────────────────────────────────────
+// ── THEME TOGGLE ──────────────────────────────────────────────────────────────
 function ThemeToggle() {
   const { isDark, toggle } = useTheme();
   const C = getTokens(isDark);
@@ -278,16 +236,12 @@ function ThemeToggle() {
         padding: "6px 10px 6px 6px",
         background: "transparent",
         border: `1px solid ${isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"}`,
-        borderRadius: 20,
-        cursor: "pointer", flexShrink: 0,
-        transition: "all 0.22s",
+        borderRadius: 20, cursor: "pointer", flexShrink: 0, transition: "all 0.22s",
       }}>
-      {/* Track */}
       <span style={{
         position: "relative", width: 34, height: 18, borderRadius: 10,
         background: isDark ? "rgba(201,168,76,0.25)" : "rgba(0,0,0,0.10)",
-        display: "inline-flex", alignItems: "center", flexShrink: 0,
-        transition: "background 0.28s",
+        display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.28s",
       }}>
         <span style={{
           position: "absolute",
@@ -297,11 +251,11 @@ function ThemeToggle() {
           transition: "left 0.24s cubic-bezier(.4,0,.2,1)",
         }} />
       </span>
-          </button>
+    </button>
   );
 }
 
-// ── DINING ─────────────────────────────────────────────────────────────────────
+// ── DINING ────────────────────────────────────────────────────────────────────
 function DiningSection({ initialRestaurantId, onNavigateToDining }) {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
@@ -441,10 +395,8 @@ function DiningSection({ initialRestaurantId, onNavigateToDining }) {
             <button type="button" onClick={onNavigateToDining}
               className={`dining-reserve-btn${isDark?"":" dining-reserve-btn-light"}`}>
               Reserve a Dining Venue
-              <ChevRight size={14} color="currentColor" strokeWidth={2.5} />
+              <ChevRight size={14} color="currentColor" />
             </button>
-
-            
           </div>
         </div>
       </div>
@@ -452,13 +404,12 @@ function DiningSection({ initialRestaurantId, onNavigateToDining }) {
   );
 }
 
-// ── MARQUEE ────────────────────────────────────────────────────────────────────
+// ── MARQUEE ───────────────────────────────────────────────────────────────────
 function Marquee() {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
   const bg = isDark ? "#0E0D09" : "#18140E";
   return (
-    // ✅ borderTop removed — was causing the visible line on scroll
     <div style={{ background:bg, padding:"28px 0", overflow:"hidden" }}>
       <div style={{ maxWidth:1100, margin:"0 auto clamp(10px,1.5vw,16px)", padding:"0 24px", display:"flex", alignItems:"center", gap:1 }}>
         <div style={{ flex:1, height:1, background:"rgba(201,168,76,0.15)" }} />
@@ -483,14 +434,13 @@ function Marquee() {
   );
 }
 
-// ── NEWSLETTER ─────────────────────────────────────────────────────────────────
+// ── NEWSLETTER ────────────────────────────────────────────────────────────────
 function NewsletterSection() {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
   const isMobile = useIsMobile();
   const ref = useGsapScroll({ y:30, opacity:0, duration:0.9, delay:0.05 });
   return (
-    // ✅ borderTop removed — was causing the visible line on scroll
     <section ref={ref} style={{ position:"relative", overflow:"hidden", background:C.nlBg, transition:"background 0.35s" }}>
       <div style={{ position:"absolute", inset:0, opacity:isDark?0.03:0.04, backgroundImage:`linear-gradient(${C.gold} 1px,transparent 1px),linear-gradient(90deg,${C.gold} 1px,transparent 1px)`, backgroundSize:"60px 60px", pointerEvents:"none" }} />
       <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${C.gold},transparent)` }} />
@@ -528,7 +478,7 @@ function NewsletterSection() {
   );
 }
 
-// ── FOOTER ─────────────────────────────────────────────────────────────────────
+// ── FOOTER ────────────────────────────────────────────────────────────────────
 function FooterLink({ children, onClick }) {
   const { isDark } = useTheme();
   const C = getTokens(isDark);
@@ -586,14 +536,13 @@ function Footer({ onNavigate, onManageBooking }) {
   );
 }
 
-// ── ROOT ───────────────────────────────────────────────────────────────────────
+// ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [loaded, setLoaded]   = useState(false);
-  const [diningRestaurantId]  = useState(null);
+  const [loaded, setLoaded]  = useState(false);
+  const [diningRestaurantId] = useState(null);
 
-  // ✅ Scroll state wired up — used by SharedNavbar
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -630,9 +579,7 @@ export default function HomePage() {
         if (el) el.scrollIntoView({ behavior:"smooth", block:"start" });
       });
     }
-    if (state.scrollTo === "event") {
-      window.scrollTo({ top:0, behavior:"smooth" });
-    }
+    if (state.scrollTo === "event") window.scrollTo({ top:0, behavior:"smooth" });
     navigate(".", { replace:true, state:null });
   }, [location.state, navigate]);
 
@@ -654,9 +601,9 @@ export default function HomePage() {
       <div style={{ background:C.pageBg, minHeight:"100vh", transition:"background 0.35s" }}>
         {!loaded && <Loader onDone={() => setLoaded(true)} />}
         <div style={{ opacity:loaded?1:0, transition:"opacity 0.7s" }}>
-          {/* ✅ scrolled is now live — but SharedNavbar ignores border when showNavigation=false anyway */}
           <SharedNavbar isDark={isDark} toggle={toggleTheme} showNavigation={true} scrolled={scrolled} height={NAV_H} />
-          <HeroSection loaded={loaded} onNavigateToVenues={goToVenues} onManageBooking={goToManageBooking} />
+          {/* ↓ isDark now passed so HeroSection theme-syncs correctly */}
+          <HeroSection loaded={loaded} isDark={isDark} onNavigateToVenues={goToVenues} onManageBooking={goToManageBooking} />
           <div id="home-dining">
             <DiningSection initialRestaurantId={diningRestaurantId} onNavigateToDining={goToDining} />
           </div>

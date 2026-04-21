@@ -3,22 +3,33 @@ import Navbar from "../components/Navbar";
 import HomePage from "../features/client/pages/HomePage";
 import VenuesPage from "../features/client/pages/VenuesPage";
 import ManageBooking from "../features/client/pages/ManageBooking";
-import AlabangReserve from "../features/client/pages/AlabangReserve";
-import LagunaReserv1e from "../features/client/pages/LagunaReserv1e";
-import LagunaReserve2 from "../features/client/pages/LagunaReserve2";
-import TwentyTwentyReserveA from "../features/client/pages/TwentyTwentyReserveA";
-import TwentyTwentyReserveB from "../features/client/pages/TwentyTwentyReserveB";
-import TwentyTwentyReserveC from "../features/client/pages/TwentyTwentyReserveC";
-import BusinessCenterReserve from "../features/client/pages/BusinessCenterReserve";
-import FunctionRoom2020 from "../features/client/pages/FunctionRoom2020";
-import BusinessCenter from "../features/client/pages/BusinessCenter";
+import AlabangReserve from "../features/client/pages/MainWing/AlabangReserve";
+import LagunaReserv1e from "../features/client/pages/MainWing/LagunaReserv1e";
+import LagunaReserve2 from "../features/client/pages/MainWing/LagunaReserve2";
+import TwentyTwentyReserveA from "../features/client/pages/MainWing/TwentyTwentyReserveA";
+import TwentyTwentyReserveB from "../features/client/pages/MainWing/TwentyTwentyReserveB";
+import TwentyTwentyReserveC from "../features/client/pages/MainWing/TwentyTwentyReserveC";
+import BusinessCenterReserve from "../features/client/pages/MainWing/BusinessCenterReserve";
+// TowerWing components
+import Tower1 from "../features/client/pages/TowerWing/Tower1";
+import Tower2 from "../features/client/pages/TowerWing/Tower2";
+import Tower3 from "../features/client/pages/TowerWing/Tower3";
+// Dining components
+import Hanakazu from "../features/client/pages/Dining/Hanakazu";
+import PhoenixCourt from "../features/client/pages/Dining/PhoenixCourt";
+import Qsina from "../features/client/pages/Dining/Qsina";
+// GrandBallroom components
+import GrandBallroomA from "../features/client/pages/TowerWing/GrandBallroomA";
+import GrandBallroomB from "../features/client/pages/TowerWing/GrandBallroomB";
+import GrandBallroomC from "../features/client/pages/TowerWing/GrandBallroomC";
 import ReservationDashboard from "../features/admin/pages/ReservationDashboard";
-import SeatMapEditor from "../features/admin/pages/SeatMapEditor";
+import UnifiedSeatMapEditor from "../features/admin/pages/UnifiedSeatMapEditor";
 import NotificationDashboard from "../features/admin/pages/Notifications";
 import CancelledDashboard from "../features/admin/pages/CancelledDashboard";
 import ForgotCode from "../features/client/pages/ForgotCode";
 import LoginPage from "../features/auth/pages/LoginPage";
 import { authAPI } from "../services/authAPI";
+import SharedNavbar from "../components/SharedNavbar";
 
 function RequireAdminAuth({ children }) {
   if (!authAPI.isAuthenticated()) {
@@ -41,17 +52,29 @@ export default function AppRoutes() {
         <Route path="/" element={<><Navbar /><HomePage /></>} />
         <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
         <Route path="/manage-booking" element={<ManageBooking />} />
-        <Route path="/alabang-reserve" element={<AlabangReserve />} />
-        <Route path="/laguna-reserv1e" element={<LagunaReserv1e />} />
-        <Route path="/laguna-reserv2e" element={<LagunaReserve2 />} />
-        <Route path="/twenty-twenty-a" element={<TwentyTwentyReserveA />} />
-        <Route path="/twenty-twenty-b" element={<TwentyTwentyReserveB />} />
-        <Route path="/twenty-twenty-c" element={<TwentyTwentyReserveC />} />
-        <Route path="/business-center-reserve" element={<BusinessCenterReserve />} />
+        <Route path="/alabang-reserve" element={<><SharedNavbar /><AlabangReserve /></>} />
+        <Route path="/laguna-reserv1e" element={<><SharedNavbar /><LagunaReserv1e /></>} />
+        <Route path="/laguna-reserv2e" element={<><SharedNavbar /><LagunaReserve2 /></>} />
+        <Route path="/twenty-twenty-a" element={<><SharedNavbar /><TwentyTwentyReserveA /></>} />
+        <Route path="/twenty-twenty-b" element={<><SharedNavbar /><TwentyTwentyReserveB /></>} />
+        <Route path="/twenty-twenty-c" element={<><SharedNavbar /><TwentyTwentyReserveC /></>} />
+        <Route path="/business-center-reserve" element={<><SharedNavbar /><BusinessCenterReserve /></>} />
+        {/* TowerWing routes */}
+        <Route path="/tower1" element={<><SharedNavbar /><Tower1 /></>} />
+        <Route path="/tower2" element={<><SharedNavbar /><Tower2 /></>} />
+        <Route path="/tower3" element={<><SharedNavbar /><Tower3 /></>} />
+        <Route path="/tower-ballroom" element={<><SharedNavbar /><Tower1 /></>} />
+        {/* Dining routes */}
+        <Route path="/hanakazu" element={<><SharedNavbar /><Hanakazu /></>} />
+        <Route path="/phoenix-court" element={<><SharedNavbar /><PhoenixCourt /></>} />
+        <Route path="/qsina" element={<><SharedNavbar /><Qsina /></>} />
+        {/* GrandBallroom routes */}
+        <Route path="/grand-ballroom" element={<><SharedNavbar /><GrandBallroomA /></>} />
+        <Route path="/grand-ballroom-a" element={<><SharedNavbar /><GrandBallroomA /></>} />
+        <Route path="/grand-ballroom-b" element={<><SharedNavbar /><GrandBallroomB /></>} />
+        <Route path="/grand-ballroom-c" element={<><SharedNavbar /><GrandBallroomC /></>} />
         <Route path="/reserve/:routeId" element={<><Navbar /><div>Reserve Page - Coming Soon</div></>} />
-        <Route path="/function-room-2020" element={<FunctionRoom2020 />} />
-        <Route path="/business-center" element={<BusinessCenter />} />
-        <Route path="/admin" element={<AdminEntry />} />
+                <Route path="/admin" element={<AdminEntry />} />
         <Route
           path="/admin/reservations"
           element={
@@ -69,10 +92,42 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="/admin/seat-map-editor"
+          element={
+            <RequireAdminAuth>
+              <UnifiedSeatMapEditor />
+            </RequireAdminAuth>
+          }
+        />
+        <Route
           path="/admin/seatmap"
           element={
             <RequireAdminAuth>
-              <SeatMapEditor />
+              <UnifiedSeatMapEditor />
+            </RequireAdminAuth>
+          }
+        />
+        <Route
+          path="/admin/seat-map-editor-20-20A"
+          element={
+            <RequireAdminAuth>
+              <UnifiedSeatMapEditor />
+            </RequireAdminAuth>
+          }
+        />
+        <Route
+          path="/admin/seat-map-editor-20-20B"
+          element={
+            <RequireAdminAuth>
+              <UnifiedSeatMapEditor />
+            </RequireAdminAuth>
+          }
+        />
+        <Route
+          path="/admin/seat-map-editor-20-20C"
+          element={
+            <RequireAdminAuth>
+              <UnifiedSeatMapEditor />
             </RequireAdminAuth>
           }
         />

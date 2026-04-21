@@ -8,7 +8,18 @@ const F = { body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-
 const NAV_ITEMS = [
   { id: "reservations", label: "Reservations", icon: ClipboardList, iconStyle: "lucide" },
   { id: "cancelled",    label: "Cancelled",    icon: X,           iconStyle: "lucide" },
-  { id: "seat-map",     label: "Seat Map",     icon: Map,         iconStyle: "lucide" },
+  { 
+    id: "seat-map", 
+    label: "Seat Map", 
+    icon: Map,         
+    iconStyle: "lucide",
+    subItems: [
+      { id: "business-center", label: "Business Center", path: "/admin/seatmap" },
+      { id: "20-20-a", label: "20/20 Room A", path: "/admin/seatmap/20-20-a" },
+      { id: "20-20-b", label: "20/20 Room B", path: "/admin/seatmap/20-20-b" },
+      { id: "20-20-c", label: "20/20 Room C", path: "/admin/seatmap/20-20-c" },
+    ]
+  },
 ];
 
 // ─── Hamburger Toggle Button ──────────────────────────────────────────────────

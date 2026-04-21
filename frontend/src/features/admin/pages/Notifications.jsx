@@ -1,5 +1,5 @@
 // src/features/admin/pages/NotificationDashboard.jsx
-import React, { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Bell, BellDot, Clock, X, CalendarDays,
   MapPin, Users, Phone, Mail, FileText, Hash, CheckCircle,
@@ -8,98 +8,50 @@ import {
 import { reservationAPI } from "../../../services/reservationAPI";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-// ─── Design Tokens (mirrors ManageBooking exactly) ────────────────────────────
-const ThemeContext = createContext({ isDark: true, toggle: () => {} });
-const useTheme = () => useContext(ThemeContext);
-
-function getTokens(isDark) {
-  return isDark
-    ? {
-        gold: "#C4A35A",
-        goldLight: "#D9BC7A",
-        goldFaint: "rgba(196,163,90,0.08)",
-        goldFaintest: "rgba(196,163,90,0.04)",
-        pageBg: "#0A0908",
-        surfaceBase: "#111009",
-        surfaceRaised: "#161410",
-        surfaceInput: "rgba(255,255,255,0.04)",
-        borderDefault: "rgba(255,255,255,0.08)",
-        borderStrong: "rgba(255,255,255,0.12)",
-        borderAccent: "rgba(196,163,90,0.30)",
-        textPrimary: "#EDE8DF",
-        textSecondary: "#8A8278",
-        textTertiary: "rgba(237,232,223,0.32)",
-        textOnAccent: "#0A0908",
-        red: "#B85C5C",
-        redFaint: "rgba(184,92,92,0.08)",
-        redBorder: "rgba(184,92,92,0.20)",
-        green: "#4A9E7E",
-        greenFaint: "rgba(74,158,126,0.08)",
-        greenBorder: "rgba(74,158,126,0.20)",
-        blue: "#5B8FD4",
-        blueFaint: "rgba(91,143,212,0.08)",
-        blueBorder: "rgba(91,143,212,0.20)",
-        badgePending:  { bg: "rgba(196,163,90,0.10)", color: "#C4A35A", dot: "#C4A35A" },
-        badgeApproved: { bg: "rgba(74,158,126,0.10)", color: "#4A9E7E", dot: "#4A9E7E" },
-        badgeRejected: { bg: "rgba(184,92,92,0.10)",  color: "#B85C5C", dot: "#B85C5C" },
-        navBg: "rgba(10,9,8,0.95)",
-        navBorder: "rgba(196,163,90,0.12)",
-        divider: "rgba(255,255,255,0.05)",
-        inputFocusShadow: "0 0 0 3px rgba(196,163,90,0.12)",
-        modalOverlay: "rgba(0,0,0,0.82)",
-        statusNote: { pending: "rgba(196,163,90,0.05)", approved: "rgba(74,158,126,0.05)" },
-        statusNoteBorder: { pending: "rgba(196,163,90,0.15)", approved: "rgba(74,158,126,0.15)" },
-        headerGradient: "linear-gradient(160deg,#111009 0%,#161410 100%)",
-        spinnerBorder: "rgba(255,255,255,0.15)",
-        spinnerTop: "#C4A35A",
-        cardBg: "#111009",
-        cardBorder: "rgba(255,255,255,0.06)",
-        bgFilter: "blur(6px) brightness(0.35)",
-        bgOverlay: "rgba(12,11,10,0.75)",
-      }
-    : {
-        gold: "#8C6B2A",
-        goldLight: "#A07D38",
-        goldFaint: "rgba(140,107,42,0.07)",
-        goldFaintest: "rgba(140,107,42,0.04)",
-        pageBg: "#F7F4EE",
-        surfaceBase: "#FFFFFF",
-        surfaceRaised: "#FAF8F4",
-        surfaceInput: "#FFFFFF",
-        borderDefault: "rgba(0,0,0,0.08)",
-        borderStrong: "rgba(0,0,0,0.13)",
-        borderAccent: "rgba(140,107,42,0.28)",
-        textPrimary: "#18140E",
-        textSecondary: "#7A7060",
-        textTertiary: "rgba(24,20,14,0.35)",
-        textOnAccent: "#FFFFFF",
-        red: "#A03838",
-        redFaint: "rgba(160,56,56,0.07)",
-        redBorder: "rgba(160,56,56,0.18)",
-        green: "#2E7A5A",
-        greenFaint: "rgba(46,122,90,0.07)",
-        greenBorder: "rgba(46,122,90,0.18)",
-        blue: "#2E5CA0",
-        blueFaint: "rgba(46,92,160,0.07)",
-        blueBorder: "rgba(46,92,160,0.18)",
-        badgePending:  { bg: "rgba(140,107,42,0.09)", color: "#8C6B2A", dot: "#8C6B2A" },
-        badgeApproved: { bg: "rgba(46,122,90,0.09)",  color: "#2E7A5A", dot: "#2E7A5A" },
-        badgeRejected: { bg: "rgba(160,56,56,0.09)",  color: "#A03838", dot: "#A03838" },
-        navBg: "rgba(247,244,238,0.96)",
-        navBorder: "rgba(140,107,42,0.14)",
-        divider: "rgba(0,0,0,0.05)",
-        inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
-        modalOverlay: "rgba(0,0,0,0.55)",
-        statusNote: { pending: "rgba(140,107,42,0.05)", approved: "rgba(46,122,90,0.05)" },
-        statusNoteBorder: { pending: "rgba(140,107,42,0.18)", approved: "rgba(46,122,90,0.18)" },
-        headerGradient: "linear-gradient(160deg,#111009 0%,#1A160F 100%)",
-        spinnerBorder: "rgba(0,0,0,0.12)",
-        spinnerTop: "#8C6B2A",
-        cardBg: "#FFFFFF",
-        cardBorder: "rgba(0,0,0,0.07)",
-        bgFilter: "blur(6px) brightness(0.45) saturate(0.4)",
-        bgOverlay: "rgba(237,233,224,0.65)",
-      };
+function getTokens() {
+  return {
+    gold: "#8C6B2A",
+    goldLight: "#A07D38",
+    goldFaint: "rgba(140,107,42,0.07)",
+    goldFaintest: "rgba(140,107,42,0.04)",
+    pageBg: "#F7F4EE",
+    surfaceBase: "#FFFFFF",
+    surfaceRaised: "#FFFFFF",
+    surfaceInput: "rgba(0,0,0,0.03)",
+    borderDefault: "rgba(0,0,0,0.08)",
+    borderStrong: "rgba(0,0,0,0.13)",
+    borderAccent: "rgba(140,107,42,0.28)",
+    textPrimary: "#18140E",
+    textSecondary: "#7A7060",
+    textTertiary: "rgba(24,20,14,0.35)",
+    textOnAccent: "#FFFFFF",
+    red: "#A03838",
+    redFaint: "rgba(160,56,56,0.07)",
+    redBorder: "rgba(160,56,56,0.18)",
+    green: "#2E7A5A",
+    greenFaint: "rgba(46,122,90,0.07)",
+    greenBorder: "rgba(46,122,90,0.18)",
+    blue: "#5B8FD4",
+    blueFaint: "rgba(91,143,212,0.08)",
+    blueBorder: "rgba(91,143,212,0.20)",
+    badgePending:  { bg: "rgba(140,107,42,0.09)",  color: "#8C6B2A",  dot: "#8C6B2A"  },
+    badgeApproved: { bg: "rgba(46,122,90,0.09)",   color: "#2E7A5A",  dot: "#2E7A5A"  },
+    badgeRejected: { bg: "rgba(160,56,56,0.09)",   color: "#A03838",  dot: "#A03838"  },
+    navBg: "rgba(247,244,238,0.97)",
+    navBorder: "rgba(140,107,42,0.14)",
+    divider: "rgba(0,0,0,0.05)",
+    inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
+    modalOverlay: "rgba(0,0,0,0.42)",
+    statusNote: { pending: "rgba(140,107,42,0.05)", approved: "rgba(46,122,90,0.05)" },
+    statusNoteBorder: { pending: "rgba(140,107,42,0.15)", approved: "rgba(46,122,90,0.15)" },
+    headerGradient: "linear-gradient(160deg,#FAF8F4 0%,#F2EFE8 100%)",
+    spinnerBorder: "rgba(0,0,0,0.12)",
+    spinnerTop: "#8C6B2A",
+    cardBg: "#FFFFFF",
+    cardBorder: "rgba(0,0,0,0.07)",
+    bgFilter: "blur(6px) brightness(0.45) saturate(0.4)",
+    bgOverlay: "rgba(237,233,224,0.65)",
+  };
 }
 
 const F = {
@@ -109,7 +61,7 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = 1000;
 const RECONNECT_WINDOW_MS = 60000;
 const MAX_RECONNECTS_IN_WINDOW = 5;
 const WS_RECOVERY_RETRY_MS = 45000;
@@ -203,20 +155,6 @@ function Spinner({ size=13, C }) {
   return <span style={{ display:"inline-block",width:size,height:size,border:`1.5px solid ${C.spinnerBorder}`,borderTopColor:C.spinnerTop,borderRadius:"50%",animation:"spin 0.65s linear infinite",flexShrink:0 }} />;
 }
 
-function ThemeToggle({ C, isDark, toggle }) {
-  return (
-    <button type="button" onClick={toggle}
-      style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 12px 6px 8px",background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:20,cursor:"pointer",flexShrink:0,transition:"all 0.22s" }}
-      onMouseEnter={e=>e.currentTarget.style.borderColor=C.borderAccent}
-      onMouseLeave={e=>e.currentTarget.style.borderColor=C.borderDefault}
-    >
-      <span style={{ position:"relative",width:28,height:16,borderRadius:8,background:isDark?"rgba(196,163,90,0.22)":"rgba(0,0,0,0.08)",display:"inline-flex",alignItems:"center",flexShrink:0,transition:"background 0.28s" }}>
-        <span style={{ position:"absolute",left:isDark?2:"calc(100% - 14px)",width:12,height:12,borderRadius:"50%",background:isDark?"#C4A35A":"#8C6B2A",transition:"left 0.24s cubic-bezier(.4,0,.2,1)" }} />
-      </span>
-      <span style={{ fontFamily:F.label,fontSize:11,fontWeight:500,letterSpacing:"0.03em",color:C.textSecondary }}>{isDark?"Dark":"Light"}</span>
-    </button>
-  );
-}
 
 function StatusBadge({ status, C }) {
   const s = (status||"").toLowerCase().trim();
@@ -548,12 +486,7 @@ function Panel({ children, accentColor, C, style={} }) {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function NotificationDashboard() {
-  const [isDark,setIsDark]=useState(()=>{
-    try{const s=localStorage.getItem("bellevue-theme");if(s!==null)return s==="dark";}catch{}
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches??true;
-  });
-  const toggleTheme=()=>setIsDark(p=>{const n=!p;try{localStorage.setItem("bellevue-theme",n?"dark":"light");}catch{}return n;});
-  const C=getTokens(isDark);
+  const C=getTokens();
 
   const [allCards,setAllCards]=useState([]);
   const [popupQueue,setPopupQueue]=useState([]);
@@ -790,7 +723,7 @@ export default function NotificationDashboard() {
   const wsLabel=wsStatus==="connected"?"Live":wsStatus==="connecting"?"Connecting":wsStatus==="polling"?"Polling":"Offline";
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggle:toggleTheme }}>
+    <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -817,16 +750,11 @@ export default function NotificationDashboard() {
         {/* NAV — identical to ManageBooking */}
         <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(20px,5vw,64px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box",transition:"background 0.30s" }}>
           <div style={{ display:"flex",alignItems:"center",gap:20 }}>
-            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:26,width:"auto",display:"block",flexShrink:0,filter:isDark?"brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)":"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
+            <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:26,width:"auto",display:"block",flexShrink:0,filter:"brightness(0) saturate(100%)",transition:"filter 0.30s" }}/>
             <div style={{ width:1,height:18,background:C.borderDefault }}/>
             <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.textSecondary,fontWeight:700,textTransform:"uppercase" }}>Notification Monitor</span>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            
-            <div style={{ display:"flex",alignItems:"center",gap:6,background:wsColor+"12",border:`1px solid ${wsColor}40`,borderRadius:20,padding:"5px 12px" }}>
-              {wsStatus==="connected"?<Wifi size={11} color={wsColor}/>:<WifiOff size={11} color={wsColor}/>}
-              <span style={{ fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:wsColor }}>{wsLabel}</span>
-            </div>
             <div style={{ width:36,height:36,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
               {popup?<BellDot size={15} color={C.gold}/>:<Bell size={15} color={C.textSecondary}/>}
               {popup&&<div style={{ position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
@@ -836,7 +764,6 @@ export default function NotificationDashboard() {
               <div style={{ fontFamily:F.mono,fontWeight:700,fontSize:15,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
               <div style={{ fontFamily:F.label,fontSize:9,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase",marginTop:2 }}>{date}</div>
             </div>
-            <ThemeToggle C={C} isDark={isDark} toggle={toggleTheme}/>
           </div>
         </nav>
 
@@ -910,6 +837,6 @@ export default function NotificationDashboard() {
       {detailRes&&<DetailModal res={detailRes} onClose={()=>setDetailRes(null)} onApprove={handleApproveRequest} approvingIds={approvingIds} C={C}/>}
       {confirmRes&&<ApproveConfirmModal res={confirmRes} onConfirm={handleApproveConfirm} onCancel={()=>{if(!isApproving)setConfirmRes(null);}} isApproving={isApproving} C={C}/>}
       <Toast toasts={toasts} C={C}/>
-    </ThemeContext.Provider>
+    </>
   );
 }

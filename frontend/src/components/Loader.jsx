@@ -1,43 +1,171 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import bellevueLogo from '../assets/bellevue-logo.png';
+import lottieData   from '../assets/loading.json';
 
-const Loader = ({ onDone }) => {
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      if (onDone) onDone();
-    }, 1500); // Auto-dismiss after 1.5 seconds
-    
-    return () => clearTimeout(timer);
+const DISPLAY = `'Playfair Display', 'Times New Roman', serif`;
+const BODY    = `'Inter', -apple-system, BlinkMacSystemFont, sans-serif`;
+
+const LOADER_CSS = `
+  @keyframes loader-text-in {
+    from { opacity: 0; letter-spacing: 0.52em; }
+    to   { opacity: 1; letter-spacing: 0.38em; }
+  }
+  @keyframes loader-tagline-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes loader-bar-grow {
+    from { width: 0%; }
+    to   { width: 100%; }
+  }
+  @keyframes loader-exit {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @keyframes logo-fade-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+// ── Self-contained Lottie renderer (loads lottie-web from CDN) ────────────────
+function LottiePlayer({ animationData, style }) {
+  const containerRef = useRef(null);
+  const animRef      = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!window.lottie) {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js';
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+      if (cancelled || !containerRef.current) return;
+      animRef.current = window.lottie.loadAnimation({
+        container:     containerRef.current,
+        renderer:      'svg',
+        loop:          true,
+        autoplay:      true,
+        animationData: animationData,
+      });
+    };
+    load().catch(console.error);
+    return () => { cancelled = true; animRef.current?.destroy(); };
+  }, [animationData]);
+
+  return <div ref={containerRef} style={style} />;
+}
+
+// ── Main Loader ───────────────────────────────────────────────────────────────
+export default function Loader({ onDone }) {
+  const [phase, setPhase] = useState('in');
+  const [exit,  setExit]  = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase('out'), 2800);
+    const t2 = setTimeout(() => { setExit(true); onDone?.(); }, 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [onDone]);
 
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100vh',
-      background: '#F7F4EE',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999
-    }}>
-      <div style={{
-        width: 40,
-        height: 40,
-        border: '3px solid #8C6B2A',
-        borderTop: '3px solid transparent',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite'
-      }} />
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
-  );
-};
+  if (exit) return null;
 
-export default Loader;
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: LOADER_CSS }} />
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        backgroundImage: 'url("/src/assets/bg-login.png")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        animation: phase === 'out' ? 'loader-exit 0.7s ease forwards' : 'none',
+      }}>
+
+        {/* Dark overlay */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(14,13,9,0.60)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Radial glow */}
+        <div style={{
+          position: 'absolute',
+          width: 380, height: 380, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(201,168,76,0.10) 0%, transparent 68%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Logo */}
+        <div style={{
+          position: 'relative', zIndex: 1,
+          animation: 'logo-fade-in 0.8s ease 0.1s both',
+          marginBottom: 0,
+        }}>
+          <img
+            src={bellevueLogo}
+            alt="The Bellevue Manila"
+            style={{
+              height: 48, width: 'auto', display: 'block',
+              filter: 'brightness(0) saturate(100%) invert(72%) sepia(28%) saturate(600%) hue-rotate(5deg) brightness(0.95)',
+            }}
+          />
+        </div>
+
+        {/* Lottie */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <LottiePlayer
+            animationData={lottieData}
+            style={{ width: 130, height: 130 }}
+          />
+        </div>
+
+        {/* Brand label */}
+        <div style={{
+          position: 'relative', zIndex: 1,
+          fontFamily: BODY, fontSize: 10, fontWeight: 700,
+          letterSpacing: '0.38em', textTransform: 'uppercase',
+          color: 'rgba(201,168,76,0.85)',
+          marginTop: 4, marginBottom: 12,
+          animation: 'loader-text-in 1s ease 0.4s both',
+        }}>
+          Seat and Table Reservation
+        </div>
+
+        {/* Tagline */}
+        <div style={{
+          position: 'relative', zIndex: 1,
+          fontFamily: DISPLAY,
+          fontSize: 'clamp(15px,2vw,20px)',
+          fontWeight: 500, fontStyle: 'italic',
+          color: '#F0E8D0',
+          letterSpacing: '0.01em',
+          textAlign: 'center', lineHeight: 1.5,
+          animation: 'loader-tagline-in 0.9s ease 0.65s both',
+          opacity: 0,
+        }}>
+          Always at Home in<br />World-Class Hospitality
+        </div>
+
+        {/* Progress bar */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: 2, background: 'rgba(201,168,76,0.08)', zIndex: 1,
+        }}>
+          <div style={{
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)',
+            animation: 'loader-bar-grow 2.6s cubic-bezier(0.4,0,0.2,1) 0.1s forwards',
+            width: 0,
+          }} />
+        </div>
+
+      </div>
+    </>
+  );
+}

@@ -79,7 +79,6 @@ function getTokens(isDark) {
         textPrimary: "#18140E",
         textSecondary: "#7A7060",
         textTertiary: "rgba(24,20,14,0.35)",
-        textTertiary: "rgba(24,20,14,0.35)",
         textOnAccent: "#FFFFFF",
         red: "#A03838",
         redFaint: "rgba(160,56,56,0.07)",
@@ -106,7 +105,6 @@ function getTokens(isDark) {
 }
 
 const F = {
-  display: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   display: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   body: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   mono: "'Inter', 'Helvetica Neue', Arial, sans-serif",
@@ -199,13 +197,9 @@ function CloseBtn({ onClick, disabled = false, C, light = false }) {
         width: 34, height: 34, borderRadius: "50%",
         background: light ? "rgba(255,255,255,0.06)" : C.surfaceRaised,
         border: `1px solid ${light ? "rgba(255,255,255,0.12)" : C.borderDefault}`,
-        width: 34, height: 34, borderRadius: "50%",
-        background: light ? "rgba(255,255,255,0.06)" : C.surfaceRaised,
-        border: `1px solid ${light ? "rgba(255,255,255,0.12)" : C.borderDefault}`,
         cursor: disabled ? "not-allowed" : "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0, padding: 0, transition: "all 0.20s",
-        flexShrink: 0, padding: 0, transition: "all 0.20s",
+        flexShrink: 0, transition: "all 0.20s",
       }}
       onMouseEnter={(e) => {
         if (!disabled) {
@@ -350,10 +344,10 @@ function ThemeToggle() {
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
     >
-      }}
+    
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
-    >
+    
       <span style={{
         position: "relative", width: 28, height: 16, borderRadius: 8,
         background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.08)",

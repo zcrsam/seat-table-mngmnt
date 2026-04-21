@@ -1,16 +1,16 @@
-// src/features/client/pages/TwentyTwentyReserveC.jsx
+// src/features/client/pages/TowerWing/GrandBallroomB.jsx
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import SharedNavbar from "../../../components/SharedNavbar.jsx";
-import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
-import Echo from "../../../utils/websocket.js";
-import twentyTwentyImg from "../../../assets/20-20.jpeg";
+import SharedNavbar from "../../../../components/SharedNavbar.jsx";
+import SeatMap, { STATUS_COLORS } from "../../../../components/seatmap/SeatMap.jsx";
+import Echo from "../../../../utils/websocket.js";
+import twentyTwentyImg from "../../../../assets/20-20.jpeg";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-const WING = "Main Wing";
-const ROOM = "20/20 Function Room";
+const WING = "Grand Ballroom";
+const ROOM = "Grand Ballroom B";
 
-// ─── THEME ─────────────────────────────────────────────────────
+// ─── THEME ─────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 function useThemeMode() {
@@ -327,7 +327,7 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
   const atMin = guests <= 1;
 
   const infoRows = [
-    ["Room",         ROOM,                                                            null],
+    ["Room",         "Grand Ballroom B",                                                            null],
     ["Table",        `Table ${tableData?.id ?? "T1"}`,                                null],
     ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "1"}`,                 null],
     ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
@@ -566,7 +566,7 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
 const buildQrValue = ({ refCode }) => {
   const base = (import.meta.env.VITE_APP_URL || window.location.origin).replace(/\/$/, "");
   const url = base.startsWith("http") ? base : `https://${base}`;
-  return `${url}/twenty-twenty-c/${String(refCode || "").trim()}`;
+  return `${url}/twenty-twenty-a/${String(refCode || "").trim()}`;
 };
 
 // MODAL: Success
@@ -600,7 +600,7 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
       ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(28, divY); ctx.lineTo(W - 28, divY); ctx.stroke();
       ctx.fillStyle = "#8A8278"; ctx.font = "600 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("REFERENCE CODE", W / 2, divY + 20);
       ctx.fillStyle = "#EDE8DF"; ctx.font = "bold 26px sans-serif"; ctx.fillText(refCode || "TBD", W / 2, divY + 52);
-      const link = document.createElement("a"); link.download = `bellevue-twenty20-c-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
+      const link = document.createElement("a"); link.download = `bellevue-twenty20-a-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
     } catch { alert("Could not save photo. Please try again."); }
     finally { setSaving(false); }
   }, [refCode, saving, qrReady]);
@@ -686,7 +686,7 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
           </div>
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
             <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
-            <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>20/20 C</div>
+            <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ROOM}</div>
           </div>
         </div>
         <button onClick={canGo ? onReserve : undefined} disabled={!canGo}
@@ -704,8 +704,7 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
   );
 }
 
-
-export default function TwentyTwentyReserveC() {
+export default function GrandBallroomB() {
   const { isDark, toggle: toggleTheme } = useThemeMode();
   const C = getTokens(isDark);
   const navigate = useNavigate();
@@ -767,7 +766,7 @@ export default function TwentyTwentyReserveC() {
         if (!data?.data) return;
         setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
         setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.error("[TwentyTwentyReserveC] Failed to fetch seat status:", err); }
+      } catch (err) { console.error("[GrandBallroomB] Failed to fetch seat status:", err); }
     };
     fetchAndMerge();
   }, []);
@@ -819,7 +818,7 @@ export default function TwentyTwentyReserveC() {
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 3, // 20/20 Function Room venue id
+        venue_id: 3, // Grand Ballroom B venue id
         room: ROOM,
         table_number: String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"
@@ -908,7 +907,7 @@ export default function TwentyTwentyReserveC() {
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
-                <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>20/20 Function Room C</div>
+                <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Grand Ballroom B</div>
               </div>
             </div>
 
@@ -1002,10 +1001,10 @@ export default function TwentyTwentyReserveC() {
                   <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</span>
                 </div>
                 <h1 style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: isTablet ? 34 : 42, fontWeight: 600, color: C.textPrimary, lineHeight: 1.1, margin: "0 0 10px", letterSpacing: "0.01em" }}>
-                  20/20 Function Room C
+                  Grand Ballroom B
                 </h1>
                 <p style={{ fontFamily: FONT, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
-                  Book your preferred table in the 20/20 Function Room C. Select your reservation type and click on the map to get started.
+                  Book your preferred table in Grand Ballroom B. Select your reservation type and click on the map to get started.
                 </p>
               </div>
 

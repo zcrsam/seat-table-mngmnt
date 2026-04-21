@@ -1,5 +1,5 @@
 // src/features/admin/pages/CancelledDashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 
@@ -310,6 +310,7 @@ export default function CancelledDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchFocused, setSearchFocused] = useState(false);
   const [stats, setStats] = useState({ total: 0, today: 0, thisWeek: 0 });
+  const [syncMode, setSyncMode] = useState("connecting");
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
@@ -362,7 +363,122 @@ export default function CancelledDashboard() {
 
   useEffect(() => { loadReservations(); }, []);
 
-  // ── Filter ────────────────────────────────────────────────────────────────
+  // WebSocket with polling fallback for cancelled reservations
+  useEffect(() => {
+    const wsHost = import.meta.env.VITE_WS_HOST || "localhost";
+    const wsPort = import.meta.env.VITE_WS_PORT || "6001";
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${wsHost}:${wsPort}`;
+
+    let ws = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 5000;
+    let pollingInterval = null;
+    let isPolling = false;
+
+    const startPolling = () => {
+      if (isPolling) return;
+      isPolling = true;
+      setSyncMode("polling");
+      pollingInterval = setInterval(async () => {
+        try {
+          const resp = await fetch(`${API_BASE_URL}/admin/reservations/cancelled`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data)) {
+              data.forEach(updated => {
+                setReservations(prev => {
+                  const idx = prev.findIndex(r => r.id === updated.id);
+                  if (idx >= 0) {
+                    const arr = [...prev];
+                    arr[idx] = updated;
+                    return arr;
+                  }
+                  return [...prev, updated];
+                });
+              });
+            }
+          }
+        } catch (err) {
+          console.error("[CancelledDashboard] Polling error:", err);
+        }
+      }, 1000);
+    };
+
+    const stopPolling = () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+        isPolling = false;
+      }
+    };
+
+    const connect = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          setSyncMode("websocket");
+          retryCount = 0;
+          stopPolling();
+        };
+
+        ws.onclose = () => {
+          setSyncMode("connecting");
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(connect, retryDelay * Math.pow(2, retryCount - 1));
+          } else {
+            startPolling();
+          }
+        };
+
+        ws.onerror = () => {
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(connect, retryDelay * Math.pow(2, retryCount - 1));
+          } else {
+            startPolling();
+          }
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "reservation_cancelled") {
+              setReservations(prev => {
+                const idx = prev.findIndex(r => r.id === msg.data.id);
+                if (idx >= 0) {
+                  const arr = [...prev];
+                  arr[idx] = msg.data;
+                  return arr;
+                }
+                return [...prev, msg.data];
+              });
+            }
+          } catch (err) {
+            console.error("[CancelledDashboard] WebSocket message error:", err);
+          }
+        };
+      } catch (err) {
+        console.error("[CancelledDashboard] WebSocket init failed:", err);
+        startPolling();
+      }
+    };
+
+    connect();
+
+    return () => {
+      stopPolling();
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    };
+  }, []);
+
+  // Filter ────────────────────────────────────────────────────────────────
   useEffect(() => {
     let filtered = reservations;
     if (search.trim()) {
