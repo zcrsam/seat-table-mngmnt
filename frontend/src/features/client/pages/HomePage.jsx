@@ -14,6 +14,21 @@ import hanakazuImg2    from "../../../assets/hanakazu2.jpeg";
 import hanakazuImg3    from "../../../assets/hanakazu3.jpeg";
 import phoenixCourtImg from "../../../assets/phoenix-court.jpeg";
 import bellevueLogo    from "../../../assets/bellevue-logo.png";
+import Loader           from "../../../components/Loader.jsx";
+import HeroSection       from "../../../components/HeroSection.jsx";
+
+// ChevRight component (from VenuesPage.jsx)
+const ChevRight = ({ size = 14, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+);
+
+const ChevLeft = ({ size = 14, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+);
 
 // ── THEME CONTEXT ──────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
@@ -428,6 +443,8 @@ function DiningSection({ initialRestaurantId, onNavigateToDining }) {
               Reserve a Dining Venue
               <ChevRight size={14} color="currentColor" strokeWidth={2.5} />
             </button>
+
+            
           </div>
         </div>
       </div>

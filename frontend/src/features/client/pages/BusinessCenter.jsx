@@ -6,11 +6,11 @@ import SeatMap, { STATUS_COLORS } from "../../../components/seatmap/SeatMap";
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
 const ROOM = "Business Center";
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────
+// ─── Design Tokens ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
@@ -73,7 +73,7 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-// ─── Persistence helpers ────────────────────────────────────────────────────
+// ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
 function mergeApiStatusIntoLayout(localLayout, apiData) {
@@ -81,14 +81,25 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
   const apiStatusMap = {};
   const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
   apiTables.forEach(t => {
-    (t.seats || []).forEach(s => {
-      apiStatusMap[s.id] = (s.status || "available").toLowerCase();
-    });
+    if (Array.isArray(t?.seats)) {
+      (t.seats || []).forEach(s => {
+        apiStatusMap[s.id] = (s.status || "available").toLowerCase();
+      });
+      return;
+    }
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+    if (tableKey || seatKey) {
+      apiStatusMap[compositeKey] = (t.status || "available").toLowerCase();
+    }
   });
   const mergedTables = (localLayout.tables || []).map(t => ({
     ...t,
     seats: (t.seats || []).map(s => {
-      const apiStatus = apiStatusMap[s.id];
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
       return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
     }),
   }));
@@ -106,22 +117,56 @@ function loadLayoutForClient(wing, room) {
   } catch { return null; }
 }
 
-// ─── API ────────────────────────────────────────────────────────────────────
+// ─── Offline reservation helpers ──────────────────────────────────────────────
+const loadStoredReservations = () => {
+  try { const raw = localStorage.getItem("bellevue_reservations"); return raw ? JSON.parse(raw) : []; }
+  catch { return []; }
+};
+const saveStoredReservations = (reservations) => {
+  try { localStorage.setItem("bellevue_reservations", JSON.stringify(reservations)); } catch {}
+};
+const makeOfflineReservation = (payload) => ({
+  ...payload,
+  id: `offline-${Date.now()}`,
+  db_id: Date.now(),
+  reference_code: `${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`,
+  status: "pending",
+  submitted_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+
+// ─── API ──────────────────────────────────────────────────────────────────────
 const apiCall = async (endpoint, options = {}) => {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    let msg = data?.message || `HTTP ${response.status}`;
-    if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
-    throw new Error(msg);
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!response.ok) {
+      let msg = data?.message || `HTTP ${response.status}`;
+      if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
+      throw new Error(msg);
+    }
+    return data;
+  } catch (error) {
+    const isCreateReservation =
+      endpoint === "/reservations" && (options.method || "GET").toUpperCase() === "POST";
+    if (isCreateReservation) {
+      const payload = JSON.parse(options.body || "{}");
+      const offlineReservation = makeOfflineReservation(payload);
+      const reservations = loadStoredReservations();
+      reservations.push(offlineReservation);
+      saveStoredReservations(reservations);
+      return offlineReservation;
+    }
+    throw error;
   }
-  return data;
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
@@ -136,7 +181,7 @@ const getSeatRatio = (table) => {
   return `${available}/${table.seats.length}`;
 };
 
-// ─── Shared Primitives ───────────────────────────────────────────────────────
+// ─── Shared Primitives ────────────────────────────────────────────────────────
 function Spinner({ size = 13, C }) {
   return (
     <span style={{
@@ -227,7 +272,37 @@ function GhostBtn({ children, onClick, disabled = false, C, style = {} }) {
   );
 }
 
-// ─── Step Indicator ──────────────────────────────────────────────────────────
+// ─── Theme Toggle ─────────────────────────────────────────────────────────────
+function ThemeToggle() {
+  const { isDark, toggle } = useTheme();
+  const C = getTokens(isDark);
+  const [hov, setHov] = useState(false);
+  return (
+    <button type="button" onClick={toggle} title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 13px 6px 10px", background: "transparent", border: `1px solid ${hov ? C.borderAccent : C.borderDefault}`, borderRadius: 20, cursor: "pointer", flexShrink: 0, transition: "border-color 0.22s" }}
+    >
+      {isDark ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+          <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+      )}
+      <span style={{ position: "relative", width: 28, height: 16, borderRadius: 8, background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.10)", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.28s" }}>
+        <span style={{ position: "absolute", left: isDark ? 2 : "calc(100% - 14px)", width: 12, height: 12, borderRadius: "50%", background: isDark ? "#C4A35A" : "#8C6B2A", transition: "left 0.24s cubic-bezier(.4,0,.2,1)" }} />
+      </span>
+      <span style={{ fontFamily: F.label, fontSize: 11, fontWeight: 500, letterSpacing: "0.03em", color: C.textSecondary }}>{isDark ? "Dark" : "Light"}</span>
+    </button>
+  );
+}
+
+// ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step, C }) {
   const steps = ["Guest Count", "Details", "Confirm"];
   return (
@@ -255,7 +330,7 @@ function StepIndicator({ step, C }) {
   );
 }
 
-// ─── Field Input ─────────────────────────────────────────────────────────────
+// ─── Field Input ──────────────────────────────────────────────────────────────
 function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, rows }) {
   const [focused, setFocused] = useState(false);
   const isTextarea = type === "textarea";
@@ -354,7 +429,7 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
               </div>
               {atMax && (
                 <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, fontFamily: F.body, fontSize: 11.5, color: C.gold, lineHeight: 1.5 }}>
-                  Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available.
+                  Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available on this table.
                 </div>
               )}
             </div>
@@ -372,7 +447,7 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
   );
 }
 
-// ─── MODAL 2: Details ────────────────────────────────────────────────────────
+// ─── MODAL 2: Details ─────────────────────────────────────────────────────────
 function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
@@ -388,8 +463,8 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
 
   useEffect(() => { if (secondsLeft <= 0) onTimerExpired(); }, [secondsLeft]);
 
-  const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
-  const secs = String(secondsLeft % 60).padStart(2, "0");
+  const mins    = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const secs    = String(secondsLeft % 60).padStart(2, "0");
   const isUrgent = secondsLeft <= 60;
 
   const set = k => v => {
@@ -399,7 +474,13 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
     } else setForm(f => ({ ...f, [k]: v }));
   };
 
-  const allFilled = form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim() && form.phone !== "+63" && form.eventDate.trim();
+  const allFilled =
+    form.firstName.trim() !== "" &&
+    form.lastName.trim()  !== "" &&
+    form.email.trim()     !== "" &&
+    form.phone.trim()     !== "" && form.phone !== "+63" &&
+    form.eventDate.trim() !== "";
+
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
 
   return (
@@ -451,7 +532,7 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
   );
 }
 
-// ─── MODAL 3: Review ─────────────────────────────────────────────────────────
+// ─── MODAL 3: Review ──────────────────────────────────────────────────────────
 function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "—"}`;
@@ -515,7 +596,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
   );
 }
 
-// ─── QR Code ─────────────────────────────────────────────────────────────────
+// ─── QR Code ──────────────────────────────────────────────────────────────────
 function QRCodeWithRef({ value, size = 120, imgRef }) {
   const [imgSrc, setImgSrc] = useState(null);
   useEffect(() => {
@@ -556,7 +637,7 @@ const buildQrValue = ({ refCode }) => {
   return `${url}/business-center/${String(refCode || "").trim()}`;
 };
 
-// ─── MODAL: Success ──────────────────────────────────────────────────────────
+// ─── MODAL: Success ───────────────────────────────────────────────────────────
 function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails, C }) {
   const qrImgRef = useRef(null);
   const [saving, setSaving]   = useState(false);
@@ -646,16 +727,26 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
   );
 }
 
-// ─── Mobile Bottom Sheet ─────────────────────────────────────────────────────
+// ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
 function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "—");
-  const displaySeat  = mode === "individual"
+  const displayTable = mode === "whole"
+    ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
+    : (activeTable ? `Table ${activeTable.id}` : "—");
+  const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
   const canGo = mode === "whole" ? true : canProceed;
 
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: C.bottomSheet, borderTop: `1px solid ${C.borderAccent}`, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(0,0,0,0.28)", padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0", animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)" }}>
+    <div style={{
+      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
+      background: C.bottomSheet,
+      borderTop: `1px solid ${C.borderAccent}`,
+      borderRadius: "20px 20px 0 0",
+      boxShadow: "0 -8px 32px rgba(0,0,0,0.28)",
+      padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0",
+      animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)",
+    }}>
       <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}80 30%, ${C.gold}80 70%, transparent)`, borderRadius: "20px 20px 0 0" }} />
       <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, paddingBottom: 4 }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderStrong }} />
@@ -676,7 +767,8 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
             <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Biz Center</div>
           </div>
         </div>
-        <button onClick={canGo ? onReserve : undefined} disabled={!canGo}
+        <button
+          onClick={canGo ? onReserve : undefined} disabled={!canGo}
           style={{ width: "100%", padding: "15px", background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"), border: "none", borderRadius: 12, fontFamily: F.label, fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: canGo ? C.textOnAccent : C.textTertiary, cursor: canGo ? "pointer" : "not-allowed", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           {mode === "whole"
@@ -689,7 +781,7 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
   );
 }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function BusinessCenterReserve() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -721,17 +813,16 @@ export default function BusinessCenterReserve() {
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
-  const echoRef = useRef(null);
+  const echoRef        = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
   }, []);
-
   const resetHoldTimer = useCallback(() => {
     holdStartedRef.current = false; setHoldSecondsLeft(24 * 60);
   }, []);
 
-  // Run countdown only when details/review modal is open
+  // Countdown only while details/review modal open
   useEffect(() => {
     if (modal !== "details" && modal !== "review") return;
     if (holdSecondsLeft <= 0) { setModal(null); resetHoldTimer(); return; }
@@ -739,7 +830,7 @@ export default function BusinessCenterReserve() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
-  // ── Seatmap sync: cross-tab storage + same-tab custom event ──────────────
+  // ── Cross-tab + same-tab seatmap sync ─────────────────────────────────────
   useEffect(() => {
     const onStorage = e => {
       if (e.key !== layoutKey(WING, ROOM)) return;
@@ -758,15 +849,32 @@ export default function BusinessCenterReserve() {
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
+
     const fetchAndMerge = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
+        const res = await fetch(
+          `${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`,
+          { headers: { Accept: "application/json" } }
+        );
         if (!res.ok) return;
         const data = await res.json();
         if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.warn("[BusinessCenterReserve] API fetch failed (offline?):", err); }
+        setTableData(prev => {
+          const base = prev || localLayout;
+          if (!base) return data.data;
+          return mergeApiStatusIntoLayout(base, data.data);
+        });
+        setTableData(merged => {
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      } catch (err) {
+        console.warn("[BusinessCenterReserve] API fetch failed (offline?):", err);
+        if (!tableData) {
+          const fallback = localLayout || loadLayoutForClient(WING, ROOM);
+          if (fallback) setTableData(fallback);
+        }
+      }
     };
     fetchAndMerge();
   }, []);
@@ -777,16 +885,16 @@ export default function BusinessCenterReserve() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── WebSocket (Pusher/Echo) ──────────────────────────────────────────────
+  // ── WebSocket ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
     if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
       try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
     }
     const echo = echoRef.current; if (!echo) return;
     try {
-      const channel = echo.channel("reservations");
+      const channel  = echo.channel("reservations");
       const syncSeats = async () => {
         try {
           const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
@@ -798,6 +906,7 @@ export default function BusinessCenterReserve() {
     } catch {}
   }, []);
 
+  // ── Derived helpers ───────────────────────────────────────────────────────
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
   const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
   const getActiveTable      = () => selectedTable || getTables()[0] || null;
@@ -807,9 +916,9 @@ export default function BusinessCenterReserve() {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
     setSelectedSeat(seat); setSelectedTable(resolveTableForSeat(seat));
   };
-  const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
+  const handleGuestContinue = g    => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
-  const handleEditDetails   = ()   => setModal("details");
+  const handleEditDetails   = ()   => { setModal("details"); };
 
   const handleSubmit = async () => {
     if (!formData || submitting) return;
@@ -818,9 +927,11 @@ export default function BusinessCenterReserve() {
       const activeTable = getActiveTable();
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email, phone: formData.phone,
+        email: formData.email,
+        phone: formData.phone,
         venue_id: 7,
-        room: ROOM, wing: WING,
+        room: ROOM,
+        wing: WING,
         table_number: String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"
           ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
@@ -831,7 +942,7 @@ export default function BusinessCenterReserve() {
         special_requests: formData.specialRequests || "",
         type: mode,
       };
-      const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
+      const response   = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || response.data?.reference_code || "—";
       setRefCode(newRefCode);
       setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
@@ -869,25 +980,23 @@ export default function BusinessCenterReserve() {
   const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
   const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
 
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "—") : (selectedTable ? `Table ${selectedTable.id}` : "—");
-  const displaySeat  = mode === "individual" ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") : getWholeSeatLabel(guests, activeTable);
+  const displayTable = mode === "whole"
+    ? (activeTable ? `Table ${activeTable.id}` : "—")
+    : (selectedTable ? `Table ${selectedTable.id}` : "—");
+  const displaySeat = mode === "individual"
+    ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
+    : getWholeSeatLabel(guests, activeTable);
 
-  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "09:00", specialRequests: rebookFrom.special_requests || "" } : null;
-  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "09:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
+  const rebookPrefill  = rebookFrom
+    ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "09:00", specialRequests: rebookFrom.special_requests || "" }
+    : null;
+  const detailsPrefill = formData
+    ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "09:00", specialRequests: formData.specialRequests || "" }
+    : rebookPrefill;
 
   const BOTTOM_SHEET_H = 180;
   const NAV_H          = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
-
-  // ── Business Center feature list ─────────────────────────────────────────
-  const FEATURES = [
-    { icon: <><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></>, label: "High-Speed WiFi" },
-    { icon: <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></>, label: "Projector & Screen" },
-    { icon: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, label: "Boardroom Setup" },
-    { icon: <><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></>, label: "Power Outlets" },
-    { icon: <><rect x="9" y="2" width="6" height="6" /><rect x="9" y="16" width="6" height="6" /><rect x="2" y="9" width="6" height="6" /><rect x="16" y="9" width="6" height="6" /><path d="M15 8v3a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1V8" /><path d="M9 16v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" /></>, label: "Video Conferencing" },
-    { icon: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>, label: "Whiteboard" },
-  ];
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
@@ -916,6 +1025,8 @@ export default function BusinessCenterReserve() {
         {/* ═══════════ MOBILE ═══════════ */}
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
+
+            {/* Mobile top bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px", background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderAccent}` }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
@@ -925,6 +1036,7 @@ export default function BusinessCenterReserve() {
                 <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
                 <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Business Center</div>
               </div>
+              <ThemeToggle />
             </div>
 
             {/* Mode toggle */}
@@ -936,13 +1048,37 @@ export default function BusinessCenterReserve() {
               ))}
             </div>
 
+            {/* Rebooking notice */}
+            {rebookFrom && (
+              <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 14 }}>🔄</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Rebooking Mode</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Prev: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong>
+                  </div>
+                </div>
+                <button onClick={() => setRebookFrom(null)} style={{ background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 8px", fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer", flexShrink: 0 }}>Cancel</button>
+              </div>
+            )}
+
             {/* Map */}
-            <div style={{ width: "100%", height: mobileMapHeight, position: "relative", background: C.surfaceBase, overflow: "hidden" }}>
+            <div style={{ width: "100%", height: mobileMapHeight, position: "relative", overflow: "hidden", background: C.surfaceBase }}>
               {tableData ? (
                 <>
                   <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch", position: "relative" }}>
                     <div style={{ minWidth: 700, minHeight: Math.max(mobileMapHeight, 520), position: "relative" }}>
-                      <SeatMap tableData={tableData} editMode={false} selectedSeat={selectedSeat} onSeatClick={handleSeatClick} onTableClick={handleTableClick} windowWidth={700} wing={WING} room={ROOM} mode={mode} />
+                      <SeatMap
+                        tableData={tableData}
+                        editMode={false}
+                        selectedSeat={selectedSeat}
+                        onSeatClick={handleSeatClick}
+                        onTableClick={handleTableClick}
+                        windowWidth={700}
+                        wing={WING}
+                        room={ROOM}
+                        mode={mode}
+                      />
                     </div>
                   </div>
                   {/* Scroll hint */}
@@ -971,7 +1107,12 @@ export default function BusinessCenterReserve() {
               )}
             </div>
 
-            <MobileBottomSheet mode={mode} selectedSeat={selectedSeat} activeTable={activeTable} guests={guests} seatRatio={seatRatio} canProceed={canProceed} rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")} C={C} isDark={isDark} />
+            <MobileBottomSheet
+              mode={mode} selectedSeat={selectedSeat} activeTable={activeTable}
+              guests={guests} seatRatio={seatRatio} canProceed={canProceed}
+              rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")}
+              C={C} isDark={isDark}
+            />
           </div>
 
         ) : (
@@ -991,8 +1132,18 @@ export default function BusinessCenterReserve() {
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
               </div>
 
-              {/* Heading */}
+              {/* Page heading */}
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
+                {rebookFrom && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
+                    <span style={{ fontSize: 14 }}>🔄</span>
+                    <div>
+                      <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, marginBottom: 2 }}>Rebooking Mode</div>
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> — select your new {mode === "individual" ? "seat" : "table"}</div>
+                    </div>
+                    <button onClick={() => setRebookFrom(null)} style={{ marginLeft: 8, background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 10px", fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
+                  </div>
+                )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
                   <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</span>
@@ -1025,7 +1176,17 @@ export default function BusinessCenterReserve() {
                   {tableData ? (
                     <>
                       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-                        <SeatMap tableData={tableData} editMode={false} selectedSeat={selectedSeat} onSeatClick={handleSeatClick} onTableClick={handleTableClick} windowWidth={windowSize.width} wing={WING} room={ROOM} mode={mode} />
+                        <SeatMap
+                          tableData={tableData}
+                          editMode={false}
+                          selectedSeat={selectedSeat}
+                          onSeatClick={handleSeatClick}
+                          onTableClick={handleTableClick}
+                          windowWidth={windowSize.width}
+                          wing={WING}
+                          room={ROOM}
+                          mode={mode}
+                        />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
                         {mode === "whole"
@@ -1136,16 +1297,33 @@ export default function BusinessCenterReserve() {
 
       {/* Modals */}
       {modal === "guestCount" && (
-        <ModalGuestCount seatData={mode === "individual" ? selectedSeat : null} tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable} mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark} />
+        <ModalGuestCount
+          seatData={mode === "individual" ? selectedSeat : null}
+          tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable}
+          mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark}
+        />
       )}
       {modal === "details" && (
-        <ModalDetails tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests} onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }} prefill={detailsPrefill} C={C} isDark={isDark} secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }} />
+        <ModalDetails
+          tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests}
+          onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }}
+          prefill={detailsPrefill} C={C} isDark={isDark}
+          secondsLeft={holdSecondsLeft}
+          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+        />
       )}
       {modal === "review" && formData && (
-        <ModalReview form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat} onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C} />
+        <ModalReview
+          form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat}
+          onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting}
+          isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
+        />
       )}
       {modal === "success" && (
-        <ModalSuccess refCode={refCode} onBack={handleBack} mode={mode} guests={guests} isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark} />
+        <ModalSuccess
+          refCode={refCode} onBack={handleBack} mode={mode} guests={guests}
+          isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark}
+        />
       )}
     </ThemeContext.Provider>
   );
