@@ -26,6 +26,7 @@ function getTokens(isDark) {
         borderStrong: "rgba(255,255,255,0.12)", borderAccent: "rgba(196,163,90,0.30)",
         textPrimary: "#EDE8DF", textSecondary: "#8A8278",
         textTertiary: "rgba(237,232,223,0.32)", textOnAccent: "#0A0908",
+        // approved/reserved = RED | rejected = GREEN
         red: "#B85C5C", redFaint: "rgba(184,92,92,0.08)", redBorder: "rgba(184,92,92,0.20)",
         green: "#4A9E7E", greenFaint: "rgba(74,158,126,0.08)", greenBorder: "rgba(74,158,126,0.20)",
         badgePending:  { bg: "rgba(196,163,90,0.10)", color: "#C4A35A", dot: "#C4A35A" },
@@ -50,6 +51,7 @@ function getTokens(isDark) {
         borderStrong: "rgba(0,0,0,0.13)", borderAccent: "rgba(140,107,42,0.28)",
         textPrimary: "#18140E", textSecondary: "#7A7060",
         textTertiary: "rgba(24,20,14,0.35)", textOnAccent: "#FFFFFF",
+        // approved/reserved = RED | rejected = GREEN
         red: "#A03838", redFaint: "rgba(160,56,56,0.07)", redBorder: "rgba(160,56,56,0.18)",
         green: "#2E7A5A", greenFaint: "rgba(46,122,90,0.07)", greenBorder: "rgba(46,122,90,0.18)",
         badgePending:  { bg: "rgba(140,107,42,0.09)", color: "#8C6B2A", dot: "#8C6B2A" },
@@ -77,38 +79,64 @@ const F = {
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
+// ─── FIX: normalise any raw API status string into one of the four
+//          canonical statuses the SeatMap / STATUS_COLORS understands.
+//
+//   API value          → canonical seat status
+//   "approved"         → "reserved"   (seat taken, shown RED)
+//   "reserved"         → "reserved"   (same)
+//   "rejected"         → "rejected"   (seat freed, shown GREEN)
+//   "pending"          → "pending"    (awaiting admin, shown GOLD)
+//   anything else      → "available"  (shown GREEN)
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected")  return "rejected";
+  if (s === "pending")   return "pending";
+  return "available";
+}
+
 function mergeApiStatusIntoLayout(localLayout, apiData) {
   if (!localLayout || !apiData) return localLayout;
   const apiStatusMap = {};
   const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
   apiTables.forEach(t => {
+    // ── path A: table object already has a seats array ──
     if (Array.isArray(t?.seats)) {
       (t.seats || []).forEach(s => {
-        apiStatusMap[s.id] = (s.status || "available").toLowerCase();
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
       });
       return;
     }
 
+    // ── path B: flat reservation row ──
     const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
-    const seatKey = String(t.seat ?? t.seat_number ?? t.seatNo ?? t.seat_id ?? t.seatId ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
     const compositeKey = `${tableKey}|${seatKey}`;
 
     if (tableKey || seatKey) {
-      apiStatusMap[compositeKey] = (t.status || "available").toLowerCase();
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
     }
   });
+
+  // ── merge into local tables ──
   const mergedTables = (localLayout.tables || []).map(t => ({
     ...t,
     seats: (t.seats || []).map(s => {
-      const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
       if (apiStatus !== undefined) return { ...s, status: apiStatus };
       return s;
     }),
   }));
 
-  // Also merge standalone seat statuses from API if present
+  // ── merge into standalone seats ──
   const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
-    const apiStatus = apiStatusMap[s.id];
+    const apiStatus =
+      apiStatusMap[s.id] ??
+      apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
     if (apiStatus !== undefined) return { ...s, status: apiStatus };
     return s;
   });
@@ -170,6 +198,11 @@ const apiCall = async (endpoint, options = {}) => {
     return data;
   } catch (error) {
     const isCreateReservation = endpoint === "/reservations" && (options.method || "GET").toUpperCase() === "POST";
+
+    if (isCreateReservation) {
+      console.error("[apiCall] POST /reservations failed — falling back to offline:", error.message);
+    }
+
     if (isCreateReservation) {
       const payload = JSON.parse(options.body || "{}");
       const offlineReservation = makeOfflineReservation(payload);
@@ -366,8 +399,6 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
 }
 
 // ─── MODAL 1: Guest Count ─────────────────────────────────────────────────────
-// FIX: isStandalone prop added — hides all table/seat info rows and the whole-table
-// guest counter when the selected seat is a standalone seat (not part of any table).
 function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, onCancel, C, isDark }) {
   const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
   const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
@@ -408,7 +439,6 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
 
-  // Only show these rows for seated (non-standalone) individual mode
   const infoRows = [
     ["Room",         ROOM,                                                            null],
     ...(tableData ? [["Table", `Table ${tableData?.id ?? "—"}`, null]] : []),
@@ -417,7 +447,6 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
                      seatData?.status === "available" ? C.green : C.gold],
   ];
 
-  // For standalone seat: single guest, no table picker, minimal info
   if (isStandalone) {
     return (
       <ModalShell onClose={onCancel} C={C}>
@@ -519,7 +548,6 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
 }
 
 // ─── MODAL 2: Details ─────────────────────────────────────────────────────────
-// FIX: isStandalone prop — hides Table column in the booking summary strip.
 function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
@@ -557,7 +585,6 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
 
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
 
-  // Build summary strip columns — omit Table when standalone
   const summaryColumns = [
     ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "—"}`]]),
     ["Seat", seatDisplay],
@@ -569,7 +596,6 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
     <ModalShell onClose={onCancel} C={C}>
       <ModalHeader eyebrow={isStandalone ? "Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
-        {/* Timer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
             <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isUrgent ? C.red : C.textSecondary, marginBottom: 2 }}>Seat Hold Timer</div>
@@ -578,7 +604,6 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
           <div style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
 
-        {/* Booking summary strip */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
           {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
@@ -629,7 +654,6 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
 }
 
 // ─── MODAL 3: Review ──────────────────────────────────────────────────────────
-// FIX: isStandalone prop — omits Table row from reservation details.
 function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "—"}`;
@@ -977,42 +1001,33 @@ export default function AlabangReserve() {
     };
   }, []);
 
+  // ── FIX: centralised fetchAndMerge so WebSocket & Pusher can call it too ──
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.data) return;
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.error("[AlabangReserve] Failed to fetch seat status:", err);
+    }
+  }, []);
+
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
-
-    const fetchAndMerge = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`, {
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-
-        setTableData(prev => {
-          const base = prev || localLayout;
-          if (!base) return data.data;
-          return mergeApiStatusIntoLayout(base, data.data);
-        });
-
-        setTableData(merged => {
-          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      } catch (err) {
-        console.error("[AlabangReserve] Failed to fetch seat status:", err);
-        if (!tableData) {
-          const fallbackLayout = localLayout || loadLayoutForClient(WING, ROOM);
-          if (fallbackLayout) {
-            setTableData(fallbackLayout);
-          }
-        }
-      }
-    };
-
     fetchAndMerge();
-  }, []);
+  }, [fetchAndMerge]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -1020,8 +1035,9 @@ export default function AlabangReserve() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // ── Pusher / Echo: re-fetch on any reservation event ──
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
     if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
       try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
@@ -1029,32 +1045,30 @@ export default function AlabangReserve() {
     const echo = echoRef.current; if (!echo) return;
     try {
       const channel = echo.channel("reservations");
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`, { headers: { Accept: "application/json" } });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.data) {
-              setTableData(prev => mergeApiStatusIntoLayout(prev, data.data));
-            }
-          }
-        } catch {}
+      const events = [
+        "ReservationCreated",
+        "ReservationUpdated",
+        "ReservationDeleted",
+        "ReservationApproved",   // ← added
+        "ReservationRejected",   // ← added
+        "SeatReserved",
+        "TableReserved",
+      ];
+      events.forEach(e => channel.listen(e, fetchAndMerge));
+      return () => {
+        try { events.forEach(e => channel.stopListening(e)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
     } catch {}
-  }, []);
+  }, [fetchAndMerge]);
 
-  const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const getStandaloneSeats  = () => tableData?.standaloneSeats || [];
+  const getTables          = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
+  const getStandaloneSeats = () => tableData?.standaloneSeats || [];
 
-  // FIX: Check if the selected seat is a standalone seat (not inside any table)
   const isStandaloneSelected = useCallback(() => {
     if (!selectedSeat) return false;
     const tables = getTables();
     const inTable = tables.some(t => (t.seats || []).some(s => s.id === selectedSeat.id));
     if (inTable) return false;
-    // Verify it exists in standaloneSeats
     return getStandaloneSeats().some(s => s.id === selectedSeat.id);
   }, [selectedSeat, tableData]);
 
@@ -1062,7 +1076,7 @@ export default function AlabangReserve() {
     if (!seat) return null;
     const tables = getTables();
     const found = tables.find(t => t.seats?.some(s => s.id === seat.id));
-    return found || null; // return null for standalone seats — not null-coalescing to tables[0]
+    return found || null;
   };
   const getActiveTable = () => selectedTable || getTables()[0] || null;
 
@@ -1070,9 +1084,8 @@ export default function AlabangReserve() {
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
     setSelectedSeat(seat);
-    // For table seats: also set the parent table
     const parentTable = resolveTableForSeat(seat);
-    setSelectedTable(parentTable); // null for standalone — intentional
+    setSelectedTable(parentTable);
   };
   const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
@@ -1085,26 +1098,34 @@ export default function AlabangReserve() {
       const isStandalone = isStandaloneSelected();
       const activeTable  = isStandalone ? null : getActiveTable();
 
+      const seatNum = isStandalone
+        ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+        : mode === "individual"
+          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+          : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
         phone: formData.phone,
         venue_id: 1,
         room: selectedRoom,
-        table_number: isStandalone ? "" : String(activeTable?.id ?? "T1"),
-        seat_number: isStandalone
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
-          : mode === "individual"
-            ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
-            : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count: guests,
+        table_number: isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
+        seat_number: seatNum,
+        guests_count: isStandalone ? 1 : guests,
         event_date: formData.eventDate,
         event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
         type: isStandalone ? "standalone" : mode,
+        is_standalone: isStandalone ? 1 : 0,
       };
 
+      console.log("[AlabangReserve] Submitting reservation payload:", payload);
+
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
+
+      console.log("[AlabangReserve] Reservation response:", response);
+
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
       setLastBookingDetails({
@@ -1118,13 +1139,11 @@ export default function AlabangReserve() {
         try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {}
       }
 
-      // FIX: Update standalone seat status to "pending" in tableData immediately
-      // so the seat color on the map reflects the reservation right away.
+      // Optimistically update the seat map — new reservation is always "pending"
       setTableData(prev => {
         if (!prev) return prev;
 
         if (isStandalone && selectedSeat) {
-          // Update the standalone seat's status
           const updatedStandaloneSeats = (prev.standaloneSeats || []).map(s =>
             s.id === selectedSeat.id ? { ...s, status: "pending" } : s
           );
@@ -1134,7 +1153,6 @@ export default function AlabangReserve() {
         }
 
         if (activeTable) {
-          // Update table seat statuses
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
             if (mode === "individual") {
@@ -1159,7 +1177,10 @@ export default function AlabangReserve() {
 
       setModal("success");
       resetHoldTimer();
-    } catch (err) { alert(`Error: ${err.message}`); }
+    } catch (err) {
+      console.error("[AlabangReserve] handleSubmit error:", err);
+      alert(`Error: ${err.message}`);
+    }
     finally { setSubmitting(false); }
   };
 
@@ -1167,6 +1188,8 @@ export default function AlabangReserve() {
     setModal(null); setSelectedSeat(null); setSelectedTable(null);
     setRefCode(null); setFormData(null); setGuests(2);
     setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
+    // Re-fetch after closing success modal to get real statuses
+    fetchAndMerge();
   };
 
   const isMobile   = windowSize.width < 640;
@@ -1186,7 +1209,6 @@ export default function AlabangReserve() {
   const NAV_H = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
 
-  // Determine the table context for modals (null for standalone seats)
   const modalTableData = isStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
 
   return (

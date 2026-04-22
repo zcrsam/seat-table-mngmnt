@@ -91,7 +91,7 @@ export default function AppRoutes() {
             </RequireAdminAuth>
           }
         />
-        <Route
+                <Route
           path="/admin/seat-map-editor"
           element={
             <RequireAdminAuth>

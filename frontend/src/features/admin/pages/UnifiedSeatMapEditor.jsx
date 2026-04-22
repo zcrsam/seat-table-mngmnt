@@ -5,33 +5,42 @@ import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import SeatMap from "../../../components/seatmap/SeatMap";
 
-// Venue configurations
+/**
+ * Venue configurations keyed by URL slug.
+ *
+ * NOTE: "business-center" is intentionally listed first — it is the default
+ * venue for this editor page.  The wing/room values MUST match the constants
+ * used in BusinessCenterReserve.jsx (WING = "Main Wing", ROOM = "Business Center")
+ * AND in SeatMap's getActualWingForRoom mapping so all three files resolve to
+ * the same localStorage key:
+ *   seatmap_layout:Main Wing:Business Center
+ */
 const VENUE_CONFIGS = {
   "business-center": {
-    wing: "Main Wing",
-    room: "Business Center",
+    wing:  "Main Wing",
+    room:  "Business Center",
     title: "Business Center",
     theme: "light",
     colors: {
-      gold: "#8C6B2A",
-      goldFaint: "rgba(140,107,42,0.08)",
-      pageBg: "#F7F4EE",
-      surfaceBase: "#FFFFFF",
+      gold:          "#8C6B2A",
+      goldFaint:     "rgba(140,107,42,0.08)",
+      pageBg:        "#F7F4EE",
+      surfaceBase:   "#FFFFFF",
       borderDefault: "rgba(0,0,0,0.08)",
-      borderAccent: "rgba(140,107,42,0.28)",
-      textPrimary: "#18140E",
+      borderAccent:  "rgba(140,107,42,0.28)",
+      textPrimary:   "#18140E",
       textSecondary: "#7A7060",
-      textTertiary: "rgba(24,20,14,0.35)",
-      navBg: "rgba(247,244,238,0.98)",
-      navBorder: "rgba(140,107,42,0.14)",
-      divider: "rgba(0,0,0,0.06)",
-      canvasBg: "#EDEAE2",
-      canvasBorder: "rgba(140,107,42,0.18)",
-    }
+      textTertiary:  "rgba(24,20,14,0.35)",
+      navBg:         "rgba(247,244,238,0.98)",
+      navBorder:     "rgba(140,107,42,0.14)",
+      divider:       "rgba(0,0,0,0.06)",
+      canvasBg:      "#EDEAE2",
+      canvasBorder:  "rgba(140,107,42,0.18)",
+    },
   },
   "20-20-a": {
-    wing: "Main Wing",
-    room: "20/20 Function Room A",
+    wing:  "Main Wing",
+    room:  "20/20 Function Room A",
     title: "20/20 Function Room A",
     theme: "dark",
     colors: {
@@ -45,11 +54,11 @@ const VENUE_CONFIGS = {
       textTertiary: "rgba(237,232,223,0.32)", textOnAccent: "#0A0908",
       red: "#B85C5C", redFaint: "rgba(184,92,92,0.08)", redBorder: "rgba(184,92,92,0.20)",
       green: "#4A9E7E", greenFaint: "rgba(74,158,126,0.08)", greenBorder: "rgba(74,158,126,0.20)",
-    }
+    },
   },
   "20-20-b": {
-    wing: "Main Wing",
-    room: "20/20 Function Room B",
+    wing:  "Main Wing",
+    room:  "20/20 Function Room B",
     title: "20/20 Function Room B",
     theme: "dark",
     colors: {
@@ -63,11 +72,11 @@ const VENUE_CONFIGS = {
       textTertiary: "rgba(237,232,223,0.32)", textOnAccent: "#0A0908",
       red: "#B85C5C", redFaint: "rgba(184,92,92,0.08)", redBorder: "rgba(184,92,92,0.20)",
       green: "#4A9E7E", greenFaint: "rgba(74,158,126,0.08)", greenBorder: "rgba(74,158,126,0.20)",
-    }
+    },
   },
   "20-20-c": {
-    wing: "Main Wing",
-    room: "20/20 Function Room C",
+    wing:  "Main Wing",
+    room:  "20/20 Function Room C",
     title: "20/20 Function Room C",
     theme: "dark",
     colors: {
@@ -81,40 +90,46 @@ const VENUE_CONFIGS = {
       textTertiary: "rgba(237,232,223,0.32)", textOnAccent: "#0A0908",
       red: "#B85C5C", redFaint: "rgba(184,92,92,0.08)", redBorder: "rgba(184,92,92,0.20)",
       green: "#4A9E7E", greenFaint: "rgba(74,158,126,0.08)", greenBorder: "rgba(74,158,126,0.20)",
-    }
-  }
+    },
+  },
 };
 
 const FONTS = {
   light: {
-    body: "'DM Sans', sans-serif",
+    body:    "'DM Sans', sans-serif",
     heading: "'Cormorant Garamond', Georgia, serif",
+    label:   "'DM Sans', sans-serif",
   },
   dark: {
     display: "'Playfair Display','Times New Roman',serif",
-    body: "'Inter','Helvetica Neue',Arial,sans-serif",
-    label: "'Inter','Helvetica Neue',Arial,sans-serif",
-  }
+    body:    "'Inter','Helvetica Neue',Arial,sans-serif",
+    label:   "'Inter','Helvetica Neue',Arial,sans-serif",
+  },
 };
+
+/**
+ * Derives a venueType slug from the current URL path.
+ * Falls back to "business-center" when no slug matches — so navigating
+ * directly to /admin/seat-map (without a suffix) opens Business Center.
+ */
+function getVenueTypeFromPath(pathname) {
+  if (pathname.includes("20-20A") || pathname.includes("20-20-a")) return "20-20-a";
+  if (pathname.includes("20-20B") || pathname.includes("20-20-b")) return "20-20-b";
+  if (pathname.includes("20-20C") || pathname.includes("20-20-c")) return "20-20-c";
+  // Explicit Business Center slug — also the fallback for unrecognised paths
+  return "business-center";
+}
 
 export default function UnifiedSeatMapEditor() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [venueType, setVenueType] = useState("business-center");
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate  = useNavigate();
+  const location  = useLocation();
 
-  // Determine venue type from URL path
-  useEffect(() => {
-    const path = location.pathname;
-    if (path.includes("20-20A")) setVenueType("20-20-a");
-    else if (path.includes("20-20B")) setVenueType("20-20-b");
-    else if (path.includes("20-20C")) setVenueType("20-20-c");
-    else setVenueType("business-center");
-  }, [location.pathname]);
-
-  const config = VENUE_CONFIGS[venueType];
-  const C = config.colors;
-  const F = FONTS[config.theme];
+  // Derive venue type reactively from the URL so deep-links work correctly.
+  const venueType = getVenueTypeFromPath(location.pathname);
+  const config    = VENUE_CONFIGS[venueType] ?? VENUE_CONFIGS["business-center"];
+  const C         = config.colors;
+  const F         = FONTS[config.theme];
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: F.body, background: C.pageBg, color: C.textPrimary }}>
@@ -135,35 +150,116 @@ export default function UnifiedSeatMapEditor() {
         />
 
         {/* Main content area */}
-        <div style={{ flex: 1, minWidth: 0, height: "calc(100vh - 0px)", background: C.pageBg, overflow: "hidden" }}>
+        <div style={{
+          flex: 1,
+          minWidth: 0,
+          // Subtract the AdminNavbar height (60px) so the editor fills the rest
+          // of the viewport without a scrollbar appearing on the outer page.
+          height: "calc(100vh - 280px)",
+          background: C.pageBg,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}>
 
           {/* Top bar */}
           <div style={{
-            position: "sticky", top: 0, zIndex: 100,
+            flexShrink: 0,
+            position: "sticky",
+            top: 0,
+            zIndex: 100,
             background: config.theme === "dark" ? C.surfaceBase : C.navBg,
-            backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
             borderBottom: `1px solid ${config.theme === "dark" ? C.borderDefault : C.navBorder}`,
-            padding: "28px 28px",
             height: 52,
-            display: "flex", alignItems: "center",
-            justifyContent: "space-between",
+            display: "flex",
+            alignItems: "center",
+            padding: "0 28px",
+            gap: 10,
           }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "8px" }}>
-                <span style={{ fontFamily: F.label || F.body, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>
-                  SEAT MAP EDITOR
-                </span>
-                <span style={{ color: C.textTertiary, fontSize: 11 }}>·</span>
-                <span style={{ fontFamily: F.label || F.body, fontSize: 9, letterSpacing: "0.14em", color: C.textSecondary, fontWeight: 600, textTransform: "uppercase" }}>
-                  {config.title}
-                </span>
-              </div>
+            {/* Breadcrumb */}
+            <span style={{
+              fontFamily: F.label || F.body,
+              fontSize: 9,
+              letterSpacing: "0.20em",
+              color: C.gold,
+              fontWeight: 700,
+              textTransform: "uppercase",
+            }}>
+              Seat Map Editor
+            </span>
+            <span style={{ color: C.textTertiary, fontSize: 11 }}>·</span>
+            <span style={{
+              fontFamily: F.label || F.body,
+              fontSize: 9,
+              letterSpacing: "0.14em",
+              color: C.textSecondary,
+              fontWeight: 600,
+              textTransform: "uppercase",
+            }}>
+              {config.title}
+            </span>
+
+            {/* Venue switcher pills — quick-access for common rooms */}
+            <div style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
+              {Object.entries(VENUE_CONFIGS).map(([slug, cfg]) => {
+                const active = venueType === slug;
+                // Shorten labels for the pill bar
+                const short = {
+                  "business-center": cfg.title,
+                  "20-20-a": cfg.title,
+                  "20-20-b": cfg.title,
+                  "20-20-c": cfg.title,
+                }[slug] ?? cfg.title;
+                return (
+                  <button
+                    key={slug}
+                    onClick={() => {
+                      // Navigate to the correct URL slug for the chosen venue.
+                      // The SeatMap component's internal sidebar will also update
+                      // because it reads activeWing/activeRoom from its own state
+                      // (initialised from the wing/room props we pass here).
+                      if (slug === "business-center") navigate("/admin/seat-map");
+                      else navigate(`/admin/seat-map/${slug}`);
+                    }}
+                    style={{
+                      padding: "5px 11px",
+                      background: active ? C.gold : "transparent",
+                      border: `1px solid ${active ? C.gold : C.borderDefault}`,
+                      borderRadius: 6,
+                      fontFamily: F.label || F.body,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: "0.10em",
+                      textTransform: "uppercase",
+                      color: active ? (config.theme === "dark" ? "#0A0908" : "#FFFFFF") : C.textSecondary,
+                      cursor: active ? "default" : "pointer",
+                      transition: "all 0.15s",
+                      whiteSpace: "nowrap",
+                    }}
+                    onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; } }}
+                    onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
+                  >
+                    {short}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Seat Map content */}
-          <div style={{ padding: "0", height: "calc(100vh - 320px)", width: "100%", maxWidth: "1400px", margin: "0 auto", overflow: "hidden" }}>
+          {/*
+            SeatMap editor canvas.
+            We pass wing + room so SeatMap initialises its internal activeWing /
+            activeRoom state to the correct room on first render.  When the admin
+            uses the internal WingRoomSidebar to switch rooms, SeatMap manages
+            that state itself — no need for UnifiedSeatMapEditor to track it.
+
+            height is: full viewport - AdminNavbar (60px) - top bar (52px).
+          */}
+          <div style={{ flex: "1 1 0", minHeight: 0, overflow: "hidden" }}>
             <SeatMap
+              key={`${config.wing}:${config.room}`}   /* remount on venue switch so state resets cleanly */
               editMode={true}
               wing={config.wing}
               room={config.room}

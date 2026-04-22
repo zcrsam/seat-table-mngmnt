@@ -50,21 +50,21 @@ export default function SharedNavbar({ isDark, toggle, showNavigation = false, s
   return (
     <>
       <style>{`
-        #bv-nav,#bv-nav::before,#bv-nav::after {
+        #bv-nav,
+        #bv-nav::before,
+        #bv-nav::after {
           border: none !important;
           border-top: none !important;
           border-bottom: none !important;
           box-shadow: none !important;
+          -webkit-box-shadow: none !important;
           outline: none !important;
           background-image: none !important;
         }
-        #bv-nav {
-          border: none !important;
-          border-top: none !important;
-          border-bottom: none !important;
-          box-shadow: none !important;
-          outline: none !important;
-          background-image: none !important;
+        #bv-nav::before,
+        #bv-nav::after {
+          display: none !important;
+          content: none !important;
         }
         @media (max-width:640px) {
           .bv-nav-desktop { display:none !important; }
@@ -84,10 +84,10 @@ export default function SharedNavbar({ isDark, toggle, showNavigation = false, s
         background: navBg,
         border:       "none",
         borderTop:    "none",
-        borderBottom: scrolled ? `1px solid ${C.goldBorder}` : "none",
+        borderBottom: "none",
         borderLeft:   "none",
         borderRight:  "none",
-        boxShadow:    scrolled ? (isDark ? "0 4px 24px rgba(0,0,0,0.32)" : "0 4px 24px rgba(100,80,30,0.10)") : "none",
+        boxShadow:    "none",
         outline:      "none",
         boxSizing:    "border-box",
         transition:   "background 0.35s",

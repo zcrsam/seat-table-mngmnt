@@ -1,17 +1,21 @@
 // src/components/seatmap/SeatMap.jsx
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { dispatchSeatMapUpdate } from "../../utils/seatMapPersistence.js";
+import { cleanupReservationsForDeletedTable, cleanupReservationsForDeletedSeat, cleanupReservationsForDeletedStandaloneSeat } from "../../utils/reservationCleanup.js";
 
 // Status Colors
 export const STATUS_COLORS = {
-  available: "#2E7A5A",
-  pending:   "#8C6B2A",
-  reserved:  "#A03838",
+  available: "#4A9E7E",  // green
+  pending:   "#C4A35A",  // gold
+  reserved:  "#B85C5C",  // red  ← this is what approved seats show as
+  rejected:  "#4A9E7E",  // green (seat is freed, treated as available)
 };
 export const STATUS_LABELS = {
   available: "AVAILABLE",
   pending:   "PENDING",
   reserved:  "RESERVED",
+  approved:  "APPROVED",
+  rejected:  "REJECTED",
 };
 const SEAT_STATUS_CYCLE = ["available", "pending", "reserved"];
 
@@ -131,28 +135,42 @@ const DEFAULT_LABELS = [
 ];
 
 // ─── Persistence helpers ───────────────────────────────────────────────────────
+/**
+ * Maps a room name to its canonical wing name.
+ * IMPORTANT: "Business Center" belongs to "Main Wing" — this must match
+ * the wing used in BusinessCenterReserve.jsx (WING = "Main Wing") so that
+ * both the editor and the client page read/write the same localStorage key:
+ *   seatmap_layout:Main Wing:Business Center
+ */
 function getActualWingForRoom(room) {
   const roomToWingMap = {
-    "Grand Ballroom A": "Grand Ballroom",
-    "Grand Ballroom B": "Grand Ballroom",
-    "Grand Ballroom C": "Grand Ballroom",
-    "Tower 1": "Tower Wing",
-    "Tower 2": "Tower Wing",
-    "Tower 3": "Tower Wing",
-    "Qsina": "Dining",
-    "Hanakazu": "Dining",
-    "Phoenix Court": "Dining",
-    "Alabang Function Room": "Main Wing",
-    "Laguna Ballroom 1": "Main Wing",
-    "Laguna Ballroom 2": "Main Wing",
-    "20/20 Function Room A": "Main Wing",
-    "20/20 Function Room B": "Main Wing",
-    "20/20 Function Room C": "Main Wing",
+    // ── Main Wing ──────────────────────────────────────────────────────────
+    "Business Center":        "Main Wing",   // ← ADDED
+    "Alabang Function Room":  "Main Wing",
+    "Laguna Ballroom 1":      "Main Wing",
+    "Laguna Ballroom 2":      "Main Wing",
+    "20/20 Function Room A":  "Main Wing",
+    "20/20 Function Room B":  "Main Wing",
+    "20/20 Function Room C":  "Main Wing",
+    // ── Grand Ballroom ─────────────────────────────────────────────────────
+    "Grand Ballroom A":       "Grand Ballroom",
+    "Grand Ballroom B":       "Grand Ballroom",
+    "Grand Ballroom C":       "Grand Ballroom",
+    // ── Tower Wing ─────────────────────────────────────────────────────────
+    "Tower 1":                "Tower Wing",
+    "Tower 2":                "Tower Wing",
+    "Tower 3":                "Tower Wing",
+    // ── Dining ─────────────────────────────────────────────────────────────
+    "Qsina":                  "Dining",
+    "Hanakazu":               "Dining",
+    "Phoenix Court":          "Dining",
   };
   return roomToWingMap[room] || "Main Wing";
 }
 
 function layoutKey(wing, room) {
+  // Always derive the canonical wing from the room name so the key is
+  // consistent regardless of which wing label the caller passes in.
   const actualWing = getActualWingForRoom(room);
   return `seatmap_layout:${actualWing}:${room}`;
 }
@@ -627,13 +645,43 @@ function DeleteConfirmModal({ message, onConfirm, onCancel }) {
 }
 
 // ─── Wing/Room Sidebar ────────────────────────────────────────────────────────
-// FIX: Added minHeight: 0 and ensured overflowY: "auto" works correctly
-// so all wings including Dining are fully visible and scrollable.
 function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
+  /**
+   * DEFAULT_WINGS defines the full venue structure visible in the editor sidebar.
+   *
+   * IMPORTANT — "Business Center" is intentionally listed FIRST in Main Wing.
+   * The canonical wing for this room is "Main Wing" (matching WING in
+   * BusinessCenterReserve.jsx and the getActualWingForRoom mapping above),
+   * so the localStorage key will be:
+   *   seatmap_layout:Main Wing:Business Center
+   *
+   * This is the same key that BusinessCenterReserve reads on mount, ensuring
+   * the editor and the client page share the exact same layout data.
+   */
   const DEFAULT_WINGS = [
-    { id: "main-wing", label: "Main Wing", rooms: ["Alabang Function Room", "Laguna Ballroom 1", "Laguna Ballroom 2", "20/20 Function Room A", "20/20 Function Room B", "20/20 Function Room C"] },
-    { id: "tower-wing", label: "Tower Wing", rooms: ["Tower 1", "Tower 2", "Tower 3", "Grand Ballroom A", "Grand Ballroom B", "Grand Ballroom C"] },
-    { id: "dining",     label: "Dining",     rooms: ["Qsina", "Hanakazu", "Phoenix Court"] },
+    {
+      id: "main-wing",
+      label: "Main Wing",
+      rooms: [
+        "Business Center",        // ← ADDED — must stay first so it's easy to find
+        "Alabang Function Room",
+        "Laguna Ballroom 1",
+        "Laguna Ballroom 2",
+        "20/20 Function Room A",
+        "20/20 Function Room B",
+        "20/20 Function Room C",
+      ],
+    },
+    {
+      id: "tower-wing",
+      label: "Tower Wing",
+      rooms: ["Tower 1", "Tower 2", "Tower 3", "Grand Ballroom A", "Grand Ballroom B", "Grand Ballroom C"],
+    },
+    {
+      id: "dining",
+      label: "Dining",
+      rooms: ["Qsina", "Hanakazu", "Phoenix Court"],
+    },
   ];
 
   const [expanded, setExpanded] = useState(() => Object.fromEntries(DEFAULT_WINGS.map(w => [w.id, true])));
@@ -648,10 +696,6 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
   });
 
   return (
-    // FIX: Added minHeight: 0 so the flex child can properly shrink and scroll.
-    // The height: "100%" alone is not sufficient in a flex column — minHeight: 0
-    // allows overflowY: "auto" to actually activate and show the scrollbar,
-    // making the Dining section (and any content below the visible area) reachable.
     <div
       className="sm-scroll"
       style={{
@@ -700,6 +744,18 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
                       onMouseLeave={e => { if (!active) e.currentTarget.style.background = active ? C.goldFaint : "transparent"; }}
                     >
                       <span style={{ fontSize: 11, color: active ? C.gold : C.textSecondary, fontFamily: F, fontWeight: active ? 600 : 400, lineHeight: 1.4, flex: 1, transition: "color 0.14s" }}>{room}</span>
+                      {/* Small indicator pill for Business Center so admins can spot it instantly */}
+                      {room === "Business Center" && (
+                        <span style={{
+                          fontSize: 8, fontWeight: 700, letterSpacing: "0.08em",
+                          color: active ? C.gold : C.textTertiary,
+                          background: active ? C.goldFaintest : "transparent",
+                          border: `1px solid ${active ? C.borderAccent : "transparent"}`,
+                          borderRadius: 4, padding: "1px 4px",
+                          textTransform: "uppercase", flexShrink: 0,
+                          fontFamily: F, transition: "all 0.14s",
+                        }}>BC</span>
+                      )}
                     </div>
                   );
                 })}
@@ -713,9 +769,6 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect }) {
 }
 
 // ─── Inspector Panel ──────────────────────────────────────────────────────────
-// FIX: Delete Table button now always shows when any table is selected,
-// regardless of whether selectedTable has resolved. Also fixed standalone
-// seat status update which was a no-op before.
 function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStandaloneSeatObj, tables, setTables, addSeat, deleteSeat, deleteTable, deleteStandaloneSeat, updateTable, handleSeatLabelEdit, handleSeatStatus, onRequestDelete, handleStandaloneSeatStatus }) {
 
   const iLabel = t => <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", color: C.gold, textTransform: "uppercase", marginBottom: 5, marginTop: 13 }}>{t}</div>;
@@ -739,7 +792,6 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStan
     </div>
   );
 
-  // Reusable delete button that triggers confirmation modal
   const DeleteBtn = ({ label, deleteKey }) => (
     <button
       onClick={() => onRequestDelete(deleteKey)}
@@ -761,22 +813,14 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStan
     <div style={{ fontFamily: F }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", color: C.gold, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Inspector</div>
 
-      {/* Nothing selected */}
       {!selected && (
         <div style={{ color: C.textTertiary, fontSize: 11, lineHeight: 1.65 }}>
           Select a table or seat to edit its properties.
         </div>
       )}
 
-      {/* ── TABLE selected ──
-          FIX: Split into two blocks so the Delete Table button ALWAYS renders
-          when a table is selected — even if selectedTable lookup hasn't resolved.
-          Previously the entire block including DeleteBtn was gated on `selectedTable`,
-          meaning if the lookup returned undefined the button would not show.
-      */}
       {selected?.type === "table" && (
         <>
-          {/* Only show edit controls when selectedTable is available */}
           {selectedTable && (
             <>
               {iLabel("Table Label")}
@@ -801,15 +845,10 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStan
               </div>
             </>
           )}
-
-          {/* FIX: Delete Table button is ALWAYS visible when a table is selected.
-              It lives outside the selectedTable guard so clicking any table
-              immediately shows the delete option in the inspector. */}
           <DeleteBtn label="Delete Table" deleteKey="table" />
         </>
       )}
 
-      {/* SEAT selected */}
       {selected?.type === "seat" && selectedSeatObj && (
         <>
           {iLabel("Seat Label")}
@@ -836,14 +875,12 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStan
         </>
       )}
 
-      {/* STANDALONE SEAT selected */}
       {selected?.type === "standaloneSeat" && (
         <>
           {iLabel("Standalone Seat")}
           {selectedStandaloneSeatObj && (
             <>
               {iLabel("Status")}
-              {/* FIX: Wired up handleStandaloneSeatStatus so status changes actually persist */}
               <StatusRow
                 current={selectedStandaloneSeatObj.status}
                 onSet={status => handleStandaloneSeatStatus?.(selected.standaloneSeatId, status)}
@@ -886,8 +923,9 @@ export default function SeatMap({
   const [activeDragId, setActiveDragId]   = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+  // ── Editor defaults to Business Center so admins land on the right room ──
   const [activeWing, setActiveWing] = useState(wing || "Main Wing");
-  const [activeRoom, setActiveRoom] = useState(room || "Alabang Function Room");
+  const [activeRoom, setActiveRoom] = useState(room || "Business Center");
 
   const loadedRef = useRef(false);
   const dragging      = useRef(null);
@@ -912,7 +950,7 @@ export default function SeatMap({
       setLabels(stored.labels?.length ? stored.labels : DEFAULT_LABELS);
       const ss = (stored.standaloneSeats || []).map(s => ({
         ...s,
-        status: s.status || "available" // Ensure status defaults to available if not set
+        status: s.status || "available"
       }));
       setStandaloneSeats(ss);
       ss.forEach(s => {
@@ -966,16 +1004,15 @@ export default function SeatMap({
   // Global drag — uses a 4px threshold so a plain click never triggers a move.
   useEffect(() => {
     if (!editMode) return;
-    const THRESHOLD = 4; // px — must move this far before drag activates
+    const THRESHOLD = 4;
     const onMove = e => {
       const d = dragging.current; if (!d) return;
       const rawDx = e.clientX - d.startX;
       const rawDy = e.clientY - d.startY;
-      // Only start moving once the mouse has travelled past the threshold
       if (!d.active) {
         if (Math.abs(rawDx) < THRESHOLD && Math.abs(rawDy) < THRESHOLD) return;
-        d.active = true; // mark as a real drag
-        setActiveDragId(d.id); // only NOW trigger re-render for drag cursor
+        d.active = true;
+        setActiveDragId(d.id);
       }
       const s = adminScaleRef.current || 1;
       const dx = rawDx / s, dy = rawDy / s;
@@ -1023,10 +1060,6 @@ export default function SeatMap({
   const startTableDrag = useCallback((e, id) => {
     e.preventDefault();
     const t = tables.find(t => t.id === id);
-    // Store drag intent but do NOT call setActiveDragId yet —
-    // that state update causes a re-render that clears selectedTable
-    // before the onClick (which sets selected) has a chance to fire.
-    // setActiveDragId is called in the global onMove once the threshold is crossed.
     dragging.current = { type: "table", id, startX: e.clientX, startY: e.clientY, originX: t?.x || 0, originY: t?.y || 0, active: false };
   }, [tables]);
   const startTableResize        = useCallback((e, id) => { e.preventDefault(); }, []);
@@ -1063,23 +1096,53 @@ export default function SeatMap({
     }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     const key = deleteConfirm?.key;
     setDeleteConfirm(null);
     if (key === "table") {
-      deleteTable();
+      await deleteTable();
     } else if (key === "seat") {
-      setTables(p => p.map(t =>
-        t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).filter(s => s.id !== selected.seatId) }
-      ));
-      setSelected(null);
+      await deleteSeat();
     } else if (key === "standaloneSeat") {
-      deleteStandaloneSeat();
+      await deleteStandaloneSeat();
     }
   };
 
-  const deleteTable          = (id) => { const tid = id || selected?.tableId; if (!tid) return; setTables(p => p.filter(t => t.id !== tid)); if (!id || selected?.tableId === tid) setSelected(null); };
-  const deleteStandaloneSeat = (id) => { const sid = id || selected?.standaloneSeatId; if (!sid) return; setStandaloneSeats(p => p.filter(s => s.id !== sid)); if (!id || selected?.standaloneSeatId === sid) setSelected(null); };
+  const deleteTable = async (id) => {
+    const tid = id || selected?.tableId;
+    if (!tid) return;
+    
+    const tableToDelete = tables.find(t => t.id === tid);
+    if (tableToDelete) {
+      try {
+        // Clean up reservations for this table
+        await cleanupReservationsForDeletedTable(tableToDelete, activeWing, activeRoom, 'admin');
+      } catch (error) {
+        console.error('[SeatMap] Failed to cleanup reservations for deleted table:', error);
+      }
+    }
+    
+    setTables(p => p.filter(t => t.id !== tid));
+    if (!id || selected?.tableId === tid) setSelected(null);
+  };
+
+  const deleteStandaloneSeat = async (id) => {
+    const sid = id || selected?.standaloneSeatId;
+    if (!sid) return;
+    
+    const seatToDelete = standaloneSeats.find(s => s.id === sid);
+    if (seatToDelete) {
+      try {
+        // Clean up reservations for this standalone seat
+        await cleanupReservationsForDeletedStandaloneSeat(seatToDelete, activeWing, activeRoom, 'admin');
+      } catch (error) {
+        console.error('[SeatMap] Failed to cleanup reservations for deleted standalone seat:', error);
+      }
+    }
+    
+    setStandaloneSeats(p => p.filter(s => s.id !== sid));
+    if (!id || selected?.standaloneSeatId === sid) setSelected(null);
+  };
 
   const addSeat = () => {
     if (!selected?.tableId) return;
@@ -1091,21 +1154,37 @@ export default function SeatMap({
     }));
   };
 
-  const deleteSeat          = ()        => { if (!selected?.tableId) return; setTables(p => { const u = p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).slice(0, -1) }); const f = u.filter(t => (t.seats || []).length > 0); if (f.length < u.length) setSelected(null); return f; }); };
-  const updateTable         = (k, v)    => { if (!selected?.tableId) return; setTables(p => p.map(t => t.id === selected.tableId ? { ...t, [k]: v } : t)); };
-  const handleLabelEdit     = (id, val) => { setTables(p => p.map(t => t.id === id ? { ...t, label: val } : t)); };
-  const handleSeatLabelEdit = val       => { if (!selected?.seatId) return; setTables(p => p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
-  const handleSeatStatus    = status    => { if (!selected?.seatId) return; setTables(p => p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
-  const handleSeatMove      = (tableId, seatId, pos) => { setTables(p => p.map(t => t.id !== tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === seatId ? { ...s, position: pos } : s) })); };
-
-  // FIX: Standalone seat status now properly updates state
-  const handleStandaloneSeatStatus = (seatId, status) => {
-    setStandaloneSeats(p => p.map(s => s.id === seatId ? { ...s, status } : s));
+  const deleteSeat = async () => {
+    if (!selected?.tableId) return;
+    
+    const table = tables.find(t => t.id === selected.tableId);
+    if (table && table.seats && table.seats.length > 0) {
+      const seatToDelete = table.seats[table.seats.length - 1];
+      
+      try {
+        // Clean up reservations for this seat
+        await cleanupReservationsForDeletedSeat(seatToDelete, table, activeWing, activeRoom, 'admin');
+      } catch (error) {
+        console.error('[SeatMap] Failed to cleanup reservations for deleted seat:', error);
+      }
+    }
+    
+    setTables(p => { 
+      const u = p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).slice(0, -1) }); 
+      const f = u.filter(t => (t.seats || []).length > 0); 
+      if (f.length < u.length) setSelected(null); 
+      return f; 
+    });
   };
-
-  const handleSeatClick     = (seat, tableId) => { if (!editMode) { onSeatClick?.(seat, tableId); return; } setSelected({ type: "seat", tableId, seatId: seat.id }); };
-  const handleTableSelect   = table => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick?.(table); };
-  const handleSelectRoom    = (w, r) => { setActiveWing(w); setActiveRoom(r); };
+  const updateTable             = (k, v)    => { if (!selected?.tableId) return; setTables(p => p.map(t => t.id === selected.tableId ? { ...t, [k]: v } : t)); };
+  const handleLabelEdit         = (id, val) => { setTables(p => p.map(t => t.id === id ? { ...t, label: val } : t)); };
+  const handleSeatLabelEdit     = val       => { if (!selected?.seatId) return; setTables(p => p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === selected.seatId ? { ...s, label: val } : s) })); };
+  const handleSeatStatus        = status    => { if (!selected?.seatId) return; setTables(p => p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === selected.seatId ? { ...s, status } : s) })); };
+  const handleSeatMove          = (tableId, seatId, pos) => { setTables(p => p.map(t => t.id !== tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === seatId ? { ...s, position: pos } : s) })); };
+  const handleStandaloneSeatStatus = (seatId, status) => { setStandaloneSeats(p => p.map(s => s.id === seatId ? { ...s, status } : s)); };
+  const handleSeatClick         = (seat, tableId) => { if (!editMode) { onSeatClick?.(seat, tableId); return; } setSelected({ type: "seat", tableId, seatId: seat.id }); };
+  const handleTableSelect       = table => { if (editMode) { setSelected({ type: "table", tableId: table.id }); return; } onTableClick?.(table); };
+  const handleSelectRoom        = (w, r) => { setActiveWing(w); setActiveRoom(r); };
 
   const handleSave = () => {
     setSaved(true);
@@ -1253,13 +1332,7 @@ export default function SeatMap({
         </div>
       </div>
 
-      {/* Main editor area
-          FIX: Added height: 0 alongside flex: "1 1 0" — this is the critical
-          change that forces the flex children (sidebar, canvas, inspector) to
-          respect the available space boundary. Without height: 0, flex children
-          in a column layout can expand beyond the container, preventing the
-          sidebar's overflowY: "auto" from activating, which caused the Dining
-          section to be invisible (cut off below the viewport). */}
+      {/* Main editor area */}
       <div style={{ flex: "1 1 0", minHeight: 0, display: "flex", overflow: "hidden" }}>
         <WingRoomSidebar activeWing={activeWing} activeRoom={activeRoom} onSelect={handleSelectRoom} />
 
@@ -1271,11 +1344,6 @@ export default function SeatMap({
                 ref={canvasRef}
                 style={{ position: "absolute", inset: 0, cursor: isAddMode ? "crosshair" : "default" }}
                 onClick={e => {
-                  // Only act when click lands directly on the canvas background.
-                  // Tables/seats call e.stopPropagation() on their own handlers,
-                  // so this handler is never reached when clicking those elements.
-                  // Using onClick (not onMouseDown) ensures the table's onClick
-                  // fires first and sets selection before we could ever clear it.
                   if (e.target !== canvasRef.current) return;
                   if (tool === "select") setSelected(null);
                   handleCanvasClick(e);

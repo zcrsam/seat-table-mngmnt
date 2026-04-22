@@ -81,19 +81,42 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
   const apiStatusMap = {};
   const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
   apiTables.forEach(t => {
-    (t.seats || []).forEach(s => {
-      apiStatusMap[s.id] = (s.status || "available").toLowerCase();
-    });
+    if (Array.isArray(t?.seats)) {
+      (t.seats || []).forEach(s => {
+        const rawStatus = (s.status || "available").toLowerCase();
+        apiStatusMap[s.id] = (rawStatus === "approved" || rawStatus === "reserved")
+          ? "reserved"
+          : (rawStatus === "rejected" ? "rejected" : rawStatus);
+      });
+      return;
+    }
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+    if (tableKey || seatKey) {
+      const rawStatus = (t.status || "available").toLowerCase();
+      apiStatusMap[compositeKey] = (rawStatus === "approved" || rawStatus === "reserved")
+      ? "reserved"
+      : (rawStatus === "rejected" ? "rejected" : rawStatus);
+    }
   });
+
   const mergedTables = (localLayout.tables || []).map(t => ({
     ...t,
     seats: (t.seats || []).map(s => {
-      const apiStatus = apiStatusMap[s.id];
-      if (apiStatus !== undefined) return { ...s, status: apiStatus };
-      return s;
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+      return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
     }),
   }));
-  return { ...localLayout, tables: mergedTables };
+
+  const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
+    const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+    return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
+  });
+
+  return { ...localLayout, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
 }
 
 function loadLayoutForClient(wing, room) {
@@ -905,26 +928,49 @@ useEffect(() => {
         event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
         type: mode,
+        status: "pending",
       };
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
       setLastBookingDetails({ room: selectedRoom, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
-      if (activeTable) {
-        setTableData(prev => {
-          if (!prev) return prev;
-          const tables = (prev.tables || []).map(t => {
-            if (t.id !== activeTable.id) return t;
-            if (mode === "individual") return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
-            let marked = 0;
-            return { ...t, seats: t.seats.map(s => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
-          });
-          const updated = { ...prev, tables };
-          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
-          return updated;
-        });
-      }
+      
+      
+      setTableData(prev => {
+  if (!prev) return prev;
+
+  // Update standalone seats (individual mode — seat not belonging to any table)
+  const standaloneSeats = (prev.standaloneSeats || []).map(s => {
+    if (mode === "individual" && s.id === selectedSeat?.id) {
+      return { ...s, status: "pending" };
+    }
+    return s;
+  });
+
+  // Update table seats only when a table is active
+  const tables = (prev.tables || []).map(t => {
+    if (!activeTable || t.id !== activeTable.id) return t;
+    if (mode === "individual") {
+      return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+    }
+    let marked = 0;
+    return {
+      ...t,
+      seats: t.seats.map(s => {
+        if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
+        return s;
+      }),
+    };
+  });
+
+  const updated = { ...prev, tables, standaloneSeats };
+  try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+  return updated;
+});
+
+
+
       setModal("success");
       resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }

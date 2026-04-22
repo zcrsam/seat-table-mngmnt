@@ -903,7 +903,7 @@ export default function VenuesPage() {
   const NAV_H = 58;
 
   return (
-    <div style={{ background: C.pageBg, minHeight: "100vh", fontFamily: FONT }}>
+    <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap');
         *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -913,6 +913,8 @@ export default function VenuesPage() {
         ::-webkit-scrollbar-track { background: transparent }
         ::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.3) }
       `}</style>
+
+      <div style={{ background: C.pageBg, minHeight: "100vh", fontFamily: FONT }}>
 
       {/* ✅ scrolled is now a real live value from window.scrollY */}
       <SharedNavbar
@@ -926,8 +928,7 @@ export default function VenuesPage() {
       {modalVenue && (
         <VenueModal venue={modalVenue} isDark={isDark} C={C} onClose={() => setModalVenue(null)} onReserve={handleVenueClick} />
       )}
-   
-      <div style={{ paddingTop: NAV_H, background: C.pageBg }}>
+      <div style={{ paddingTop: NAV_H, marginTop: -1, background: C.pageBg }}></div>
 
         {/* PAGE HEADER */}
         <div ref={headerRef} style={{ padding: isMobile ? "36px 20px 28px" : `52px clamp(32px,5vw,72px) 36px`, maxWidth: 1280, margin: "0 auto", display: "flex", flexDirection: "column", gap: 28 }}>
@@ -1014,6 +1015,6 @@ export default function VenuesPage() {
           </div>
         </div>
       </div>
-    </div>
+      </>
   );
 }
