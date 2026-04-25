@@ -77,35 +77,13 @@ const F = {
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
-function mergeApiStatusIntoLayout(localLayout, apiData) {
-  if (!localLayout || !apiData) return localLayout;
-  const apiStatusMap = {};
-  const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
-  apiTables.forEach(t => {
-    if (Array.isArray(t?.seats)) {
-      (t.seats || []).forEach(s => {
-        apiStatusMap[s.id] = (s.status || "available").toLowerCase();
-      });
-      return;
-    }
-
-    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
-    const seatKey = String(t.seat ?? t.seat_number ?? t.seatNo ?? t.seat_id ?? t.seatId ?? "").trim();
-    const compositeKey = `${tableKey}|${seatKey}`;
-
-    if (tableKey || seatKey) {
-      apiStatusMap[compositeKey] = (t.status || "available").toLowerCase();
-    }
-  });
-  const mergedTables = (localLayout.tables || []).map(t => ({
-    ...t,
-    seats: (t.seats || []).map(s => {
-      const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
-      if (apiStatus !== undefined) return { ...s, status: apiStatus };
-      return s;
-    }),
-  }));
-  return { ...localLayout, tables: mergedTables };
+// ─── Status normalisation (ported from TowerBallroom1) ────────────────────────
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "pending") return "pending";
+  if (s === "rejected" || s === "cancelled") return "available";
+  return "available";
 }
 
 function loadLayoutForClient(wing, room) {
@@ -774,8 +752,6 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
 }
 
 // ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
-// A slim persistent tray at the bottom of the screen on mobile that shows
-// the current selection and the CTA button — keeps the map full-screen.
 function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
   const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "—");
   const displaySeat  = mode === "individual"
@@ -794,24 +770,19 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
       padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0",
       animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)",
     }}>
-      {/* Gold accent bar */}
       <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}80 30%, ${C.gold}80 70%, transparent)`, borderRadius: "20px 20px 0 0" }} />
-      {/* Drag handle */}
       <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, paddingBottom: 4 }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderStrong }} />
       </div>
 
       <div style={{ padding: "10px 16px 14px" }}>
-        {/* Selection row */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {/* Table chip */}
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
             {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
           </div>
 
-          {/* Seat chip */}
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
               {mode === "whole" ? "Seats" : "Seat"}
@@ -819,14 +790,12 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
           </div>
 
-          {/* Room chip */}
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
             <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Qsina</div>
           </div>
         </div>
 
-        {/* CTA button */}
         <button
           onClick={canGo ? onReserve : undefined}
           disabled={!canGo}
@@ -887,7 +856,8 @@ export default function Qsina() {
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
-  const echoRef = useRef(null);
+  const echoRef        = useRef(null);
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -904,100 +874,159 @@ export default function Qsina() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
+  // ─── Cross-tab / same-tab layout sync ────────────────────────────────────
   useEffect(() => {
-  // Cross-tab sync
-  const onStorage = e => {
-    if (e.key !== layoutKey(WING, ROOM)) return;
-    try {
-      const parsed = e.newValue ? JSON.parse(e.newValue) : null;
-      if (parsed?.v === 2) setTableData(parsed);
-    } catch {}
-  };
-  // Same-tab sync (fired by the custom event in SeatMap saveLayout)
-  const onSeatMapSaved = e => {
-    if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
-    try {
-      const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
-      if (parsed?.v === 2) setTableData(parsed);
-    } catch {}
-  };
-
-  window.addEventListener("storage", onStorage);
-  window.addEventListener("seatmap:saved", onSeatMapSaved);
-  return () => {
-    window.removeEventListener("storage", onStorage);
-    window.removeEventListener("seatmap:saved", onSeatMapSaved);
-  };
-}, []);
-
-  useEffect(() => {
-    const localLayout = loadLayoutForClient(WING, ROOM);
-    if (localLayout) setTableData(localLayout);
-
-    const fetchAndMerge = async () => {
+    const onStorage = e => {
+      if (e.key !== layoutKey(WING, ROOM)) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`, {
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-
-        setTableData(prev => {
-          const base = prev || localLayout;
-          if (!base) return data.data;
-          return mergeApiStatusIntoLayout(base, data.data);
-        });
-
-        setTableData(merged => {
-          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      } catch (err) {
-        console.error("[Qsina] Failed to fetch seat status:", err);
-        if (!tableData) {
-          const fallbackLayout = localLayout || loadLayoutForClient(WING, ROOM);
-          if (fallbackLayout) {
-            setTableData(fallbackLayout);
-          }
-        }
-      }
+        const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+        if (parsed?.v === 2) setTableData(parsed);
+      } catch {}
+    };
+    const onSeatMapSaved = e => {
+      if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
+      try {
+        const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
+        if (parsed?.v === 2) setTableData(parsed);
+      } catch {}
     };
 
-    fetchAndMerge();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("seatmap:saved", onSeatMapSaved);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("seatmap:saved", onSeatMapSaved);
+    };
   }, []);
 
+  // ─── fetchAndMerge: reads /reservations and overlays real statuses ────────
+  // This is the key function ported from TowerBallroom1. It reads the actual
+  // reservation records from the database and maps approved → "reserved" (red),
+  // pending → "pending" (gold), rejected/cancelled → "available" (green).
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const apiUrl = `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=1`;
+      const res = await fetch(apiUrl, { headers: { Accept: "application/json" } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const reservations = Array.isArray(data) ? data : (data.data || []);
+
+      // Build a lookup map: tableKey|seatNum → normalised status
+      const seatStatusMap = {};
+      reservations.forEach(r => {
+        const rawStatus = normaliseApiStatus(r.status);
+        const tableKey  = String(r.table_number ?? "").trim();
+        const seatNums  = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+        const seatId    = r.seat_id ? String(r.seat_id).trim() : null;
+        const isStandaloneRow =
+          tableKey === "" || tableKey === "STANDALONE" ||
+          r.type === "standalone" || r.is_standalone;
+
+        seatNums.forEach(seatNum => {
+          if (tableKey && !isStandaloneRow) seatStatusMap[`${tableKey}|${seatNum}`] = rawStatus;
+          seatStatusMap[seatNum] = rawStatus;
+          if (isStandaloneRow) seatStatusMap[`STANDALONE|${seatNum}`] = rawStatus;
+        });
+        if (seatId) seatStatusMap[`ID|${seatId}`] = rawStatus;
+      });
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        if (!base) return prev;
+
+        const resolveTableSeat = (t, s) => {
+          const tid  = String(t.id ?? t.label ?? "").trim();
+          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
+          const dbId = s.db_id ? String(s.db_id).trim() : null;
+          return (
+            seatStatusMap[`${tid}|${snum}`] ??
+            seatStatusMap[snum] ??
+            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
+            s.status
+          );
+        };
+
+        const resolveStandaloneSeat = s => {
+          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
+          const dbId = s.db_id ? String(s.db_id).trim() : null;
+          return (
+            seatStatusMap[`STANDALONE|${snum}`] ??
+            seatStatusMap[snum] ??
+            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
+            s.status
+          );
+        };
+
+        const merged = {
+          ...base,
+          tables:          (base.tables          || []).map(t => ({ ...t, seats: (t.seats || []).map(s => ({ ...s, status: resolveTableSeat(t, s) })) })),
+          standaloneSeats: (base.standaloneSeats  || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })),
+          ...(base.seats ? { seats: (base.seats || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })) } : {}),
+        };
+
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.error("[Qsina] fetchAndMerge error:", err);
+    }
+  }, []);
+
+  // ─── Initial load ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const local = loadLayoutForClient(WING, ROOM);
+    if (local) setTableData(local);
+    fetchAndMerge();
+  }, [fetchAndMerge]);
+
+  // ─── Window resize ────────────────────────────────────────────────────────
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // ─── WebSocket + polling fallback (ported from TowerBallroom1) ───────────
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
-    }
-    const echo = echoRef.current; if (!echo) return;
+    let wsConnected = false;
+
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(fetchAndMerge, 5_000);
+    };
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") { startPolling(); return () => stopPolling(); }
+
+    try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); }
+    catch { startPolling(); return () => stopPolling(); }
+
+    const echo = echoRef.current;
     try {
       const channel = echo.channel("reservations");
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`, { headers: { Accept: "application/json" } });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.data) {
-              setTableData(prev => mergeApiStatusIntoLayout(prev, data.data));
-            }
-          }
-        } catch {}
+      const events  = [
+        "ReservationCreated", "ReservationUpdated", "ReservationDeleted",
+        "ReservationApproved", "ReservationRejected", "ReservationStatusUpdated",
+        "SeatReserved", "TableReserved", "SeatStatusChanged",
+        "reservation.approved", "reservation.updated", "reservation.status.updated",
+      ];
+      events.forEach(ev => channel.listen(ev, () => { wsConnected = true; stopPolling(); fetchAndMerge(); }));
+      const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
+      return () => {
+        clearTimeout(fallbackTimer); stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
-  }, []);
+    } catch { startPolling(); return () => stopPolling(); }
+  }, [fetchAndMerge]);
 
+  // Cleanup polling on unmount
+  useEffect(() => () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } }, []);
+
+  // ─── Derived helpers ──────────────────────────────────────────────────────
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
   const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
   const getActiveTable      = () => selectedTable || getTables()[0] || null;
@@ -1016,12 +1045,35 @@ export default function Qsina() {
     setSubmitting(true);
     try {
       const activeTable = getActiveTable();
-      const payload = { name: `${formData.firstName} ${formData.lastName}`, email: formData.email, phone: formData.phone, venue_id: 1, room: selectedRoom, table_number: String(activeTable?.id ?? "T1"), seat_number: mode === "individual" ? String(selectedSeat?.num ?? selectedSeat?.id ?? "") : Array.from({ length: guests }, (_, i) => i + 1).join(","), guests_count: guests, event_date: formData.eventDate, event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null, special_requests: formData.specialRequests || "", type: mode };
+      const payload = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        phone: formData.phone,
+        venue_id: 1,
+        wing: WING,
+        room: selectedRoom,
+        table_number: String(activeTable?.id ?? "T1"),
+        seat_number: mode === "individual"
+          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
+        guests_count: guests,
+        event_date: formData.eventDate,
+        event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
+        special_requests: formData.specialRequests || "",
+        type: mode,
+      };
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: selectedRoom, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
+      setLastBookingDetails({
+        room: selectedRoom,
+        table: `Table ${activeTable?.id ?? "—"}`,
+        date: formData.eventDate,
+        name: `${formData.firstName} ${formData.lastName}`,
+      });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
+
+      // Optimistic update — mark seats pending immediately
       if (activeTable) {
         setTableData(prev => {
           if (!prev) return prev;
@@ -1036,13 +1088,22 @@ export default function Qsina() {
           return updated;
         });
       }
+
+      // Re-fetch from DB to get the true latest statuses
+      await fetchAndMerge();
+
       setModal("success");
       resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }
     finally { setSubmitting(false); }
   };
 
-  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
+  const handleBack = () => {
+    setModal(null); setSelectedSeat(null); setSelectedTable(null);
+    setRefCode(null); setFormData(null); setGuests(2);
+    setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
+    fetchAndMerge();
+  };
 
   const isMobile   = windowSize.width < 640;
   const isTablet   = windowSize.width < 1024;
@@ -1056,10 +1117,7 @@ export default function Qsina() {
   const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
   const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
 
-  // ── MOBILE LAYOUT: full-screen map + fixed bottom sheet ───────────────────
-  // The map must fill the entire viewport height minus navbar and bottom sheet.
-  // We give the SeatMap a known pixel height so it renders correctly.
-  const BOTTOM_SHEET_H = 180; // approximate height of MobileBottomSheet
+  const BOTTOM_SHEET_H = 180;
   const NAV_H = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
 
@@ -1091,7 +1149,6 @@ export default function Qsina() {
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
 
-            {/* Mobile top bar: back + title + theme toggle */}
             <div style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "12px 16px 8px",
@@ -1101,7 +1158,7 @@ export default function Qsina() {
             }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left-icon lucide-chevron-left" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
               </button>
 
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1112,7 +1169,6 @@ export default function Qsina() {
               <ThemeToggle />
             </div>
 
-            {/* Mode toggle — horizontal pill tabs */}
             <div style={{
               display: "flex", gap: 0,
               padding: "10px 16px",
@@ -1137,7 +1193,6 @@ export default function Qsina() {
               ))}
             </div>
 
-            {/* Rebooking notice */}
             {rebookFrom && (
               <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 14 }}>🔄</span>
@@ -1151,17 +1206,9 @@ export default function Qsina() {
               </div>
             )}
 
-            {/* ── THE MAP — full width, fixed height so it's always visible ── */}
-            <div style={{
-              width: "100%",
-              height: mobileMapHeight,
-              position: "relative",
-              overflow: "hidden",
-              background: C.surfaceBase,
-            }}>
+            <div style={{ width: "100%", height: mobileMapHeight, position: "relative", overflow: "hidden", background: C.surfaceBase }}>
               {tableData ? (
                 <>
-                  {/* SeatMap fills the container — it should be responsive by nature */}
                   <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch" }}>
                     <SeatMap
                       tableData={tableData}
@@ -1176,9 +1223,6 @@ export default function Qsina() {
                     />
                   </div>
 
-                 
-
-                  {/* Legend — compact strip floating bottom-left */}
                   <div style={{
                     position: "absolute", bottom: 10, left: 10,
                     background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
@@ -1190,7 +1234,9 @@ export default function Qsina() {
                     {Object.entries(STATUS_COLORS).map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-                        <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>{key}</span>
+                        <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>
+                          {key === "reserved" ? "Approved" : key}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1208,7 +1254,6 @@ export default function Qsina() {
               )}
             </div>
 
-            {/* Fixed bottom sheet with selection + CTA */}
             <MobileBottomSheet
               mode={mode}
               selectedSeat={selectedSeat}
@@ -1228,19 +1273,17 @@ export default function Qsina() {
           <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto", padding: isTablet ? "28px 24px" : "36px 48px" }}>
 
-              {/* Back + breadcrumb */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, animation: "fadeUp 0.28s ease" }}>
                 <button onClick={() => navigate("/venues")} title="Back to venues"
                   style={{ width: 36, height: 36, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s", padding: 0, flexShrink: 0 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left-icon lucide-chevron-left" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
                 </button>
                 <span style={{ display: "inline-block", width: 20, height: "1px", background: C.gold, opacity: 0.5 }} />
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
               </div>
 
-              {/* Page heading */}
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
                 {rebookFrom && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
@@ -1264,7 +1307,6 @@ export default function Qsina() {
                 </p>
               </div>
 
-              {/* Mode toggle */}
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28, flexWrap: "wrap", animation: "fadeUp 0.34s ease" }}>
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>Reserve a:</span>
                 <div style={{ display: "flex", alignItems: "center", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: 3, gap: 3, border: `1px solid ${C.borderDefault}` }}>
@@ -1335,7 +1377,9 @@ export default function Qsina() {
                           {Object.entries(STATUS_COLORS).map(([key, color]) => (
                             <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
                               <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
-                              <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                              <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
+                                {key === "reserved" ? "Approved / Reserved" : key.charAt(0).toUpperCase() + key.slice(1)}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -1384,7 +1428,7 @@ export default function Qsina() {
         )}
       </div>
 
-      {/* Modals — shared between both layouts */}
+      {/* Modals */}
       {modal === "guestCount" && (
         <ModalGuestCount
           seatData={mode === "individual" ? selectedSeat : null}
