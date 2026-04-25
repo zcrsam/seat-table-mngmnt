@@ -823,7 +823,7 @@ function Footer({ onNavigate, onManageBooking }) {
           <div className="fc">
             <div style={{ fontFamily:BODY, fontSize:11, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:C.gold, marginBottom:13 }}>Contact</div>
             <p style={{ fontFamily:BODY, fontSize:13, color:C.textFaint, lineHeight:2, margin:0 }}>
-              02 871 8181 5139<br />
+              02-871-8181-5139<br />
               North Bridgeway, Filinvest City<br />
               Alabang, Muntinlupa City
             </p>
@@ -832,7 +832,7 @@ function Footer({ onNavigate, onManageBooking }) {
         <div style={{ height:1, background:C.borderLight, margin:"0 0 24px" }} />
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
           <span style={{ fontFamily:BODY, fontSize:12, color:C.textDeep }}>© {new Date().getFullYear()} The Bellevue Manila. All rights reserved.</span>
-          <span style={{ fontFamily:BODY, fontSize:12, color:C.textDeep }}>Seat &amp; Table Management System</span>
+          <span style={{ fontFamily:BODY, fontSize:12, color:C.textDeep }}>Seat &amp; Table Management Reservation</span>
         </div>
       </div>
     </footer>
