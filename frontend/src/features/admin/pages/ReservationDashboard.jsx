@@ -1,10 +1,28 @@
 // src/features/admin/pages/ReservationDashboard.jsx
-import { useState, useEffect, useCallback } from "react";
+// KEY FIX: optimisticSeatUpdate now resolves wing+room from the reservation
+// itself instead of using hardcoded "Alabang Function Room", so approving/
+// rejecting a Business Center reservation correctly updates the BC seatmap.
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import { fetchReservations, approveReservation, rejectReservation, getReservationStats } from "../../../utils/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+// ─── Room constants ───────────────────────────────────────────────────────────
+// FIX: we no longer hard-code a single WING/ROOM here.
+// optimisticSeatUpdate now derives wing+room from the reservation record.
+const DEFAULT_WING = "Main Wing";
+
+function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
+
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
+  return "available";
+}
 
 // ─── Design Tokens (light only) ───────────────────────────────────────────────
 const C = {
@@ -22,7 +40,6 @@ const C = {
   textSecondary: "#7A7060",
   textTertiary: "rgba(24,20,14,0.35)",
   textOnAccent: "#FFFFFF",
-  // ── FIXED: approved/reserved = RED, rejected = GREEN ──
   red: "#A03838",
   redFaint: "rgba(160,56,56,0.07)",
   redBorder: "rgba(160,56,56,0.18)",
@@ -54,7 +71,6 @@ const F = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function formatTableNumber(tableNumber) {
   if (!tableNumber || tableNumber === "") return "—";
   if (String(tableNumber).toUpperCase() === "STANDALONE") return "Standalone Seat";
@@ -106,20 +122,91 @@ function StatusBadge({ status }) {
   );
 }
 
-// ─── Seat color helper ────────────────────────────────────────────────────────
-// approved/reserved → red  |  rejected → green  |  pending → gold
 function getSeatStatusColor(status) {
   const s = (status || "").toLowerCase();
   if (s === "approved" || s === "reserved") return C.red;
-  if (s === "rejected") return C.green;
+  if (s === "rejected" || s === "cancelled") return C.green;
   if (s === "pending") return C.gold;
   return C.textTertiary;
 }
 
 function getSeatStatusWeight(status) {
   const s = (status || "").toLowerCase();
-  if (s === "approved" || s === "reserved" || s === "rejected" || s === "pending") return 700;
-  return 400;
+  return ["approved", "reserved", "rejected", "cancelled", "pending"].includes(s) ? 700 : 400;
+}
+
+// ─── FIX: optimisticSeatUpdate — resolves wing+room from the reservation ──────
+// Previously this was hardcoded to "Alabang Function Room", which meant
+// approving/rejecting a Business Center reservation had zero effect on the BC
+// seatmap in localStorage (and therefore in the client page).
+function optimisticSeatUpdate(reservation, newSeatStatus) {
+  try {
+    // Resolve wing + room from the reservation record itself.
+    // Fall back to DEFAULT_WING when the record doesn't carry a wing field.
+    const wing = String(reservation.wing ?? DEFAULT_WING).trim();
+    const room = String(reservation.room ?? "").trim();
+
+    if (!room) {
+      console.warn("[Dashboard] optimisticSeatUpdate: reservation has no room field, skipping.", reservation);
+      return;
+    }
+
+    const key = layoutKey(wing, room);
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const layout = JSON.parse(raw);
+    if (!layout) return;
+
+    const isStandalone =
+      String(reservation.table_number || "").toUpperCase() === "STANDALONE" ||
+      reservation.type === "standalone" ||
+      reservation.is_standalone === 1 ||
+      reservation.is_standalone === true;
+
+    const seatNum = String(
+      reservation.seat ?? reservation.seat_number ?? ""
+    ).trim();
+
+    if (isStandalone) {
+      const updatedStandaloneSeats = (layout.standaloneSeats || []).map(s => {
+        const num = String(s.num ?? s.label ?? s.id ?? "").trim();
+        if (num === seatNum || String(s.id).trim() === seatNum) {
+          return { ...s, status: newSeatStatus };
+        }
+        return s;
+      });
+      const updated = { ...layout, standaloneSeats: updatedStandaloneSeats };
+      localStorage.setItem(key, JSON.stringify(updated));
+      // Notify the client page (same tab + other tabs)
+      window.dispatchEvent(new StorageEvent("storage", {
+        key,
+        newValue: JSON.stringify(updated),
+        storageArea: localStorage,
+      }));
+      return;
+    }
+
+    const tableId = String(reservation.table_number ?? "").trim();
+    const updatedTables = (layout.tables || []).map(t => {
+      if (String(t.id ?? "").trim() !== tableId) return t;
+      const updatedSeats = (t.seats || []).map(s => {
+        const num = String(s.num ?? s.label ?? s.id ?? "").trim();
+        if (num === seatNum) return { ...s, status: newSeatStatus };
+        return s;
+      });
+      return { ...t, seats: updatedSeats };
+    });
+
+    const updated = { ...layout, tables: updatedTables };
+    localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new StorageEvent("storage", {
+      key,
+      newValue: JSON.stringify(updated),
+      storageArea: localStorage,
+    }));
+  } catch (err) {
+    console.warn("[Dashboard] optimisticSeatUpdate error:", err);
+  }
 }
 
 // ─── Reject Reason Modal ──────────────────────────────────────────────────────
@@ -297,8 +384,8 @@ function DetailModal({ reservation, onClose, onApprove, onReject }) {
 
   const resRows=[
     ["Reference",  reservation.reference_code||"—"],
-    ["Type",       isStandaloneReservation ? "Standalone Seat" : reservation.type === "whole" ? "Whole Table" : "Individual Seat"],
     ["Room",       reservation.room||"—"],
+    ["Type",       isStandaloneReservation ? "Standalone Seat" : reservation.type === "whole" ? "Whole Table" : "Individual Seat"],
     ...(!isStandaloneReservation ? [["Table", formatTableNumber(reservation.table_number)]] : []),
     ["Seat",       (reservation.seat||reservation.seat_number)?`Seat ${reservation.seat||reservation.seat_number}`:"—"],
     ["Guests",     (reservation.guests_count || reservation.guests) ? `${reservation.guests_count || reservation.guests} guest${(reservation.guests_count || reservation.guests) !== 1 ? "s" : ""}` : "—"],
@@ -555,12 +642,7 @@ function PaginationControls({ pagination, onPageChange, onRowsChange, filteredCo
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          style={{
-            ...btnBase,
-            color: currentPage <= 1 ? C.textTertiary : C.textSecondary,
-            cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-            paddingLeft: 10, paddingRight: 10,
-          }}
+          style={{ ...btnBase, color: currentPage <= 1 ? C.textTertiary : C.textSecondary, cursor: currentPage <= 1 ? "not-allowed" : "pointer", paddingLeft: 10, paddingRight: 10 }}
           onMouseEnter={(e) => { if (currentPage > 1) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = currentPage <= 1 ? C.textTertiary : C.textSecondary; }}
         >
@@ -574,14 +656,7 @@ function PaginationControls({ pagination, onPageChange, onRowsChange, filteredCo
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              style={{
-                ...btnBase,
-                border: currentPage === p ? `1px solid ${C.gold}` : `1px solid ${C.borderDefault}`,
-                background: currentPage === p ? C.gold : "transparent",
-                color: currentPage === p ? C.textOnAccent : C.textSecondary,
-                fontWeight: currentPage === p ? 700 : 500,
-                minWidth: 32,
-              }}
+              style={{ ...btnBase, border: currentPage === p ? `1px solid ${C.gold}` : `1px solid ${C.borderDefault}`, background: currentPage === p ? C.gold : "transparent", color: currentPage === p ? C.textOnAccent : C.textSecondary, fontWeight: currentPage === p ? 700 : 500, minWidth: 32 }}
               onMouseEnter={(e) => { if (currentPage !== p) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}}
               onMouseLeave={(e) => { if (currentPage !== p) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}}
             >
@@ -593,12 +668,7 @@ function PaginationControls({ pagination, onPageChange, onRowsChange, filteredCo
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= lastPage}
-          style={{
-            ...btnBase,
-            color: currentPage >= lastPage ? C.textTertiary : C.textSecondary,
-            cursor: currentPage >= lastPage ? "not-allowed" : "pointer",
-            paddingLeft: 10, paddingRight: 10,
-          }}
+          style={{ ...btnBase, color: currentPage >= lastPage ? C.textTertiary : C.textSecondary, cursor: currentPage >= lastPage ? "not-allowed" : "pointer", paddingLeft: 10, paddingRight: 10 }}
           onMouseEnter={(e) => { if (currentPage < lastPage) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; }}}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = currentPage >= lastPage ? C.textTertiary : C.textSecondary; }}
         >
@@ -611,17 +681,7 @@ function PaginationControls({ pagination, onPageChange, onRowsChange, filteredCo
         <select
           value={rowsPerPage}
           onChange={(e) => onRowsChange(parseInt(e.target.value))}
-          style={{
-            padding: "5px 10px",
-            border: `1px solid ${C.borderDefault}`,
-            borderRadius: 7,
-            background: C.surfaceBase,
-            fontFamily: F.body,
-            fontSize: 11,
-            color: C.textSecondary,
-            cursor: "pointer",
-            outline: "none",
-          }}
+          style={{ padding: "5px 10px", border: `1px solid ${C.borderDefault}`, borderRadius: 7, background: C.surfaceBase, fontFamily: F.body, fontSize: 11, color: C.textSecondary, cursor: "pointer", outline: "none" }}
         >
           <option value={10}>10</option>
           <option value={20}>20</option>
@@ -647,7 +707,8 @@ export default function ReservationDashboard() {
   const [loading,setLoading]=useState(true);
   const [selectedReservations,setSelectedReservations]=useState(new Set());
   const [searchFocused,setSearchFocused]=useState(false);
-  const [syncMode,setSyncMode]=useState("connecting");
+
+  const pollingRef = useRef(null);
 
   const [windowWidth,setWindowWidth]=useState(window.innerWidth);
   useEffect(()=>{
@@ -659,7 +720,6 @@ export default function ReservationDashboard() {
   const isMobile=windowWidth<640;
   const isTablet=windowWidth<960;
 
-  // ─── Fetch ALL records ──────────────────────────────────────────────────────
   const refreshDashboardData = useCallback(async (silent = true) => {
     if (!silent) setLoading(true);
     try {
@@ -685,101 +745,92 @@ export default function ReservationDashboard() {
     refreshDashboardData(false);
   },[refreshDashboardData]);
 
-  // ─── WebSocket with polling fallback ────────────────────────────────────────
   useEffect(()=>{
-    const wsHost=import.meta.env.VITE_WS_HOST||"localhost";
-    const wsPort=import.meta.env.VITE_WS_PORT||"6001";
-    const protocol=window.location.protocol==="https:"?"wss:":"ws:";
-    const wsUrl=`${protocol}//${wsHost}:${wsPort}`;
+    const wsHost    = import.meta.env.VITE_WS_HOST    || "localhost";
+    const wsPort    = import.meta.env.VITE_WS_PORT    || "6001";
+    const protocol  = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl     = `${protocol}//${wsHost}:${wsPort}`;
 
-    let ws=null;
-    let retryCount=0;
-    const maxRetries=3;
-    const retryDelay=5000;
-    let pollingInterval=null;
-    let isPolling=false;
+    let ws           = null;
+    let retryCount   = 0;
+    const maxRetries = 3;
+    const retryDelay = 5000;
+    let wsLive       = false;
 
-    const startPolling=()=>{
-      if(isPolling)return;
-      isPolling=true;
-      setSyncMode("polling");
-      pollingInterval=setInterval(async()=>{
-        try{
-          const [recentResp, cancelledResp] = await Promise.all([
-            fetch(`${API_BASE_URL}/admin/reservations/recent`),
-            fetch(`${API_BASE_URL}/admin/reservations/cancelled`)
-          ]);
-          if(recentResp.ok){
-            const data=await recentResp.json();
-            if(Array.isArray(data)){
-              data.forEach(updated=>{
-                setReservations(prev=>{
-                  const idx=prev.findIndex(r=>r.id===updated.id);
-                  if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
-                  return[...prev,updated];
-                });
-              });
-            }
-          }
-          if(cancelledResp.ok){
-            const data=await cancelledResp.json();
-            if(Array.isArray(data)){
-              data.forEach(updated=>{
-                setReservations(prev=>{
-                  const idx=prev.findIndex(r=>r.id===updated.id);
-                  if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
-                  return[...prev,updated];
-                });
-              });
-            }
-          }
-        }catch(err){
-          console.error("[Dashboard] Polling error:",err);
-        }
-      },1000);
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      console.log("[Dashboard] Starting polling fallback (5s interval)");
+      pollingRef.current = setInterval(() => refreshDashboardData(true), 5_000);
     };
 
-    const stopPolling=()=>{
-      if(pollingInterval){clearInterval(pollingInterval);pollingInterval=null;isPolling=false;}
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     };
 
-    const connect=()=>{
-      try{
-        ws=new WebSocket(wsUrl);
-        ws.onopen=()=>{setSyncMode("websocket");retryCount=0;stopPolling();};
-        ws.onclose=()=>{
-          setSyncMode("connecting");
-          if(retryCount<maxRetries){retryCount++;setTimeout(connect,retryDelay*Math.pow(2,retryCount-1));}
-          else{startPolling();}
+    const connect = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          wsLive = true;
+          retryCount = 0;
+          stopPolling();
         };
-        ws.onerror=()=>{
-          if(retryCount<maxRetries){retryCount++;setTimeout(connect,retryDelay*Math.pow(2,retryCount-1));}
-          else{startPolling();}
+
+        ws.onclose = () => {
+          wsLive = false;
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(connect, retryDelay * Math.pow(2, retryCount - 1));
+          } else {
+            startPolling();
+          }
         };
-        ws.onmessage=event=>{
-          try{
-            const data=JSON.parse(event.data);
-            const updated=data?.payload?.reservation||data?.reservation;
-            if(updated){
-              setReservations(prev=>{
-                const idx=prev.findIndex(r=>r.id===updated.id);
-                if(idx>=0){const arr=[...prev];arr[idx]=updated;return arr;}
-                return[...prev,updated];
+
+        ws.onerror = () => {
+          if (retryCount >= maxRetries) startPolling();
+        };
+
+        ws.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data);
+            const updated = data?.payload?.reservation || data?.reservation;
+            if (updated) {
+              setReservations(prev => {
+                const idx = prev.findIndex(r => r.id === updated.id);
+                if (idx >= 0) { const arr = [...prev]; arr[idx] = updated; return arr; }
+                return [...prev, updated];
               });
             }
-          }catch(err){console.error("[Dashboard WS] Parse error:",err);}
+          } catch (err) {
+            console.error("[Dashboard WS] Parse error:", err);
+          }
         };
-      }catch(err){
-        console.error("[Dashboard] WebSocket init failed:",err);
+      } catch (err) {
+        console.error("[Dashboard] WebSocket init failed:", err);
         startPolling();
       }
     };
 
     connect();
-    return()=>{stopPolling();if(ws){ws.close();ws=null;}};
-  },[]);
 
-  // ─── Filter ─────────────────────────────────────────────────────────────────
+    const fallbackTimer = setTimeout(() => {
+      if (!wsLive) startPolling();
+    }, 8_000);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      stopPolling();
+      if (ws) { ws.close(); ws = null; }
+    };
+  }, [refreshDashboardData]);
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+  }, []);
+
   useEffect(()=>{
     let filtered=reservations;
     if(filterStatus!=="ALL"){
@@ -809,12 +860,11 @@ export default function ReservationDashboard() {
     }));
   },[reservations,filterStatus,search]);
 
-  // Recompute stats from local state
   useEffect(()=>{
-    const total=reservations.length;
-    const pending=reservations.filter(r=>r.status?.toLowerCase()==="pending").length;
-    const approved=reservations.filter(r=>r.status?.toLowerCase()==="approved"||r.status?.toLowerCase()==="reserved").length;
-    const rejected=reservations.filter(r=>r.status?.toLowerCase()==="rejected").length;
+    const total    = reservations.length;
+    const pending  = reservations.filter(r=>r.status?.toLowerCase()==="pending").length;
+    const approved = reservations.filter(r=>r.status?.toLowerCase()==="approved"||r.status?.toLowerCase()==="reserved").length;
+    const rejected = reservations.filter(r=>r.status?.toLowerCase()==="rejected").length;
     setStats({total,pending,approved,rejected});
   },[reservations]);
 
@@ -835,92 +885,81 @@ export default function ReservationDashboard() {
   const handleSelectReservation = (reservationId) => {
     setSelectedReservations(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(reservationId)) {
-        newSet.delete(reservationId);
-      } else {
-        newSet.add(reservationId);
-      }
+      if (newSet.has(reservationId)) newSet.delete(reservationId);
+      else newSet.add(reservationId);
       return newSet;
     });
   };
 
-  const handleSelectAll = () => {
-    if (selectedReservations.size === pagedReservations.length) {
-      setSelectedReservations(new Set());
-    } else {
-      setSelectedReservations(new Set(pagedReservations.map(r => r.id)));
-    }
-  };
-
   const handleDeleteSelected = async () => {
     if (selectedReservations.size === 0) return;
-    
-    if (window.confirm(`Are you sure you want to delete ${selectedReservations.size} selected reservation(s)? This action cannot be undone.`)) {
-      try {
-        const deletePromises = Array.from(selectedReservations).map(async (reservationId) => {
-          const response = await fetch(`${API_BASE_URL}/admin/reservations/${reservationId}`, {
-            method: 'DELETE'
-          });
-          return response.ok;
-        });
+    if (!window.confirm(`Are you sure you want to delete ${selectedReservations.size} selected reservation(s)? This action cannot be undone.`)) return;
 
-        const results = await Promise.all(deletePromises);
-        const successful = results.filter(r => r).length;
-        const failed = results.length - successful;
+    try {
+      const toDelete = reservations.filter(r => selectedReservations.has(r.id));
 
-        if (successful > 0) {
-          setToast({ message: `Successfully deleted ${successful} reservation(s)`, type: "success" });
-          await refreshDashboardData(false);
-        }
+      const deletePromises = Array.from(selectedReservations).map(async (reservationId) => {
+        const response = await fetch(`${API_BASE_URL}/admin/reservations/${reservationId}`, { method: "DELETE" });
+        return { id: reservationId, ok: response.ok };
+      });
 
-        if (failed > 0) {
-          setToast({ message: `Failed to delete ${failed} reservation(s)`, type: "error" });
-        }
+      const results = await Promise.all(deletePromises);
+      const successIds = new Set(results.filter(r => r.ok).map(r => r.id));
+      const failedCount = results.length - successIds.size;
 
-        setSelectedReservations(new Set());
-      } catch (error) {
-        console.error('[Dashboard] Failed to delete reservations:', error);
-        setToast({ message: "Failed to delete reservations", type: "error" });
+      if (successIds.size > 0) {
+        setReservations(prev => prev.filter(r => !successIds.has(r.id)));
+        // FIX: each deleted reservation frees its seat in the correct room
+        toDelete
+          .filter(r => successIds.has(r.id))
+          .forEach(r => optimisticSeatUpdate(r, "available"));
+        setToast({ message: `Successfully deleted ${successIds.size} reservation(s)`, type: "success" });
       }
+
+      if (failedCount > 0) {
+        setToast({ message: `Failed to delete ${failedCount} reservation(s)`, type: "error" });
+      }
+
+      setSelectedReservations(new Set());
+    } catch (error) {
+      console.error("[Dashboard] Failed to delete reservations:", error);
+      setToast({ message: "Failed to delete reservations", type: "error" });
     }
   };
 
-  // ─── Approve ────────────────────────────────────────────────────────────────
-  // FIX: optimistically set status to "approved" so the seat list row
-  //      immediately reflects the RED color on the client side.
-  const handleApprove=async(reservation)=>{
-    try{
-      const result=await approveReservation(reservation.db_id);
-      if(result.success){
-        // Use "approved" here — the seat map will map this to "reserved" (red)
-        setReservations((prev)=>prev.map((r)=>
-          r.id===reservation.id ? {...r, status:"approved"} : r
-        ));
-        setToast({message:`Approved! Confirmation email sent to ${reservation.email}.`,type:"success"});
-      }else{
-        setToast({message:result.message||"Failed to approve",type:"error"});
+  // FIX: approve → seat becomes "reserved" (RED) in the correct room's seatmap
+  const handleApprove = async (reservation) => {
+    try {
+      const result = await approveReservation(reservation.db_id);
+      if (result.success) {
+        setReservations(prev =>
+          prev.map(r => r.id === reservation.id ? { ...r, status: "approved" } : r)
+        );
+        optimisticSeatUpdate(reservation, "reserved");
+        setToast({ message: `Approved! Confirmation email sent to ${reservation.email}.`, type: "success" });
+      } else {
+        setToast({ message: result.message || "Failed to approve", type: "error" });
       }
-    }catch{
-      setToast({message:"Error approving reservation",type:"error"});
+    } catch {
+      setToast({ message: "Error approving reservation", type: "error" });
     }
   };
 
-  // ─── Reject ─────────────────────────────────────────────────────────────────
-  // FIX: optimistically set status to "rejected" so the seat list row
-  //      immediately reflects the GREEN color on the client side.
-  const handleReject=async(reservation,reason)=>{
-    try{
-      const result=await rejectReservation(reservation.db_id,reason);
-      if(result.success){
-        setReservations((prev)=>prev.map((r)=>
-          r.id===reservation.id ? {...r, status:"rejected"} : r
-        ));
-        setToast({message:`Rejected. Notification email sent to ${reservation.email}.`,type:"success"});
-      }else{
-        setToast({message:result.message||"Failed to reject",type:"error"});
+  // FIX: reject → seat freed ("available") in the correct room's seatmap
+  const handleReject = async (reservation, reason) => {
+    try {
+      const result = await rejectReservation(reservation.db_id, reason);
+      if (result.success) {
+        setReservations(prev =>
+          prev.map(r => r.id === reservation.id ? { ...r, status: "rejected" } : r)
+        );
+        optimisticSeatUpdate(reservation, "available");
+        setToast({ message: `Rejected. Notification email sent to ${reservation.email}.`, type: "success" });
+      } else {
+        setToast({ message: result.message || "Failed to reject", type: "error" });
       }
-    }catch{
-      setToast({message:"Error rejecting reservation",type:"error"});
+    } catch {
+      setToast({ message: "Error rejecting reservation", type: "error" });
     }
   };
 
@@ -962,7 +1001,6 @@ export default function ReservationDashboard() {
 
           <div style={{flex:1,minWidth:0,height:"calc(100vh - 60px)",background:C.pageBg,overflow:"auto"}}>
 
-            {/* Top bar */}
             <div style={{
               position:"sticky",top:0,zIndex:100,
               background:C.navBg,
@@ -1005,13 +1043,8 @@ export default function ReservationDashboard() {
               </div>
             </div>
 
-            {/* Content */}
-            <div style={{
-              padding:isMobile?"20px 16px":isTablet?"24px 20px":"28px 32px",
-              animation:"fadeUp 0.28s ease",
-            }}>
+            <div style={{padding:isMobile?"20px 16px":isTablet?"24px 20px":"28px 32px",animation:"fadeUp 0.28s ease"}}>
 
-              {/* Heading */}
               <div style={{marginBottom:isMobile?18:22}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                   <span style={{display:"inline-block",width:22,height:"1px",background:C.gold,opacity:0.6}}/>
@@ -1025,13 +1058,7 @@ export default function ReservationDashboard() {
                 </p>
               </div>
 
-              {/* Stat cards */}
-              <div style={{
-                display:"grid",
-                gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",
-                gap:isMobile?10:12,
-                marginBottom:isMobile?18:22,
-              }}>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:12,marginBottom:isMobile?18:22}}>
                 {statCards.map(({label,count,filter,color,bg,border})=>{
                   const active=filterStatus===filter;
                   return(
@@ -1046,12 +1073,8 @@ export default function ReservationDashboard() {
                         boxShadow:active?`0 4px 18px ${color}1A`:"0 1px 4px rgba(0,0,0,0.05)",
                         transform:active?"translateY(-1px)":"translateY(0)",
                       }}
-                      onMouseEnter={(e)=>{
-                        if(!active){e.currentTarget.style.borderColor=border;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 18px ${color}14`;}
-                      }}
-                      onMouseLeave={(e)=>{
-                        if(!active){e.currentTarget.style.borderColor=C.cardBorder;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.05)";}
-                      }}
+                      onMouseEnter={(e)=>{if(!active){e.currentTarget.style.borderColor=border;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 18px ${color}14`;}}}
+                      onMouseLeave={(e)=>{if(!active){e.currentTarget.style.borderColor=C.cardBorder;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.05)";}}}
                     >
                       <div style={{fontFamily:F.display,fontSize:isMobile?28:36,fontWeight:700,color:color,lineHeight:1,marginBottom:isMobile?6:8,letterSpacing:"-0.02em"}}>
                         {loading?"—":count}
@@ -1070,10 +1093,8 @@ export default function ReservationDashboard() {
                 })}
               </div>
 
-              {/* Table card */}
               <div style={{background:C.cardBg,borderRadius:12,border:`1px solid ${C.cardBorder}`,overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
 
-                {/* Card header */}
                 <div style={{
                   padding:isMobile?"12px 14px":"14px 22px",
                   borderBottom:`1px solid ${C.divider}`,
@@ -1091,20 +1112,7 @@ export default function ReservationDashboard() {
                     {selectedReservations.size > 0 && (
                       <button
                         onClick={handleDeleteSelected}
-                        style={{
-                          padding:"4px 10px",
-                          background:C.red,
-                          color:"#fff",
-                          border:"none",
-                          borderRadius:6,
-                          fontFamily:F.label,
-                          fontSize:9,
-                          fontWeight:700,
-                          cursor:"pointer",
-                          transition:"all 0.15s",
-                          letterSpacing:"0.10em",
-                          textTransform:"uppercase"
-                        }}
+                        style={{padding:"4px 10px",background:C.red,color:"#fff",border:"none",borderRadius:6,fontFamily:F.label,fontSize:9,fontWeight:700,cursor:"pointer",transition:"all 0.15s",letterSpacing:"0.10em",textTransform:"uppercase"}}
                         onMouseEnter={(e)=>{e.currentTarget.style.background="#C04040";}}
                         onMouseLeave={(e)=>{e.currentTarget.style.background=C.red;}}
                       >
@@ -1129,29 +1137,15 @@ export default function ReservationDashboard() {
                       type="checkbox"
                       checked={selectedReservations.size === filteredReservations.length && filteredReservations.length > 0}
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          const newSet = new Set(filteredReservations.map((r) => r.id));
-                          setSelectedReservations(newSet);
-                        } else {
-                          setSelectedReservations(new Set());
-                        }
+                        if (e.target.checked) setSelectedReservations(new Set(filteredReservations.map((r) => r.id)));
+                        else setSelectedReservations(new Set());
                       }}
-                      style={{
-                        width: 16,
-                        height: 16,
-                        border: `1px solid ${C.borderDefault}`,
-                        borderRadius: 4,
-                        backgroundColor: C.surfaceBase,
-                        cursor: "pointer",
-                      }}
+                      style={{width:16,height:16,border:`1px solid ${C.borderDefault}`,borderRadius:4,backgroundColor:C.surfaceBase,cursor:"pointer"}}
                     />
-                    <span style={{fontSize:11,color:C.textSecondary,fontFamily:F.body}}>
-                      Select All
-                    </span>
+                    <span style={{fontSize:11,color:C.textSecondary,fontFamily:F.body}}>Select All</span>
                   </div>
                 </div>
 
-                {/* List */}
                 <div style={{padding:isMobile?"10px":"12px 18px",display:"flex",flexDirection:"column",gap:8}}>
                   {loading?(
                     Array.from({length:5}).map((_,i)=>(
@@ -1171,10 +1165,7 @@ export default function ReservationDashboard() {
                         reservation.is_standalone === true;
 
                       const status = (reservation.status || "").toLowerCase();
-
-                      // ── FIX: compute seat text color based on status ──
-                      // approved/reserved → red | rejected → green | pending → gold
-                      const seatTextColor = getSeatStatusColor(status);
+                      const seatTextColor  = getSeatStatusColor(status);
                       const seatTextWeight = getSeatStatusWeight(status);
 
                       return (
@@ -1197,21 +1188,9 @@ export default function ReservationDashboard() {
                               <input
                                 type="checkbox"
                                 checked={selectedReservations.has(reservation.id)}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectReservation(reservation.id);
-                                }}
+                                onChange={(e) => { e.stopPropagation(); handleSelectReservation(reservation.id); }}
                                 onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  width: 16,
-                                  height: 16,
-                                  border: `1px solid ${C.borderDefault}`,
-                                  borderRadius: 4,
-                                  backgroundColor: C.surfaceBase,
-                                  cursor: "pointer",
-                                  marginTop: 2,
-                                  flexShrink: 0,
-                                }}
+                                style={{width:16,height:16,border:`1px solid ${C.borderDefault}`,borderRadius:4,backgroundColor:C.surfaceBase,cursor:"pointer",marginTop:2,flexShrink:0}}
                               />
                               <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>{setSelectedReservation(reservation);setShowModal(true);}}>
                                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexWrap:"wrap"}}>
@@ -1231,7 +1210,6 @@ export default function ReservationDashboard() {
                                   <span>{reservation.email||"-"}</span>
                                   {reservation.phone&&<><span style={{color:C.textTertiary}}>·</span><span>{reservation.phone}</span></>}
                                 </div>
-                                {/* ── FIX: table + seat text color driven by status ── */}
                                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                                   {reservation.room&&(
                                     <span style={{fontFamily:F.body,fontSize:11,color:C.textTertiary}}>{reservation.room}</span>
@@ -1239,12 +1217,7 @@ export default function ReservationDashboard() {
                                   {reservation.table_number&&(
                                     <>
                                       <span style={{color:C.textTertiary,fontSize:11}}>·</span>
-                                      <span style={{
-                                        fontFamily:F.body,
-                                        fontSize:11,
-                                        color: isStandaloneCard ? C.gold : seatTextColor,
-                                        fontWeight: isStandaloneCard ? 600 : seatTextWeight,
-                                      }}>
+                                      <span style={{fontFamily:F.body,fontSize:11,color:isStandaloneCard?C.gold:seatTextColor,fontWeight:isStandaloneCard?600:seatTextWeight}}>
                                         {formatTableNumber(reservation.table_number)}
                                       </span>
                                     </>
@@ -1252,12 +1225,7 @@ export default function ReservationDashboard() {
                                   {(reservation.seat||reservation.seat_number)&&(
                                     <>
                                       <span style={{color:C.textTertiary,fontSize:11}}>·</span>
-                                      <span style={{
-                                        fontFamily:F.body,
-                                        fontSize:11,
-                                        color: seatTextColor,
-                                        fontWeight: seatTextWeight,
-                                      }}>
+                                      <span style={{fontFamily:F.body,fontSize:11,color:seatTextColor,fontWeight:seatTextWeight}}>
                                         Seat {reservation.seat||reservation.seat_number}
                                       </span>
                                     </>

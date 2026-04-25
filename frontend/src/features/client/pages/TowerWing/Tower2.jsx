@@ -86,16 +86,13 @@ const FONT = "'Inter','Helvetica Neue',Arial,sans-serif";
 // Persistence helpers
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
-function mergeApiStatusIntoLayout(localLayout, apiData) {
-  if (!apiData?.tables) return localLayout;
-  const updated = { ...localLayout, tables: [...(localLayout?.tables || [])] };
-  apiData.tables.forEach(apiTable => {
-    const idx = updated.tables.findIndex(t => t.id === apiTable.id);
-    if (idx >= 0) {
-      updated.tables[idx] = { ...updated.tables[idx], seats: apiTable.seats || updated.tables[idx].seats };
-    }
-  });
-  return updated;
+// ─── CHANGE 1: Normalize API status strings — approved → reserved (red) ───
+function normalizeStatus(status) {
+  const s = (status || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending") return "pending";
+  return "available";
 }
 
 function loadLayoutForClient(wing, room) {
@@ -734,6 +731,63 @@ export default function Tower2() {
     holdStartedRef.current = false; setHoldSecondsLeft(24 * 60);
   }, []);
 
+  // ─── CHANGE 2: Fetch from /reservations and build status map (same as Tower 1) ───
+  const fetchAndMergeSeats = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=3`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const reservations = Array.isArray(data) ? data : (data.data || []);
+      if (!reservations.length) return;
+
+      // Build seat status map from actual reservation records
+      const seatStatusMap = {};
+      reservations.forEach(r => {
+        const tableKey = String(r.table_number ?? "").trim();
+        const seatNums = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+        const status   = normalizeStatus(r.status);
+        seatNums.forEach(seatNum => {
+          seatStatusMap[`${tableKey}|${seatNum}`] = status;
+          seatStatusMap[seatNum] = status;
+        });
+      });
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        if (!base) return prev;
+
+        const mergedTables = (base.tables || []).map(t => ({
+          ...t,
+          seats: (t.seats || []).map(s => {
+            const tableId   = String(t.id ?? t.label ?? "").trim();
+            const seatNum   = String(s.num ?? s.label ?? s.id ?? "").trim();
+            const newStatus =
+              seatStatusMap[`${tableId}|${seatNum}`] ??
+              seatStatusMap[seatNum] ??
+              s.status;
+            return { ...s, status: newStatus };
+          }),
+        }));
+
+        const mergedStandaloneSeats = (base.standaloneSeats || []).map(s => {
+          const seatNum   = String(s.num ?? s.label ?? s.id ?? "").trim();
+          const newStatus = seatStatusMap[`STANDALONE|${seatNum}`] ?? seatStatusMap[seatNum] ?? s.status;
+          return { ...s, status: newStatus };
+        });
+
+        const merged = { ...base, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.error("[Tower2] Failed to fetch seat status:", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (modal !== "details" && modal !== "review") return;
     if (holdSecondsLeft <= 0) { setModal(null); resetHoldTimer(); return; }
@@ -744,57 +798,74 @@ export default function Tower2() {
   useEffect(() => {
     const onStorage = e => {
       if (e.key !== layoutKey(WING, ROOM)) return;
-      try { const parsed = e.newValue ? JSON.parse(e.newValue) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
+      try { const parsed = e.newValue ? JSON.parse(e.newValue) : null; if (parsed) setTableData(parsed); } catch {}
     };
     const onSeatMapSaved = e => {
       if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
-      try { const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
+      try { const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null; if (parsed) setTableData(parsed); } catch {}
     };
     window.addEventListener("storage", onStorage);
     window.addEventListener("seatmap:saved", onSeatMapSaved);
     return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap:saved", onSeatMapSaved); };
   }, []);
 
+  // ─── CHANGE 3: Fetch on mount, then WebSocket + polling fallback (same as Tower 1) ───
   useEffect(() => {
-    const localLayout = loadLayoutForClient(WING, ROOM);
-    if (localLayout) setTableData(localLayout);
-    const fetchAndMerge = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.error("[TwentyTwentyReserveA] Failed to fetch seat status:", err); }
+    fetchAndMergeSeats();
+  }, [fetchAndMergeSeats]);
+
+  useEffect(() => {
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+    let wsConnected = false;
+    let pollingRef = null;
+
+    const startPolling = () => {
+      if (pollingRef) return;
+      pollingRef = setInterval(fetchAndMergeSeats, 5_000);
     };
-    fetchAndMerge();
-  }, []);
+    const stopPolling = () => {
+      if (pollingRef) { clearInterval(pollingRef); pollingRef = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") {
+      startPolling();
+      return () => stopPolling();
+    }
+
+    try {
+      if (!echoRef.current) {
+        echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
+      }
+      const echo = echoRef.current;
+      const channel = echo.channel("reservations");
+      const events = [
+        "ReservationCreated", "ReservationUpdated", "ReservationDeleted",
+        "ReservationApproved", "ReservationRejected", "ReservationStatusUpdated",
+        "SeatReserved", "TableReserved", "SeatStatusChanged",
+        ".ReservationApproved", ".ReservationUpdated", ".ReservationStatusUpdated",
+      ];
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMergeSeats();
+      }));
+      const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
+      return () => {
+        clearTimeout(fallbackTimer);
+        stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
+      };
+    } catch {
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [fetchAndMergeSeats]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
-  }, []);
-
-  useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
-    const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
-    }
-    const echo = echoRef.current; if (!echo) return;
-    try {
-      const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
-        } catch {}
-      };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
   }, []);
 
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
@@ -818,7 +889,7 @@ export default function Tower2() {
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 3, // Tower 2 Function Room venue id
+        venue_id: 3,
         room: ROOM,
         table_number: String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"
@@ -835,6 +906,8 @@ export default function Tower2() {
       setRefCode(newRefCode);
       setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "T1"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
+
+      // Optimistic UI update — mark seats pending immediately
       if (activeTable) {
         setTableData(prev => {
           if (!prev) return prev;
@@ -849,13 +922,22 @@ export default function Tower2() {
           return updated;
         });
       }
+
+      // ─── CHANGE 6: Await fresh fetch before showing success modal ───
+      await fetchAndMergeSeats();
       setModal("success");
       resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }
     finally { setSubmitting(false); }
   };
 
-  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
+  // ─── CHANGE 5: Re-fetch on back so map is fresh after closing success modal ───
+  const handleBack = () => {
+    setModal(null); setSelectedSeat(null); setSelectedTable(null);
+    setRefCode(null); setFormData(null); setGuests(2);
+    setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
+    fetchAndMergeSeats();
+  };
 
   const isMobile    = windowSize.width < 640;
   const isTablet    = windowSize.width < 1024;

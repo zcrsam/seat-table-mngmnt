@@ -1,18 +1,36 @@
-// src/features/client/pages/TowerWing/Tower1.jsx
+// src/features/client/pages/TowerWing/TowerBallroom1.jsx
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SharedNavbar from "../../../../components/SharedNavbar.jsx";
-import SeatMap, { STATUS_COLORS } from "../../../../components/seatmap/SeatMap.jsx";
+import SeatMap from "../../../../components/seatmap/SeatMap.jsx";
 import Echo from "../../../../utils/websocket.js";
 import twentyTwentyImg from "../../../../assets/20-20.jpeg";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+/**
+ * WING / ROOM must exactly match the values used in:
+ *   1. SeatMap's WingRoomSidebar (Tower Wing → "Tower 1")
+ *   2. SeatMap's getActualWingForRoom mapping
+ *
+ * This guarantees both the admin editor and this client page
+ * read/write the same localStorage key:
+ *   seatmap_layout:Tower Wing:Tower 1
+ */
 const WING = "Tower Wing";
 const ROOM = "Tower 1";
 
-// ─── THEME ─────────────────────────────────────────────────────────────
+// ─── STATUS COLORS ──────────────────────────────────────────────────────────
+export const STATUS_COLORS = {
+  available: "#4A9E7E",
+  pending:   "#C4A35A",
+  reserved:  "#B85C5C",
+};
+
+// ─── THEME ──────────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeContext);
+
 function useThemeMode() {
   const [isDark, setIsDark] = useState(() => {
     try {
@@ -83,57 +101,56 @@ function getTokens(isDark) {
 
 const FONT = "'Inter','Helvetica Neue',Arial,sans-serif";
 
-// Persistence helpers
-function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
+// ─── Persistence helpers ─────────────────────────────────────────────────────
+/**
+ * layoutKey must produce:  seatmap_layout:Tower Wing:Tower 1
+ *
+ * SeatMap's getActualWingForRoom maps "Tower 1" → "Tower Wing", so the
+ * admin editor writes:  localStorage["seatmap_layout:Tower Wing:Tower 1"]
+ * This helper reads the exact same key.
+ */
+function layoutKey(wing, room) {
+  return `seatmap_layout:${wing}:${room}`;
+}
 
-function mergeApiStatusIntoLayout(localLayout, apiData) {
-  if (!apiData?.tables) return localLayout;
-  const updated = { ...localLayout, tables: [...(localLayout?.tables || [])] };
-  apiData.tables.forEach(apiTable => {
-    const idx = updated.tables.findIndex(t => t.id === apiTable.id);
-    if (idx >= 0) {
-      updated.tables[idx] = { ...updated.tables[idx], seats: apiTable.seats || updated.tables[idx].seats };
-    }
-  });
-  return updated;
+// ─── Status normalisation ────────────────────────────────────────────────────
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "pending") return "pending";
+  if (s === "rejected" || s === "cancelled") return "available";
+  return "available";
 }
 
 function loadLayoutForClient(wing, room) {
-  try { const raw = localStorage.getItem(layoutKey(wing, room)); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  try {
+    const raw = localStorage.getItem(layoutKey(wing, room));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
-function saveLayoutForClient(wing, room, layout) {
-  try { localStorage.setItem(layoutKey(wing, room), JSON.stringify(layout)); } catch {}
-}
-
-function loadLayoutForAdmin(wing, room) {
-  try { const raw = localStorage.getItem(`admin_${layoutKey(wing, room)}`); return raw ? JSON.parse(raw) : null; } catch { return null; }
-}
-
-function saveLayoutForAdmin(wing, room, layout) {
-  try { localStorage.setItem(`admin_${layoutKey(wing, room)}`, JSON.stringify(layout)); } catch {}
-}
-
-// API
+// ─── API ─────────────────────────────────────────────────────────────────────
 const apiCall = async (endpoint, options = {}) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
   });
   if (!response.ok) {
     const error = await response.text();
     throw new Error(error || `HTTP ${response.status}`);
   }
-  const data = await response.json();
-  return data;
+  return response.json();
 };
 
-// Helpers
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
-    const seatIds = tableData.seats.slice(0, guests).map(s => s.num || s.id).join(", ");
-    return `Seat ${seatIds}`;
+    const bookable = tableData.seats
+      .filter(s => s.status === "available")
+      .slice(0, guests)
+      .map(s => s.num ?? s.id);
+    if (bookable.length > 0) return `Seat ${bookable.join(", ")}`;
   }
   return `Seat ${Array.from({ length: guests }, (_, i) => i + 1).join(", ")}`;
 };
@@ -141,19 +158,16 @@ const getWholeSeatLabel = (guests, tableData = null) => {
 const getSeatRatio = (table) => {
   if (!table?.seats?.length) return null;
   const available = table.seats.filter(s => s.status === "available").length;
-  const total = table.seats.length;
-  return `${available}/${total}`;
+  return `${available}/${table.seats.length}`;
 };
 
-// Shared Primitives
+// ─── Shared Primitives ───────────────────────────────────────────────────────
 function Spinner({ size = 13, C }) {
   return (
     <span style={{
-      display: "inline-block",
-      width: size, height: size,
-      border: `${Math.ceil(size/3)}px solid ${C.spinnerBorder}`,
-      borderTopColor: C.spinnerTop,
-      borderRadius: "50%",
+      display: "inline-block", width: size, height: size,
+      border: `${Math.ceil(size / 3)}px solid ${C.spinnerBorder}`,
+      borderTopColor: C.spinnerTop, borderRadius: "50%",
       animation: "spin 0.6s linear infinite",
     }} />
   );
@@ -172,12 +186,7 @@ function SectionLabel({ children, C, style = {} }) {
 function CloseBtn({ onClick, disabled = false, C }) {
   return (
     <button onClick={onClick} disabled={disabled} title="Close"
-      style={{
-        width: 32, height: 32, borderRadius: "50%", background: "transparent",
-        border: "1px solid rgba(255,255,255,0.10)", cursor: disabled ? "not-allowed" : "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0, transition: "border-color 0.18s, background 0.18s", padding: 0, zIndex: 10,
-      }}
+      style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "1px solid rgba(255,255,255,0.10)", cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "border-color 0.18s, background 0.18s", padding: 0, zIndex: 10 }}
       onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; } }}
       onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.background = "transparent"; } }}
     >
@@ -239,7 +248,7 @@ function GhostBtn({ children, onClick, disabled = false, C, style = {} }) {
   );
 }
 
-// Step Indicator
+// ─── Step Indicator ──────────────────────────────────────────────────────────
 function StepIndicator({ step, C }) {
   const steps = ["Guest Count", "Details", "Confirm"];
   return (
@@ -267,7 +276,7 @@ function StepIndicator({ step, C }) {
   );
 }
 
-// Field Input
+// ─── Field Input ─────────────────────────────────────────────────────────────
 function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, rows }) {
   const [focused, setFocused] = useState(false);
   const isTextarea = type === "textarea";
@@ -285,11 +294,27 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
   );
 }
 
-// MODAL 1: Guest Count
-function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, isDark }) {
+// ─── Status Legend ───────────────────────────────────────────────────────────
+function LocalStatusLegend({ C }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {Object.entries(STATUS_COLORS).map(([key, color]) => (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
+          <span style={{ fontFamily: FONT, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
+            {key === "reserved" ? "Approved / Reserved" : key.charAt(0).toUpperCase() + key.slice(1)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Modal: Guest Count ───────────────────────────────────────────────────────
+function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, onCancel, C, isDark }) {
   const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
   const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
-  const capacity = bookableSeats.length || tableData?.capacity || 8;
+  const capacity = isStandalone ? 1 : (bookableSeats.length || tableData?.capacity || 8);
 
   const [guests,   setGuests]   = useState(() => Math.min(2, capacity));
   const [inputVal, setInputVal] = useState(String(Math.min(2, capacity)));
@@ -322,28 +347,54 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
 
   const dec = () => { const n = Math.max(1, guests - 1); setGuests(n); setInputVal(String(n)); };
   const inc = () => { if (guests >= capacity) return; const n = guests + 1; setGuests(n); setInputVal(String(n)); };
-
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
 
+  if (isStandalone) {
+    return (
+      <ModalShell onClose={onCancel} C={C}>
+        <ModalHeader eyebrow="Seat Reservation" title="Reserve This Seat" onClose={onCancel} C={C} meta={<StepIndicator step={1} C={C} />} />
+        <div style={{ padding: "22px 24px 26px" }}>
+          <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
+            {[
+              ["Room",         ROOM],
+              ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`],
+              ["Availability", seatData?.status === "available" ? "Available" : "Unavailable"],
+            ].map(([key, val], i, arr) => (
+              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
+                <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
+                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{val}</span>
+              </div>
+            ))}
+          </div>
+          <PrimaryBtn onClick={() => onContinue(1)} C={C}>Continue</PrimaryBtn>
+          <GhostBtn onClick={onCancel} C={C}>Cancel</GhostBtn>
+        </div>
+      </ModalShell>
+    );
+  }
+
   const infoRows = [
-    ["Room",         "Tower 1",                                                            null],
-    ["Table",        `Table ${tableData?.id ?? "T1"}`,                                null],
-    ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "1"}`,                 null],
-    ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
-                     seatData?.status === "available" ? C.green : C.gold],
+    ["Room",         ROOM],
+    ...(tableData ? [["Table", `Table ${tableData?.id ?? "T1"}`]] : []),
+    ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "1"}`],
+    ["Availability", seatData?.status === "available" ? "Available" : "Unavailable"],
   ];
 
   return (
     <ModalShell onClose={onCancel} C={C}>
-      <ModalHeader eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"} title={mode === "individual" ? "Reserve This Seat" : "Reserve This Table"} onClose={onCancel} C={C} meta={<StepIndicator step={1} C={C} />} />
+      <ModalHeader
+        eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        title={mode === "individual" ? "Reserve This Seat" : "Reserve This Table"}
+        onClose={onCancel} C={C} meta={<StepIndicator step={1} C={C} />}
+      />
       <div style={{ padding: "22px 24px 26px" }}>
         {mode === "individual" && (
           <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
-            {infoRows.map(([key, val, color], i) => (
+            {infoRows.map(([key, val], i) => (
               <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < infoRows.length - 1 ? `1px solid ${C.divider}` : "none" }}>
                 <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
-                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: color || C.textPrimary }}>{val}</span>
+                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{val}</span>
               </div>
             ))}
           </div>
@@ -375,7 +426,7 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
               </div>
               {atMax && (
                 <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, fontFamily: FONT, fontSize: 11.5, color: C.gold, lineHeight: 1.5 }}>
-                  Maximum reached - only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available on this table.
+                  Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available on this table.
                 </div>
               )}
             </div>
@@ -393,8 +444,8 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
   );
 }
 
-// MODAL 2: Details
-function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
+// ─── Modal: Details ───────────────────────────────────────────────────────────
+function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
     firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
@@ -425,11 +476,23 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
     form.email.trim() !== "" && form.phone.trim() !== "" && form.phone !== "+63" &&
     form.eventDate.trim() !== "";
 
-  const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "Seat 1";
+  const seatDisplay = mode === "whole"
+    ? getWholeSeatLabel(guests, tableData)
+    : seatData ? `Seat ${seatData.num ?? seatData.id}` : "Seat 1";
+
+  const summaryColumns = [
+    ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "T1"}`]]),
+    ["Seat", seatDisplay],
+    ["Guests", String(guests)],
+    ["Room", ROOM],
+  ];
 
   return (
     <ModalShell onClose={onCancel} C={C}>
-      <ModalHeader eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
+      <ModalHeader
+        eyebrow={isStandalone ? "Standalone Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />}
+      />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
@@ -439,7 +502,7 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
-          {[["Room", ROOM.split(" ").slice(0, 2).join(" ")], ["Table", `Table ${tableData?.id ?? "T1"}`], ["Seat", seatDisplay], ["Guests", String(guests)]].map(([label, value], i, arr) => (
+          {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
               <div style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
               <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
@@ -452,7 +515,7 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
           <Field label="Last Name"  value={form.lastName}  onChange={set("lastName")}  C={C} isDark={isDark} required />
         </div>
         <Field label="Email Address" value={form.email} onChange={set("email")} type="email" C={C} isDark={isDark} required />
-        <Field label="Phone Number"  value={form.phone} onChange={set("phone")} type="tel" C={C} isDark={isDark} required placeholder="+63XXXXXXXXXX" />
+        <Field label="Phone Number"  value={form.phone} onChange={set("phone")} type="tel"   C={C} isDark={isDark} required placeholder="+63XXXXXXXXXX" />
         <SectionLabel C={C} style={{ marginTop: 4 }}>Event Details</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="Event Date" value={form.eventDate} onChange={set("eventDate")} type="date" min={today} C={C} isDark={isDark} required />
@@ -469,16 +532,19 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
   );
 }
 
-// MODAL 3: Review
-function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
+// ─── Modal: Review ────────────────────────────────────────────────────────────
+function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "1"}`;
 
   const reservationRows = [
-    ["Venue", "The Bellevue Manila"], ["Room", `${WING} - ${ROOM}`],
-    ["Table", `Table ${tableData?.id ?? "T1"}`], ["Seat(s)", seatDisplay],
+    ["Venue", "The Bellevue Manila"],
+    ["Room",  `${WING} — ${ROOM}`],
+    ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "T1"}`]]),
+    ["Seat(s)", seatDisplay],
     ["Guests", `${guests} guest${guests !== 1 ? "s" : ""}`],
-    ["Event Date", form.eventDate || "TBD"], ["Event Time", form.eventTime ? fmt(form.eventTime) : "TBD"],
+    ["Event Date", form.eventDate || "TBD"],
+    ["Event Time", form.eventTime ? fmt(form.eventTime) : "TBD"],
   ];
   const guestRows = [
     ["Full Name", `${form.firstName} ${form.lastName}`], ["Email", form.email],
@@ -494,7 +560,10 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
 
   return (
     <ModalShell onClose={onEdit} disabled={submitting} C={C}>
-      <ModalHeader eyebrow={isRebook ? "Rebook / Move Seat" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />} />
+      <ModalHeader
+        eyebrow={isRebook ? "Rebook / Move Seat" : isStandalone ? "Standalone Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />}
+      />
       <div style={{ padding: "20px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         {isRebook && rebookFrom && (
           <div style={{ padding: "11px 14px", borderRadius: 8, marginBottom: 18, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, fontSize: 12, color: C.gold, lineHeight: 1.65 }}>
@@ -528,7 +597,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
   );
 }
 
-// QR Code
+// ─── QR Code ─────────────────────────────────────────────────────────────────
 function QRCodeWithRef({ value, size = 120, imgRef }) {
   const [imgSrc, setImgSrc] = useState(null);
   useEffect(() => {
@@ -566,13 +635,13 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
 const buildQrValue = ({ refCode }) => {
   const base = (import.meta.env.VITE_APP_URL || window.location.origin).replace(/\/$/, "");
   const url = base.startsWith("http") ? base : `https://${base}`;
-  return `${url}/twenty-twenty-a/${String(refCode || "").trim()}`;
+  return `${url}/tower-1/${String(refCode || "").trim()}`;
 };
 
-// MODAL: Success
+// ─── Modal: Success ───────────────────────────────────────────────────────────
 function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails, C, isDark }) {
   const qrImgRef = useRef(null);
-  const [saving, setSaving]   = useState(false);
+  const [saving,  setSaving]  = useState(false);
   const [qrReady, setQrReady] = useState(false);
   const qrValue = buildQrValue({ refCode: refCode || "" });
   const fmtDate = d => { if (!d) return "TBD"; try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }); } catch { return d; } };
@@ -600,7 +669,7 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
       ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(28, divY); ctx.lineTo(W - 28, divY); ctx.stroke();
       ctx.fillStyle = "#8A8278"; ctx.font = "600 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("REFERENCE CODE", W / 2, divY + 20);
       ctx.fillStyle = "#EDE8DF"; ctx.font = "bold 26px sans-serif"; ctx.fillText(refCode || "TBD", W / 2, divY + 52);
-      const link = document.createElement("a"); link.download = `bellevue-twenty20-a-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
+      const link = document.createElement("a"); link.download = `bellevue-tower-1-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
     } catch { alert("Could not save photo. Please try again."); }
     finally { setSaving(false); }
   }, [refCode, saving, qrReady]);
@@ -623,7 +692,13 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
         </div>
         <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
           <div style={{ flex: 1 }}>
-            {[{ label: "Table", value: bookingDetails?.table || "T1" }, { label: "Date", value: fmtDate(bookingDetails?.date) }, { label: "Guests", value: String(guests) }, { label: "Status", value: "Pending Review", gold: true }].map(({ label, value, gold }, i, arr) => (
+            {[
+              { label: "Wing",   value: WING },
+              { label: "Room",   value: ROOM },
+              { label: "Date",   value: fmtDate(bookingDetails?.date) },
+              { label: "Guests", value: String(guests) },
+              { label: "Status", value: "Pending Review", gold: true },
+            ].map(({ label, value, gold }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
                 <span style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", color: C.textTertiary, textTransform: "uppercase" }}>{label}</span>
                 <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: gold ? C.gold : C.textPrimary }}>{value}</span>
@@ -646,7 +721,9 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
             onMouseEnter={e => { if (!saving && qrReady) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
             onMouseLeave={e => { if (!saving && qrReady) { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.color = C.textSecondary; } }}
           >
-            {saving ? <><Spinner C={C} />Saving</> : !qrReady ? "Loading" : (<><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>Save Pass</>)}
+            {saving ? <><Spinner C={C} />Saving</> : !qrReady ? "Loading" : (
+              <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>Save Pass</>
+            )}
           </button>
           <button onClick={onBack}
             style={{ flex: 1, padding: "12px", border: "none", borderRadius: 8, background: C.gold, color: C.textOnAccent, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", transition: "background 0.18s" }}
@@ -659,10 +736,14 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
   );
 }
 
-// Mobile Bottom Sheet
-function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "T1");
-  const displaySeat  = mode === "individual"
+// ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
+function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark, isStandalone }) {
+  const displayTable = isStandalone
+    ? "Standalone"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
+      : (activeTable ? `Table ${activeTable.id}` : "T1");
+  const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
   const canGo = mode === "whole" ? true : canProceed;
@@ -676,9 +757,9 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+            <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{isStandalone ? "Type" : "Table"}</div>
             <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && <div style={{ fontFamily: FONT, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
+            {seatRatio && !isStandalone && <div style={{ fontFamily: FONT, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
           </div>
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
             <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
@@ -704,11 +785,11 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
   );
 }
 
-export default function Tower1() {
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+export default function TowerBallroom1() {
   const { isDark, toggle: toggleTheme } = useThemeMode();
   const C = getTokens(isDark);
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [mode,               setMode]               = useState("whole");
   const [selectedSeat,       setSelectedSeat]       = useState(null);
@@ -721,11 +802,14 @@ export default function Tower1() {
   const [submitting,         setSubmitting]         = useState(false);
   const [rebookFrom,         setRebookFrom]         = useState(null);
   const [lastBookingDetails, setLastBookingDetails] = useState(null);
-  const [tableData,          setTableData]          = useState(() => loadLayoutForClient(WING, ROOM));
+
+  // ── tableData: seeded from localStorage key seatmap_layout:Tower Wing:Tower 1 ──
+  const [tableData, setTableData] = useState(() => loadLayoutForClient(WING, ROOM));
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
-  const echoRef = useRef(null);
+  const echoRef        = useRef(null);
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -741,70 +825,182 @@ export default function Tower1() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
+  // ── Listen for admin editor saves (same-tab & cross-tab) ──────────────────
   useEffect(() => {
+    const KEY = layoutKey(WING, ROOM);
+
+    // cross-tab: StorageEvent fires when another tab writes localStorage
     const onStorage = e => {
-      if (e.key !== layoutKey(WING, ROOM)) return;
-      try { const parsed = e.newValue ? JSON.parse(e.newValue) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
+      if (e.key !== KEY) return;
+      try {
+        const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+        if (parsed) setTableData(parsed);
+      } catch {}
     };
+
+    // same-tab: SeatMap dispatches a CustomEvent after every auto-save
     const onSeatMapSaved = e => {
       if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
-      try { const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null; if (parsed?.v === 2) setTableData(parsed); } catch {}
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("seatmap:saved", onSeatMapSaved);
-    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap:saved", onSeatMapSaved); };
-  }, []);
-
-  useEffect(() => {
-    const localLayout = loadLayoutForClient(WING, ROOM);
-    if (localLayout) setTableData(localLayout);
-    const fetchAndMerge = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.error("[TwentyTwentyReserveA] Failed to fetch seat status:", err); }
+        const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
+        if (parsed) setTableData(parsed);
+      } catch {}
     };
-    fetchAndMerge();
+
+    window.addEventListener("storage",       onStorage);
+    window.addEventListener("seatmap:saved", onSeatMapSaved);
+    return () => {
+      window.removeEventListener("storage",       onStorage);
+      window.removeEventListener("seatmap:saved", onSeatMapSaved);
+    };
   }, []);
 
+  // ─── fetchAndMerge: reads /reservations and overlays statuses ────────────
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const apiUrl = `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=3`;
+      const res = await fetch(apiUrl, { headers: { Accept: "application/json" } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const reservations = Array.isArray(data) ? data : (data.data || []);
+
+      const seatStatusMap = {};
+      reservations.forEach(r => {
+        const rawStatus = normaliseApiStatus(r.status);
+        const tableKey  = String(r.table_number ?? "").trim();
+        const seatNums  = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+        const seatId    = r.seat_id ? String(r.seat_id).trim() : null;
+        const isStandaloneRow =
+          tableKey === "" || tableKey === "STANDALONE" ||
+          r.type === "standalone" || r.is_standalone;
+
+        seatNums.forEach(seatNum => {
+          if (tableKey && !isStandaloneRow) seatStatusMap[`${tableKey}|${seatNum}`] = rawStatus;
+          seatStatusMap[seatNum] = rawStatus;
+          if (isStandaloneRow) seatStatusMap[`STANDALONE|${seatNum}`] = rawStatus;
+        });
+        if (seatId) seatStatusMap[`ID|${seatId}`] = rawStatus;
+      });
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        if (!base) return prev;
+
+        const resolveTableSeat = (t, s) => {
+          const tid = String(t.id ?? t.label ?? "").trim();
+          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
+          const dbId = s.db_id ? String(s.db_id).trim() : null;
+          return (
+            seatStatusMap[`${tid}|${snum}`] ??
+            seatStatusMap[snum] ??
+            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
+            s.status
+          );
+        };
+
+        const resolveStandaloneSeat = s => {
+          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
+          const dbId = s.db_id ? String(s.db_id).trim() : null;
+          return (
+            seatStatusMap[`STANDALONE|${snum}`] ??
+            seatStatusMap[snum] ??
+            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
+            s.status
+          );
+        };
+
+        const merged = {
+          ...base,
+          tables:          (base.tables          || []).map(t => ({ ...t, seats: (t.seats || []).map(s => ({ ...s, status: resolveTableSeat(t, s) })) })),
+          standaloneSeats: (base.standaloneSeats  || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })),
+          ...(base.seats ? { seats: (base.seats || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })) } : {}),
+        };
+
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.error("[TowerBallroom1] fetchAndMerge error:", err);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    const local = loadLayoutForClient(WING, ROOM);
+    if (local) setTableData(local);
+    fetchAndMerge();
+  }, [fetchAndMerge]);
+
+  // Window resize
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // ─── WebSocket + polling fallback ─────────────────────────────────────────
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
-    }
-    const echo = echoRef.current; if (!echo) return;
+    let wsConnected = false;
+
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(fetchAndMerge, 5_000);
+    };
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") { startPolling(); return () => stopPolling(); }
+
+    try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); }
+    catch { startPolling(); return () => stopPolling(); }
+
+    const echo = echoRef.current;
     try {
-      const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
-        } catch {}
+      const channel = echo.channel("reservations");
+      const events  = [
+        "ReservationCreated","ReservationUpdated","ReservationDeleted",
+        "ReservationApproved","ReservationRejected","ReservationStatusUpdated",
+        "SeatReserved","TableReserved","SeatStatusChanged",
+        "reservation.approved","reservation.updated","reservation.status.updated",
+      ];
+      events.forEach(ev => channel.listen(ev, () => { wsConnected = true; stopPolling(); fetchAndMerge(); }));
+      const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
+      return () => {
+        clearTimeout(fallbackTimer); stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
-  }, []);
+    } catch { startPolling(); return () => stopPolling(); }
+  }, [fetchAndMerge]);
 
-  const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
-  const getActiveTable      = () => selectedTable || getTables()[0] || null;
+  useEffect(() => () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } }, []);
 
+  // ─── Derived helpers ──────────────────────────────────────────────────────
+  const getTables          = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
+  const getStandaloneSeats = () => tableData?.standaloneSeats || tableData?.seats || [];
+
+  const isSeatStandalone = useCallback(seat => {
+    if (!seat) return false;
+    const inTable = getTables().some(t => (t.seats || []).some(s => s.id === seat.id));
+    if (inTable) return false;
+    return getStandaloneSeats().some(s => s.id === seat.id);
+  }, [tableData]);
+
+  const resolveTableForSeat = seat => {
+    if (!seat) return null;
+    return getTables().find(t => t.seats?.some(s => s.id === seat.id)) || null;
+  };
+  const getActiveTable = () => selectedTable || getTables()[0] || null;
+
+  // ─── Event handlers ───────────────────────────────────────────────────────
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
-    setSelectedSeat(seat); setSelectedTable(resolveTableForSeat(seat));
+    setSelectedSeat(seat);
+    const parentTable = resolveTableForSeat(seat);
+    setSelectedTable(parentTable);
   };
   const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
@@ -814,63 +1010,123 @@ export default function Tower1() {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      const activeTable = getActiveTable();
-      const payload = {
-        name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email, phone: formData.phone,
-        venue_id: 3, // Tower 1 Function Room venue id
-        room: ROOM,
-        table_number: String(activeTable?.id ?? "T1"),
-        seat_number: mode === "individual"
+      const seatIsStandalone = isSeatStandalone(selectedSeat);
+      const activeTable      = seatIsStandalone ? null : getActiveTable();
+
+      const seatNum = seatIsStandalone
+        ? String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "")
+        : mode === "individual"
           ? String(selectedSeat?.num ?? selectedSeat?.id ?? "1")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count: mode === "individual" ? 1 : guests,
-        event_date: formData.eventDate,
-        event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
+          : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+
+      const payload = {
+        name:             `${formData.firstName} ${formData.lastName}`,
+        email:            formData.email,
+        phone:            formData.phone,
+        venue_id:         3,
+        wing:             WING,
+        room:             ROOM,
+        table_number:     seatIsStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
+        seat_number:      seatNum,
+        guests_count:     seatIsStandalone ? 1 : (mode === "individual" ? 1 : guests),
+        event_date:       formData.eventDate,
+        event_time:       formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
-        type: mode,
+        type:             seatIsStandalone ? "standalone" : mode,
+        is_standalone:    seatIsStandalone ? 1 : 0,
+        seat_id:          seatIsStandalone ? (selectedSeat?.id ?? null) : null,
       };
-      const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
+
+      const response   = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "TBD";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "T1"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
-      if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
-      if (activeTable) {
-        setTableData(prev => {
-          if (!prev) return prev;
+      setLastBookingDetails({
+        room:  ROOM,
+        table: seatIsStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "T1"}`,
+        date:  formData.eventDate,
+        name:  `${formData.firstName} ${formData.lastName}`,
+      });
+
+      if (rebookFrom) {
+        try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {}
+      }
+
+      // Optimistic update
+      setTableData(prev => {
+        if (!prev) return prev;
+
+        if (seatIsStandalone && selectedSeat) {
+          const updated = {
+            ...prev,
+            standaloneSeats: (prev.standaloneSeats || []).map(s => s.id === selectedSeat.id ? { ...s, status: "pending" } : s),
+            ...(prev.seats ? { seats: (prev.seats || []).map(s => s.id === selectedSeat.id ? { ...s, status: "pending" } : s) } : {}),
+          };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
+
+        if (activeTable) {
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
-            if (mode === "individual") return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+            if (mode === "individual") {
+              return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+            }
             let marked = 0;
-            return { ...t, seats: t.seats.map(s => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
+            return { ...t, seats: t.seats.map(s => (marked < guests && s.status === "available") ? (marked++, { ...s, status: "pending" }) : s) };
           });
           const updated = { ...prev, tables };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
-        });
-      }
+        }
+
+        return prev;
+      });
+
+      await fetchAndMerge();
       setModal("success");
       resetHoldTimer();
-    } catch (err) { alert(`Error: ${err.message}`); }
-    finally { setSubmitting(false); }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
+  const handleBack = () => {
+    setModal(null); setSelectedSeat(null); setSelectedTable(null);
+    setRefCode(null); setFormData(null); setGuests(2);
+    setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
+    fetchAndMerge();
+  };
 
-  const isMobile    = windowSize.width < 640;
-  const isTablet    = windowSize.width < 1024;
-  const activeTable = getActiveTable();
-  const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
-  const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
+  // ─── Layout calculations ──────────────────────────────────────────────────
+  const isMobile  = windowSize.width < 640;
+  const isTablet  = windowSize.width < 1024;
+  const activeTable      = getActiveTable();
+  const seatIsStandalone = isSeatStandalone(selectedSeat);
+  const canProceed       = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
+  const seatRatio        = activeTable ? getSeatRatio(activeTable) : null;
 
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "T1") : (selectedTable ? `Table ${selectedTable.id}` : "T1");
-  const displaySeat  = mode === "individual" ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") : getWholeSeatLabel(guests, activeTable);
+  const displayTable = seatIsStandalone
+    ? "Standalone"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "T1")
+      : (selectedTable ? `Table ${selectedTable.id}` : "T1");
 
-  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
-  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
+  const displaySeat = mode === "individual"
+    ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
+    : getWholeSeatLabel(guests, activeTable);
+
+  const rebookPrefill  = rebookFrom
+    ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" }
+    : null;
+  const detailsPrefill = formData
+    ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" }
+    : rebookPrefill;
+  const modalTableData = seatIsStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
 
   const BOTTOM_SHEET_H = 180;
-  const NAV_H = 64;
+  const NAV_H          = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
 
   return (
@@ -897,7 +1153,7 @@ export default function Tower1() {
 
         <SharedNavbar isDark={isDark} toggle={toggleTheme} showNavigation={false} />
 
-        {/* MOBILE LAYOUT */}
+        {/* ── MOBILE ── */}
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px", background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderAccent}` }}>
@@ -906,8 +1162,8 @@ export default function Tower1() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
-                <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tower 1</div>
+                <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation · {WING}</div>
+                <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ROOM}</div>
               </div>
             </div>
 
@@ -922,7 +1178,6 @@ export default function Tower1() {
 
             {rebookFrom && (
               <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 14 }}>?</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Rebooking Mode</div>
                   <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Prev: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong></div>
@@ -936,28 +1191,36 @@ export default function Tower1() {
                 <>
                   <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch", position: "relative" }}>
                     <div style={{ minWidth: 700, minHeight: Math.max(mobileMapHeight, 520), position: "relative" }}>
-                      <SeatMap tableData={tableData} editMode={false} selectedSeat={selectedSeat} onSeatClick={handleSeatClick} onTableClick={handleTableClick} windowWidth={700} wing={WING} room={ROOM} mode={mode} />
+                      <SeatMap
+                        tableData={tableData}
+                        editMode={false}
+                        selectedSeat={selectedSeat}
+                        onSeatClick={handleSeatClick}
+                        onTableClick={handleTableClick}
+                        windowWidth={700}
+                        wing={WING}
+                        room={ROOM}
+                        mode={mode}
+                        isDark={isDark}
+                      />
                     </div>
                   </div>
                   <div style={{ position: "absolute", bottom: 10, right: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "5px 12px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 3, display: "flex", alignItems: "center", gap: 5, pointerEvents: "none" }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
                     <span style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Scroll to explore</span>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </div>
                   <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3, pointerEvents: "none" }}>
                     {Object.entries(STATUS_COLORS).map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-                        <span style={{ fontFamily: FONT, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>{key}</span>
+                        <span style={{ fontFamily: FONT, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>
+                          {key === "reserved" ? "Approved" : key}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
                 <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 32 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
-                  </div>
                   <div style={{ fontFamily: FONT, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
                     No seat layout published for this room.<br />
                     <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span>
@@ -966,11 +1229,16 @@ export default function Tower1() {
               )}
             </div>
 
-            <MobileBottomSheet mode={mode} selectedSeat={selectedSeat} activeTable={activeTable} guests={guests} seatRatio={seatRatio} canProceed={canProceed} rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")} C={C} isDark={isDark} />
+            <MobileBottomSheet
+              mode={mode} selectedSeat={selectedSeat} activeTable={activeTable}
+              guests={guests} seatRatio={seatRatio} canProceed={canProceed}
+              rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")}
+              C={C} isDark={isDark} isStandalone={seatIsStandalone}
+            />
           </div>
 
         ) : (
-        /* TABLET / DESKTOP LAYOUT */
+          /* ── TABLET / DESKTOP ── */
           <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto", padding: isTablet ? "28px 24px" : "36px 48px" }}>
 
@@ -988,23 +1256,22 @@ export default function Tower1() {
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
                 {rebookFrom && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
-                    <span style={{ fontSize: 14 }}>?</span>
                     <div>
                       <div style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, marginBottom: 2 }}>Rebooking Mode</div>
-                      <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> - select your new {mode === "individual" ? "seat" : "table"}</div>
+                      <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> — select your new {mode === "individual" ? "seat" : "table"}</div>
                     </div>
                     <button onClick={() => setRebookFrom(null)} style={{ marginLeft: 8, background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 10px", fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
                   </div>
                 )}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
-                  <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</span>
+                  <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation · {WING}</span>
                 </div>
                 <h1 style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: isTablet ? 34 : 42, fontWeight: 600, color: C.textPrimary, lineHeight: 1.1, margin: "0 0 10px", letterSpacing: "0.01em" }}>
-                  Tower Ballroom 1
+                  {ROOM}
                 </h1>
                 <p style={{ fontFamily: FONT, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
-                  Book your preferred table in Tower 1 Ballroom. Select your reservation type and click on the map to get started.
+                  Book your preferred table or seat in {ROOM}. Select your reservation type and click on the map to get started.
                 </p>
               </div>
 
@@ -1022,19 +1289,26 @@ export default function Tower1() {
 
               <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexDirection: isTablet ? "column" : "row", animation: "fadeUp 0.36s ease" }}>
 
+                {/* Map panel */}
                 <div style={{ flex: "1 1 0", width: isTablet ? "100%" : undefined, minWidth: 0, minHeight: 520, background: C.surfaceBase, borderRadius: 14, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 8px 40px rgba(0,0,0,0.40)" : "0 4px 24px rgba(0,0,0,0.08)", position: "relative", display: "flex", flexDirection: "column" }}>
                   <div style={{ height: "2px", flexShrink: 0, background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 30%, ${C.gold}60 70%, transparent 100%)` }} />
                   {tableData ? (
                     <>
                       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-                        <SeatMap tableData={tableData} editMode={false} selectedSeat={selectedSeat} onSeatClick={handleSeatClick} onTableClick={handleTableClick} windowWidth={windowSize.width} wing={WING} room={ROOM} mode={mode} />
+                        <SeatMap
+                          tableData={tableData}
+                          editMode={false}
+                          selectedSeat={selectedSeat}
+                          onSeatClick={handleSeatClick}
+                          onTableClick={handleTableClick}
+                          windowWidth={windowSize.width}
+                          wing={WING}
+                          room={ROOM}
+                          mode={mode}
+                          isDark={isDark}
+                        />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
-                        {mode === "whole" ? (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 15h6" /></svg>
-                        ) : (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></svg>
-                        )}
                         <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>
                           {mode === "whole" ? "Click a table to reserve" : "Click a seat to select"}
                         </span>
@@ -1042,9 +1316,6 @@ export default function Tower1() {
                     </>
                   ) : (
                     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 48 }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 12, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
-                      </div>
                       <div style={{ fontFamily: FONT, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
                         No seat layout has been published for this room yet.<br />
                         <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later or contact the venue.</span>
@@ -1053,20 +1324,15 @@ export default function Tower1() {
                   )}
                 </div>
 
+                {/* Sidebar */}
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
+
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {Object.entries(STATUS_COLORS).map(([key, color]) => (
-                            <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
-                              <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
-                              <span style={{ fontFamily: FONT, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                            </div>
-                          ))}
-                        </div>
+                        <LocalStatusLegend C={C} />
                       </div>
                     </div>
 
@@ -1075,9 +1341,10 @@ export default function Tower1() {
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
                         {[
-                          ["Table", displayTable, false, seatRatio],
+                          [seatIsStandalone ? "Type" : "Table", displayTable, false, (!seatIsStandalone && seatRatio) ? seatRatio : null],
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
-                          ["Room", ROOM, false, null],
+                          ["Room",  ROOM, false, null],
+                          ["Wing",  WING, false, null],
                         ].map(([label, value, isGold, badge]) => (
                           <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.divider}` }}>
                             <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{label}</span>
@@ -1110,17 +1377,62 @@ export default function Tower1() {
         )}
       </div>
 
+      {/* Modals */}
       {modal === "guestCount" && (
-        <ModalGuestCount seatData={mode === "individual" ? selectedSeat : null} tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable} mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark} />
+        <ModalGuestCount
+          seatData={mode === "individual" ? selectedSeat : null}
+          tableData={modalTableData}
+          mode={mode}
+          isStandalone={seatIsStandalone}
+          onContinue={handleGuestContinue}
+          onCancel={() => setModal(null)}
+          C={C}
+          isDark={isDark}
+        />
       )}
       {modal === "details" && (
-        <ModalDetails tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests} onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }} prefill={detailsPrefill} C={C} isDark={isDark} secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }} />
+        <ModalDetails
+          tableData={modalTableData}
+          seatData={selectedSeat}
+          mode={mode}
+          guests={guests}
+          isStandalone={seatIsStandalone}
+          onReview={handleReview}
+          onCancel={() => { setModal(null); resetHoldTimer(); }}
+          prefill={detailsPrefill}
+          C={C}
+          isDark={isDark}
+          secondsLeft={holdSecondsLeft}
+          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+        />
       )}
       {modal === "review" && formData && (
-        <ModalReview form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat} onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C} />
+        <ModalReview
+          form={formData}
+          guests={guests}
+          mode={mode}
+          tableData={modalTableData}
+          seatData={selectedSeat}
+          isStandalone={seatIsStandalone}
+          onSubmit={handleSubmit}
+          onEdit={handleEditDetails}
+          submitting={submitting}
+          isRebook={!!rebookFrom}
+          rebookFrom={rebookFrom}
+          C={C}
+        />
       )}
       {modal === "success" && (
-        <ModalSuccess refCode={refCode} onBack={handleBack} mode={mode} guests={guests} isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark} />
+        <ModalSuccess
+          refCode={refCode}
+          onBack={handleBack}
+          mode={mode}
+          guests={guests}
+          isRebook={!!rebookFrom}
+          bookingDetails={lastBookingDetails}
+          C={C}
+          isDark={isDark}
+        />
       )}
     </ThemeContext.Provider>
   );

@@ -83,35 +83,65 @@ function getTokens(isDark) {
 
 const FONT = "'Inter','Helvetica Neue',Arial,sans-serif";
 
-// Persistence helpers
+// ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
+  return "available";
+}
+
 function mergeApiStatusIntoLayout(localLayout, apiData) {
-  if (!apiData?.tables) return localLayout;
-  const updated = { ...localLayout, tables: [...(localLayout?.tables || [])] };
-  apiData.tables.forEach(apiTable => {
-    const idx = updated.tables.findIndex(t => t.id === apiTable.id);
-    if (idx >= 0) {
-      updated.tables[idx] = { ...updated.tables[idx], seats: apiTable.seats || updated.tables[idx].seats };
+  if (!localLayout || !apiData) return localLayout;
+  const apiStatusMap = {};
+  const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
+  apiTables.forEach(t => {
+    if (Array.isArray(t?.seats)) {
+      (t.seats || []).forEach(s => {
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
+      });
+      return;
+    }
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+    if (tableKey || seatKey) {
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
     }
   });
-  return updated;
+
+  const mergedTables = (localLayout.tables || []).map(t => ({
+    ...t,
+    seats: (t.seats || []).map(s => {
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+      if (apiStatus !== undefined) return { ...s, status: apiStatus };
+      return s;
+    }),
+  }));
+
+  // ── FIX: also merge standalone seats (mirrors AlabangReserve) ──────────────
+  const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
+    const apiStatus =
+      apiStatusMap[s.id] ??
+      apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+    if (apiStatus !== undefined) return { ...s, status: apiStatus };
+    return s;
+  });
+
+  return { ...localLayout, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
 }
 
 function loadLayoutForClient(wing, room) {
-  try { const raw = localStorage.getItem(layoutKey(wing, room)); return raw ? JSON.parse(raw) : null; } catch { return null; }
-}
-
-function saveLayoutForClient(wing, room, layout) {
-  try { localStorage.setItem(layoutKey(wing, room), JSON.stringify(layout)); } catch {}
-}
-
-function loadLayoutForAdmin(wing, room) {
-  try { const raw = localStorage.getItem(`admin_${layoutKey(wing, room)}`); return raw ? JSON.parse(raw) : null; } catch { return null; }
-}
-
-function saveLayoutForAdmin(wing, room, layout) {
-  try { localStorage.setItem(`admin_${layoutKey(wing, room)}`, JSON.stringify(layout)); } catch {}
+  try {
+    const raw = localStorage.getItem(layoutKey(wing, room));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
 // API
@@ -285,8 +315,10 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
   );
 }
 
-// MODAL 1: Guest Count
-function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, isDark }) {
+// ─── MODAL 1: Guest Count ─────────────────────────────────────────────────────
+// FIX: Added isStandalone prop — when true, shows standalone info without
+//      table rows and always calls onContinue(1) (single guest).
+function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, onCancel, C, isDark }) {
   const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
   const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
   const capacity = bookableSeats.length || tableData?.capacity || 8;
@@ -325,6 +357,32 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
 
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
+
+  // ── Standalone: simple info card, no table row ────────────────────────────
+  if (isStandalone) {
+    return (
+      <ModalShell onClose={onCancel} C={C}>
+        <ModalHeader eyebrow="Seat Reservation" title="Reserve This Seat" onClose={onCancel} C={C} meta={<StepIndicator step={1} C={C} />} />
+        <div style={{ padding: "22px 24px 26px" }}>
+          <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
+            {[
+              ["Room",         ROOM,                                                                    null],
+              ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                         null],
+              ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
+                               seatData?.status === "available" ? C.green : C.gold],
+            ].map(([key, val, color], i, arr) => (
+              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
+                <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
+                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: color || C.textPrimary }}>{val}</span>
+              </div>
+            ))}
+          </div>
+          <PrimaryBtn onClick={() => onContinue(1)} C={C}>Continue</PrimaryBtn>
+          <GhostBtn onClick={onCancel} C={C}>Cancel</GhostBtn>
+        </div>
+      </ModalShell>
+    );
+  }
 
   const infoRows = [
     ["Room",         ROOM,                                                            null],
@@ -393,8 +451,9 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
   );
 }
 
-// MODAL 2: Details
-function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
+// ─── MODAL 2: Details ─────────────────────────────────────────────────────────
+// FIX: Added isStandalone — hides table column from summary bar when standalone.
+function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
     firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
@@ -427,9 +486,17 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
 
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "Seat 1";
 
+  // FIX: hide Table column when standalone
+  const summaryColumns = [
+    ...((isStandalone || !tableData) ? [] : [["Table", `Table ${tableData?.id ?? "T1"}`]]),
+    ["Seat", seatDisplay],
+    ["Guests", String(guests)],
+    ["Room", ROOM.split(" ").slice(0, 2).join(" ")],
+  ];
+
   return (
     <ModalShell onClose={onCancel} C={C}>
-      <ModalHeader eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
+      <ModalHeader eyebrow={isStandalone ? "Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
@@ -439,7 +506,7 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
-          {[["Room", ROOM.split(" ").slice(0, 2).join(" ")], ["Table", `Table ${tableData?.id ?? "T1"}`], ["Seat", seatDisplay], ["Guests", String(guests)]].map(([label, value], i, arr) => (
+          {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
               <div style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
               <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
@@ -469,16 +536,21 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
   );
 }
 
-// MODAL 3: Review
-function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
+// ─── MODAL 3: Review ──────────────────────────────────────────────────────────
+// FIX: Added isStandalone — hides Table row from reservation details.
+function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "1"}`;
 
   const reservationRows = [
-    ["Venue", "The Bellevue Manila"], ["Room", `${WING} - ${ROOM}`],
-    ["Table", `Table ${tableData?.id ?? "T1"}`], ["Seat(s)", seatDisplay],
+    ["Venue", "The Bellevue Manila"],
+    ["Room", `${WING} - ${ROOM}`],
+    // FIX: skip Table row for standalone reservations
+    ...((isStandalone || !tableData) ? [] : [["Table", `Table ${tableData?.id ?? "T1"}`]]),
+    ["Seat(s)", seatDisplay],
     ["Guests", `${guests} guest${guests !== 1 ? "s" : ""}`],
-    ["Event Date", form.eventDate || "TBD"], ["Event Time", form.eventTime ? fmt(form.eventTime) : "TBD"],
+    ["Event Date", form.eventDate || "TBD"],
+    ["Event Time", form.eventTime ? fmt(form.eventTime) : "TBD"],
   ];
   const guestRows = [
     ["Full Name", `${form.firstName} ${form.lastName}`], ["Email", form.email],
@@ -494,7 +566,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
 
   return (
     <ModalShell onClose={onEdit} disabled={submitting} C={C}>
-      <ModalHeader eyebrow={isRebook ? "Rebook / Move Seat" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />} />
+      <ModalHeader eyebrow={isRebook ? "Rebook / Move Seat" : isStandalone ? "Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />} />
       <div style={{ padding: "20px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         {isRebook && rebookFrom && (
           <div style={{ padding: "11px 14px", borderRadius: 8, marginBottom: 18, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, fontSize: 12, color: C.gold, lineHeight: 1.65 }}>
@@ -513,7 +585,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
           <button onClick={onEdit} disabled={submitting}
             style={{ flex: 1, padding: "12px", border: `1px solid ${C.borderDefault}`, borderRadius: 8, background: "transparent", color: C.textSecondary, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: submitting ? "not-allowed" : "pointer", transition: "all 0.18s" }}
             onMouseEnter={e => { if (!submitting) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
-            onMouseLeave={e => { if (!submitting) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; }}
           >Edit Details</button>
           <button onClick={onSubmit} disabled={submitting}
             style={{ flex: 2, padding: "12px", border: "none", borderRadius: 8, background: submitting ? C.textSecondary : C.gold, color: C.textOnAccent, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: submitting ? "not-allowed" : "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
@@ -659,13 +731,26 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
   );
 }
 
-// Mobile Bottom Sheet
-function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "T1");
+// ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
+// FIX: mirrors AlabangReserve — hides Table pill when in individual/standalone
+//      mode and no table is selected; shows "Standalone" label when applicable.
+function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark, isStandaloneSeat }) {
+  const displayTable = isStandaloneSeat
+    ? "Standalone"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
+      : (activeTable ? `Table ${activeTable.id}` : "T1");
+
   const displaySeat  = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
+
   const canGo = mode === "whole" ? true : canProceed;
+
+  // FIX: hide Table pill when individual mode + no table selected (incl. standalone)
+  const showTablePill = isStandaloneSeat
+    ? true  // standalone: show pill but label it "Standalone"
+    : mode !== "individual" || !!activeTable;
 
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: C.bottomSheet, borderTop: `1px solid ${C.borderAccent}`, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(0,0,0,0.28)", padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0", animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)" }}>
@@ -675,11 +760,15 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
       </div>
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
-            <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && <div style={{ fontFamily: FONT, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
-          </div>
+          {showTablePill && (
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+              <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
+                {isStandaloneSeat ? "Type" : "Table"}
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
+              {!isStandaloneSeat && seatRatio && <div style={{ fontFamily: FONT, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
+            </div>
+          )}
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
             <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
             <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
@@ -725,7 +814,8 @@ export default function TwentyTwentyReserveA() {
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
-  const echoRef = useRef(null);
+  const echoRef        = useRef(null);
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -755,21 +845,33 @@ export default function TwentyTwentyReserveA() {
     return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap:saved", onSeatMapSaved); };
   }, []);
 
+  // ── FIX: fetchAndMerge — identical pattern to AlabangReserve ────────────────
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.data) return;
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.error("[TwentyTwentyReserveA] Failed to fetch seat status:", err);
+    }
+  }, []);
+
+  // Initial load
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
-    const fetchAndMerge = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.error("[TwentyTwentyReserveA] Failed to fetch seat status:", err); }
-    };
     fetchAndMerge();
-  }, []);
+  }, [fetchAndMerge]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -777,34 +879,103 @@ export default function TwentyTwentyReserveA() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // ── FIX: Pusher/Echo with 10s polling fallback — identical to AlabangReserve ─
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
+
+    let wsConnected = false;
+
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      console.log("[TwentyTwentyReserveA] Starting polling fallback (10s interval)");
+      pollingRef.current = setInterval(() => { fetchAndMerge(); }, 10_000);
+    };
+
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") {
+      startPolling();
+      return () => stopPolling();
     }
-    const echo = echoRef.current; if (!echo) return;
+
     try {
-      const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
-        } catch {}
+      echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
+    } catch (err) {
+      console.warn("[TwentyTwentyReserveA] Echo init failed, falling back to polling:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+
+    const echo = echoRef.current;
+
+    try {
+      const channel = echo.channel("reservations");
+      const events = [
+        "ReservationCreated", "ReservationUpdated", "ReservationDeleted",
+        "ReservationApproved", "ReservationRejected", "SeatReserved", "TableReserved",
+      ];
+
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMerge();
+      }));
+
+      const fallbackTimer = setTimeout(() => {
+        if (!wsConnected) {
+          console.log("[TwentyTwentyReserveA] WebSocket not active after 8s, starting polling fallback");
+          startPolling();
+        }
+      }, 8_000);
+
+      return () => {
+        clearTimeout(fallbackTimer);
+        stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
+    } catch (err) {
+      console.warn("[TwentyTwentyReserveA] Channel subscription failed, falling back to polling:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [fetchAndMerge]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
   }, []);
 
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
+  // FIX: expose standaloneSeats — mirrors AlabangReserve
+  const getStandaloneSeats  = () => tableData?.standaloneSeats || [];
+
+  // FIX: detect whether the currently selected seat is a standalone seat
+  const isStandaloneSelected = useCallback(() => {
+    if (!selectedSeat) return false;
+    const tables = getTables();
+    const inTable = tables.some(t => (t.seats || []).some(s => s.id === selectedSeat.id));
+    if (inTable) return false;
+    return getStandaloneSeats().some(s => s.id === selectedSeat.id);
+  }, [selectedSeat, tableData]);
+
+  const resolveTableForSeat = seat => {
+    if (!seat) return null;
+    const tables = getTables();
+    return tables.find(t => t.seats?.some(s => s.id === seat.id)) || null;
+  };
   const getActiveTable      = () => selectedTable || getTables()[0] || null;
 
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
-    setSelectedSeat(seat); setSelectedTable(resolveTableForSeat(seat));
+    setSelectedSeat(seat);
+    const parentTable = resolveTableForSeat(seat);
+    setSelectedTable(parentTable); // null for standalone — that's correct
   };
   const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
@@ -814,30 +985,62 @@ export default function TwentyTwentyReserveA() {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      const activeTable = getActiveTable();
+      const isStandalone = isStandaloneSelected();
+      const activeTable  = isStandalone ? null : getActiveTable();
+
+      // FIX: standalone seat uses its own num/label/id, not a table-relative index
+      const seatNum = isStandalone
+        ? String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "")
+        : mode === "individual"
+          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "1")
+          : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 3, // 20/20 Function Room venue id
+        venue_id: 3,
+        wing: WING,
         room: ROOM,
-        table_number: String(activeTable?.id ?? "T1"),
-        seat_number: mode === "individual"
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "1")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count: mode === "individual" ? 1 : guests,
+        // FIX: standalone uses "STANDALONE" so the dashboard resolves the right seatmap key
+        table_number: isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
+        seat_number: seatNum,
+        guests_count: isStandalone ? 1 : (mode === "individual" ? 1 : guests),
         event_date: formData.eventDate,
         event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
-        type: mode,
+        type: isStandalone ? "standalone" : mode,
+        is_standalone: isStandalone ? 1 : 0,
+        seat_id: isStandalone ? (selectedSeat?.id ?? null) : null,
       };
+
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "TBD";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "T1"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
+      setLastBookingDetails({
+        room: ROOM,
+        table: isStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "T1"}`,
+        date: formData.eventDate,
+        name: `${formData.firstName} ${formData.lastName}`,
+      });
+
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
-      if (activeTable) {
-        setTableData(prev => {
-          if (!prev) return prev;
+
+      // ── FIX: optimistic update — covers both standalone and table seats ──────
+      setTableData(prev => {
+        if (!prev) return prev;
+
+        // Standalone seat optimistic update
+        if (isStandalone && selectedSeat) {
+          const updatedStandaloneSeats = (prev.standaloneSeats || []).map(s =>
+            s.id === selectedSeat.id ? { ...s, status: "pending" } : s
+          );
+          const updated = { ...prev, standaloneSeats: updatedStandaloneSeats };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
+
+        // Table seat optimistic update
+        if (activeTable) {
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
             if (mode === "individual") return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
@@ -847,27 +1050,41 @@ export default function TwentyTwentyReserveA() {
           const updated = { ...prev, tables };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
-        });
-      }
+        }
+
+        return prev;
+      });
+
       setModal("success");
       resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }
     finally { setSubmitting(false); }
   };
 
-  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
+  // FIX: call fetchAndMerge on close to sync authoritative server statuses
+  const handleBack = () => {
+    setModal(null); setSelectedSeat(null); setSelectedTable(null);
+    setRefCode(null); setFormData(null); setGuests(2);
+    setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
+    fetchAndMerge();
+  };
 
   const isMobile    = windowSize.width < 640;
   const isTablet    = windowSize.width < 1024;
   const activeTable = getActiveTable();
+  const isStandalone = isStandaloneSelected();
   const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
   const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
 
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "T1") : (selectedTable ? `Table ${selectedTable.id}` : "T1");
+  // FIX: "Your Selection" panel — hide Table row when individual + no table (or standalone)
+  const displayTable = isStandalone ? "Standalone" : mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "T1") : (selectedTable ? `Table ${selectedTable.id}` : "T1");
   const displaySeat  = mode === "individual" ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") : getWholeSeatLabel(guests, activeTable);
 
   const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
   const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
+
+  // FIX: pass the correct tableData to modals — null for standalone
+  const modalTableData = isStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
 
   const BOTTOM_SHEET_H = 180;
   const NAV_H = 64;
@@ -922,7 +1139,7 @@ export default function TwentyTwentyReserveA() {
 
             {rebookFrom && (
               <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 14 }}>?</span>
+                <span style={{ fontSize: 14 }}>🔄</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Rebooking Mode</div>
                   <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Prev: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong></div>
@@ -966,7 +1183,19 @@ export default function TwentyTwentyReserveA() {
               )}
             </div>
 
-            <MobileBottomSheet mode={mode} selectedSeat={selectedSeat} activeTable={activeTable} guests={guests} seatRatio={seatRatio} canProceed={canProceed} rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")} C={C} isDark={isDark} />
+            <MobileBottomSheet
+              mode={mode}
+              selectedSeat={selectedSeat}
+              activeTable={activeTable}
+              guests={guests}
+              seatRatio={seatRatio}
+              canProceed={canProceed}
+              rebookFrom={rebookFrom}
+              onReserve={() => setModal("guestCount")}
+              C={C}
+              isDark={isDark}
+              isStandaloneSeat={isStandalone}
+            />
           </div>
 
         ) : (
@@ -988,7 +1217,7 @@ export default function TwentyTwentyReserveA() {
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
                 {rebookFrom && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
-                    <span style={{ fontSize: 14 }}>?</span>
+                    <span style={{ fontSize: 14 }}>🔄</span>
                     <div>
                       <div style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, marginBottom: 2 }}>Rebooking Mode</div>
                       <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> - select your new {mode === "individual" ? "seat" : "table"}</div>
@@ -1053,6 +1282,7 @@ export default function TwentyTwentyReserveA() {
                   )}
                 </div>
 
+                {/* Right panel */}
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
@@ -1074,8 +1304,11 @@ export default function TwentyTwentyReserveA() {
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
+                        {/* FIX: hide Table row when individual + no table selected, or standalone */}
                         {[
-                          ["Table", displayTable, false, seatRatio],
+                          ...((mode === "individual" && (!selectedTable || isStandalone)) ? [] : [
+                            [isStandalone ? "Type" : "Table", displayTable, false, (!isStandalone && seatRatio) ? seatRatio : null]
+                          ]),
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (
@@ -1111,16 +1344,60 @@ export default function TwentyTwentyReserveA() {
       </div>
 
       {modal === "guestCount" && (
-        <ModalGuestCount seatData={mode === "individual" ? selectedSeat : null} tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable} mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark} />
+        <ModalGuestCount
+          seatData={mode === "individual" ? selectedSeat : null}
+          tableData={modalTableData}
+          mode={mode}
+          isStandalone={isStandalone}
+          onContinue={handleGuestContinue}
+          onCancel={() => setModal(null)}
+          C={C}
+          isDark={isDark}
+        />
       )}
       {modal === "details" && (
-        <ModalDetails tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests} onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }} prefill={detailsPrefill} C={C} isDark={isDark} secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }} />
+        <ModalDetails
+          tableData={modalTableData}
+          seatData={selectedSeat}
+          mode={mode}
+          guests={guests}
+          isStandalone={isStandalone}
+          onReview={handleReview}
+          onCancel={() => { setModal(null); resetHoldTimer(); }}
+          prefill={detailsPrefill}
+          C={C}
+          isDark={isDark}
+          secondsLeft={holdSecondsLeft}
+          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+        />
       )}
       {modal === "review" && formData && (
-        <ModalReview form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat} onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C} />
+        <ModalReview
+          form={formData}
+          guests={guests}
+          mode={mode}
+          tableData={modalTableData}
+          seatData={selectedSeat}
+          isStandalone={isStandalone}
+          onSubmit={handleSubmit}
+          onEdit={handleEditDetails}
+          submitting={submitting}
+          isRebook={!!rebookFrom}
+          rebookFrom={rebookFrom}
+          C={C}
+        />
       )}
       {modal === "success" && (
-        <ModalSuccess refCode={refCode} onBack={handleBack} mode={mode} guests={guests} isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark} />
+        <ModalSuccess
+          refCode={refCode}
+          onBack={handleBack}
+          mode={mode}
+          guests={guests}
+          isRebook={!!rebookFrom}
+          bookingDetails={lastBookingDetails}
+          C={C}
+          isDark={isDark}
+        />
       )}
     </ThemeContext.Provider>
   );

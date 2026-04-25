@@ -73,20 +73,29 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
+// ─── FIX: Only 3 legend states exposed to the client ─────────────────────────
+const LEGEND_STATUSES = ["available", "pending", "reserved"];
+
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
+
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
+  return "available";
+}
 
 function mergeApiStatusIntoLayout(localLayout, apiData) {
   if (!localLayout || !apiData) return localLayout;
   const apiStatusMap = {};
   const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
   apiTables.forEach(t => {
     if (Array.isArray(t?.seats)) {
       (t.seats || []).forEach(s => {
-        const rawStatus = (s.status || "available").toLowerCase();
-        apiStatusMap[s.id] = (rawStatus === "approved" || rawStatus === "reserved")
-          ? "reserved"
-          : (rawStatus === "rejected" ? "rejected" : rawStatus);
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
       });
       return;
     }
@@ -94,10 +103,7 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
     const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
     const compositeKey = `${tableKey}|${seatKey}`;
     if (tableKey || seatKey) {
-      const rawStatus = (t.status || "available").toLowerCase();
-      apiStatusMap[compositeKey] = (rawStatus === "approved" || rawStatus === "reserved")
-      ? "reserved"
-      : (rawStatus === "rejected" ? "rejected" : rawStatus);
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
     }
   });
 
@@ -112,7 +118,9 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
   }));
 
   const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
-    const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+    const apiStatus =
+      apiStatusMap[s.id] ??
+      apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
     return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
   });
 
@@ -298,7 +306,9 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
 }
 
 // ─── MODAL 1: Guest Count ─────────────────────────────────────────────────────
-function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, isDark }) {
+// FIX: Added isStandalone prop — shows simplified info panel (no table) for standalone seats,
+// matching the AlabangReserve pattern exactly.
+function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, onCancel, C, isDark }) {
   const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
   const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
   const capacity = bookableSeats.length || tableData?.capacity || 8;
@@ -338,9 +348,35 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
 
+  // FIX: Standalone seat — simplified modal with no table row, just like AlabangReserve
+  if (isStandalone) {
+    return (
+      <ModalShell onClose={onCancel} C={C}>
+        <ModalHeader eyebrow="Seat Reservation" title="Reserve This Seat" onClose={onCancel} C={C} meta={<StepIndicator step={1} C={C} />} />
+        <div style={{ padding: "22px 24px 26px" }}>
+          <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
+            {[
+              ["Room", ROOM, null],
+              ["Seat Number", `Seat ${seatData?.num ?? seatData?.id ?? "—"}`, null],
+              ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
+               seatData?.status === "available" ? C.green : C.gold],
+            ].map(([key, val, color], i, arr) => (
+              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
+                <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
+                <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: color || C.textPrimary }}>{val}</span>
+              </div>
+            ))}
+          </div>
+          <PrimaryBtn onClick={() => onContinue(1)} C={C}>Continue</PrimaryBtn>
+          <GhostBtn onClick={onCancel} C={C}>Cancel</GhostBtn>
+        </div>
+      </ModalShell>
+    );
+  }
+
   const infoRows = [
     ["Room",         ROOM,                                                            null],
-    ["Table",        `Table ${tableData?.id ?? "—"}`,                                null],
+    ...(!tableData ? [] : [["Table", `Table ${tableData?.id ?? "—"}`, null]]),
     ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                 null],
     ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
                      seatData?.status === "available" ? C.green : C.gold],
@@ -380,12 +416,14 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >+</button>
               </div>
-              <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>
-                Table <strong style={{ color: C.textPrimary }}>{tableData?.id}</strong> has{" "}
-                <strong style={{ color: C.textPrimary }}>{capacity} available seat{capacity !== 1 ? "s" : ""}</strong>
-                {pendingSeats.length > 0 && <span style={{ color: C.gold }}>{" "}({pendingSeats.length} pending approval)</span>}
-              </div>
-              {atMax && (
+              {tableData && (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>
+                  Table <strong style={{ color: C.textPrimary }}>{tableData?.id}</strong> has{" "}
+                  <strong style={{ color: C.textPrimary }}>{capacity} available seat{capacity !== 1 ? "s" : ""}</strong>
+                  {pendingSeats.length > 0 && <span style={{ color: C.gold }}>{" "}({pendingSeats.length} pending approval)</span>}
+                </div>
+              )}
+              {tableData && atMax && (
                 <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, fontFamily: F.body, fontSize: 11.5, color: C.gold, lineHeight: 1.5 }}>
                   Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available on this table.
                 </div>
@@ -393,7 +431,9 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
             </div>
             <div style={{ padding: "12px 16px", borderRadius: 8, marginBottom: 20, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
               <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Seats to be Reserved</div>
-              <div style={{ fontFamily: F.body, fontSize: 13, color: C.gold, fontWeight: 600 }}>{getWholeSeatLabel(guests, tableData)}</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, color: C.gold, fontWeight: 600 }}>
+                {getWholeSeatLabel(guests, tableData)}
+              </div>
             </div>
           </>
         )}
@@ -406,7 +446,8 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
 }
 
 // ─── MODAL 2: Details ─────────────────────────────────────────────────────────
-function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
+// FIX: Added isStandalone prop — hides table column from summary bar for standalone seats.
+function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
     firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
@@ -439,9 +480,17 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
 
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
 
+  // FIX: exclude Table column when standalone (no tableData or isStandalone)
+  const summaryColumns = [
+    ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "—"}`]]),
+    ["Seat", seatDisplay],
+    ["Guests", String(guests)],
+    ["Room", ROOM.split(" ").slice(0, 2).join(" ")],
+  ];
+
   return (
     <ModalShell onClose={onCancel} C={C}>
-      <ModalHeader eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
+      <ModalHeader eyebrow={isStandalone ? "Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
@@ -451,7 +500,7 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
           <div style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
-          {[["Room", ROOM.split(" ").slice(0, 2).join(" ")], ["Table", `Table ${tableData?.id ?? "—"}`], ["Seat", seatDisplay], ["Guests", String(guests)]].map(([label, value], i, arr) => (
+          {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
               <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
               <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
@@ -482,13 +531,16 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
 }
 
 // ─── MODAL 3: Review ──────────────────────────────────────────────────────────
-function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
+// FIX: Added isStandalone prop — omits Table row from reservation details for standalone seats.
+function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
   const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "—"}`;
 
   const reservationRows = [
     ["Venue", "The Bellevue Manila"], ["Room", `${WING} — ${ROOM}`],
-    ["Table", `Table ${tableData?.id ?? "—"}`], ["Seat(s)", seatDisplay],
+    // FIX: skip Table row entirely for standalone seats
+    ...(!isStandalone && tableData ? [["Table", `Table ${tableData?.id ?? "—"}`]] : []),
+    ["Seat(s)", seatDisplay],
     ["Guests", `${guests} guest${guests !== 1 ? "s" : ""}`],
     ["Event Date", form.eventDate || "—"], ["Event Time", form.eventTime ? fmt(form.eventTime) : "—"],
   ];
@@ -506,7 +558,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
 
   return (
     <ModalShell onClose={onEdit} disabled={submitting} C={C}>
-      <ModalHeader eyebrow={isRebook ? "Rebook / Move Seat" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />} />
+      <ModalHeader eyebrow={isRebook ? "Rebook / Move Seat" : isStandalone ? "Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />} />
       <div style={{ padding: "20px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         {isRebook && rebookFrom && (
           <div style={{ padding: "11px 14px", borderRadius: 8, marginBottom: 18, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, fontSize: 12, color: C.gold, lineHeight: 1.65 }}>
@@ -672,11 +724,17 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
 }
 
 // ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
-function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "—");
-  const displaySeat  = mode === "individual"
+function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, isStandalone, rebookFrom, onReserve, C, isDark }) {
+  const displayTable = isStandalone
+    ? "Standalone Seat"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
+      : (activeTable ? `Table ${activeTable.id}` : "—");
+  const displaySeat  = isStandalone
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
-    : getWholeSeatLabel(guests, activeTable);
+    : mode === "individual"
+      ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
+      : getWholeSeatLabel(guests, activeTable);
   const canGo = mode === "whole" ? true : canProceed;
 
   return (
@@ -688,9 +746,11 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
+              {isStandalone ? "Type" : "Table"}
+            </div>
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
+            {!isStandalone && seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
           </div>
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
@@ -746,7 +806,8 @@ export default function LagunaReserve2() {
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
-  const echoRef = useRef(null);
+  const echoRef        = useRef(null);
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -776,21 +837,35 @@ export default function LagunaReserve2() {
     return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap:saved", onSeatMapSaved); };
   }, []);
 
+  // FIX: fetchAndMerge — polls the seatmap endpoint and merges statuses into local layout.
+  // Uses the same /seatmap/ endpoint and setTableData pattern as AlabangReserve.
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.data) return;
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.error("[LagunaReserve2] Failed to fetch seat status:", err);
+    }
+  }, []);
+
+  // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
-    const fetchAndMerge = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.error("[LagunaReserve2] Failed to fetch seat status:", err); }
-    };
     fetchAndMerge();
-  }, []);
+  }, [fetchAndMerge]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -798,29 +873,99 @@ export default function LagunaReserve2() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // FIX: WebSocket with 10-second polling fallback — identical pattern to AlabangReserve.
+  // The previous code subscribed to seatmap.${WING}.${ROOM} channel, but the server
+  // broadcasts on the "reservations" channel. Also added the 8s fallback timer.
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
+
+    let wsConnected = false;
+
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      console.log("[LagunaReserve2] Starting polling fallback (10s interval)");
+      pollingRef.current = setInterval(() => fetchAndMerge(), 10_000);
+    };
+
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") {
+      startPolling();
+      return () => stopPolling();
     }
-    const echo = echoRef.current; if (!echo) return;
+
     try {
-      const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
-        } catch {}
+      echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
+    } catch (err) {
+      console.warn("[LagunaReserve2] Echo init failed, falling back to polling:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+
+    const echo = echoRef.current;
+
+    try {
+      // FIX: listen on "reservations" channel — same as AlabangReserve
+      const channel = echo.channel("reservations");
+      const events = [
+        "ReservationCreated",
+        "ReservationUpdated",
+        "ReservationDeleted",
+        "ReservationApproved",
+        "ReservationRejected",
+        "SeatReserved",
+        "TableReserved",
+      ];
+
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMerge();
+      }));
+
+      const fallbackTimer = setTimeout(() => {
+        if (!wsConnected) {
+          console.log("[LagunaReserve2] WebSocket not active after 8s, starting polling fallback");
+          startPolling();
+        }
+      }, 8_000);
+
+      return () => {
+        clearTimeout(fallbackTimer);
+        stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
+    } catch (err) {
+      console.warn("[LagunaReserve2] Channel subscription failed, falling back to polling:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [fetchAndMerge]);
+
+  // ── Cleanup polling on unmount ────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
   }, []);
 
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
+  const getStandaloneSeats  = () => tableData?.standaloneSeats || [];
+  const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || null; };
   const getActiveTable      = () => selectedTable || getTables()[0] || null;
+
+  // FIX: isStandaloneSelected — checks standalone seats array, omits table fallback.
+  // Matches AlabangReserve logic exactly (not the old LagunaReserve2 which fell back to tables[0]).
+  const isStandaloneSelected = useCallback(() => {
+    if (!selectedSeat) return false;
+    const tables = getTables();
+    const inTable = tables.some(t => (t.seats || []).some(s => s.id === selectedSeat.id));
+    if (inTable) return false;
+    return getStandaloneSeats().some(s => s.id === selectedSeat.id);
+  }, [selectedSeat, tableData]);
 
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
@@ -835,60 +980,80 @@ export default function LagunaReserve2() {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      const activeTable = getActiveTable();
+      const isStandalone = isStandaloneSelected();
+      const activeTable  = isStandalone ? null : getActiveTable();
+
+      // FIX: standalone seat_number uses the seat's own num/label/id (same as AlabangReserve)
+      const seatNum = isStandalone
+        ? String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "")
+        : mode === "individual"
+          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+          : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 3, // ← Laguna Ballroom 2 venue id
+        venue_id: 3,
         room: selectedRoom,
-        table_number: String(activeTable?.id ?? "T1"),
-        seat_number: mode === "individual"
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count: mode === "individual" ? 1 : guests,
+        // FIX: standalone uses "STANDALONE" as table_number so the backend and dashboard handle it correctly
+        table_number: isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
+        seat_number: seatNum,
+        guests_count: isStandalone ? 1 : (mode === "individual" ? 1 : guests),
         event_date: formData.eventDate,
         event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
-        type: mode,
+        type: isStandalone ? "standalone" : mode,
+        is_standalone: isStandalone ? 1 : 0,
+        seat_id: isStandalone ? (selectedSeat?.id ?? null) : null,
         status: "pending",
       };
+
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: selectedRoom, table: `Table ${activeTable?.id ?? "—"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
+      setLastBookingDetails({
+        room: selectedRoom,
+        table: isStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "—"}`,
+        date: formData.eventDate,
+        name: `${formData.firstName} ${formData.lastName}`,
+      });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
-      
+
+      // FIX: optimistic UI — standalone and table seats both handled correctly
       setTableData(prev => {
-  if (!prev) return prev;
+        if (!prev) return prev;
 
-  // Update standalone seats (individual mode — seat not belonging to any table)
-  const standaloneSeats = (prev.standaloneSeats || []).map(s => {
-    if (mode === "individual" && s.id === selectedSeat?.id) {
-      return { ...s, status: "pending" };
-    }
-    return s;
-  });
+        if (isStandalone && selectedSeat) {
+          const updatedStandaloneSeats = (prev.standaloneSeats || []).map(s =>
+            s.id === selectedSeat.id ? { ...s, status: "pending" } : s
+          );
+          const updated = { ...prev, standaloneSeats: updatedStandaloneSeats };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
 
-  // Update table seats only when a table is active
-  const tables = (prev.tables || []).map(t => {
-    if (!activeTable || t.id !== activeTable.id) return t;
-    if (mode === "individual") {
-      return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
-    }
-    let marked = 0;
-    return {
-      ...t,
-      seats: t.seats.map(s => {
-        if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
-        return s;
-      }),
-    };
-  });
+        if (activeTable) {
+          const tables = (prev.tables || []).map(t => {
+            if (t.id !== activeTable.id) return t;
+            if (mode === "individual") {
+              return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+            }
+            let marked = 0;
+            return {
+              ...t,
+              seats: t.seats.map(s => {
+                if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
+                return s;
+              }),
+            };
+          });
+          const updated = { ...prev, tables };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
 
-  const updated = { ...prev, tables, standaloneSeats };
-  try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
-  return updated;
-});
+        return prev;
+      });
 
       setModal("success");
       resetHoldTimer();
@@ -896,23 +1061,45 @@ export default function LagunaReserve2() {
     finally { setSubmitting(false); }
   };
 
-  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
+  // FIX: re-fetch after closing success modal to pick up server-side status changes
+  const handleBack = () => {
+    setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null);
+    setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null);
+    resetHoldTimer();
+    fetchAndMerge();
+  };
 
   const isMobile    = windowSize.width < 640;
   const isTablet    = windowSize.width < 1024;
   const activeTable = getActiveTable();
+  const isStandalone = isStandaloneSelected();
   const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
   const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
 
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "—") : (selectedTable ? `Table ${selectedTable.id}` : "—");
-  const displaySeat  = mode === "individual" ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") : getWholeSeatLabel(guests, activeTable);
+  // FIX: use isStandalone to correctly label the table/type display
+  const displayTable = isStandalone
+    ? "Standalone Seat"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "—")
+      : (selectedTable ? `Table ${selectedTable.id}` : "—");
+  const displaySeat  = isStandalone
+    ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
+    : mode === "individual"
+      ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
+      : getWholeSeatLabel(guests, activeTable);
 
   const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
   const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
 
+  // FIX: pass null tableData to modals when standalone (no table association)
+  const modalTableData = isStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
+
   const BOTTOM_SHEET_H = 180;
   const NAV_H = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
+
+  // FIX: filter legend to only 3 states matching AlabangReserve
+  const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
@@ -985,8 +1172,9 @@ export default function LagunaReserve2() {
                     <span style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Scroll to explore</span>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </div>
+                  {/* FIX: filtered legend — only 3 states */}
                   <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3, pointerEvents: "none" }}>
-                    {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                    {legendEntries.map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
                         <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>{key}</span>
@@ -1007,7 +1195,7 @@ export default function LagunaReserve2() {
               )}
             </div>
 
-            <MobileBottomSheet mode={mode} selectedSeat={selectedSeat} activeTable={activeTable} guests={guests} seatRatio={seatRatio} canProceed={canProceed} rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")} C={C} isDark={isDark} />
+            <MobileBottomSheet mode={mode} selectedSeat={selectedSeat} activeTable={activeTable} guests={guests} seatRatio={seatRatio} canProceed={canProceed} isStandalone={isStandalone} rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")} C={C} isDark={isDark} />
           </div>
 
         ) : (
@@ -1096,12 +1284,13 @@ export default function LagunaReserve2() {
 
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
+                    {/* FIX: filtered legend — only 3 states */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                          {legendEntries.map(([key, color]) => (
                             <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
                               <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
                               <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
@@ -1116,7 +1305,8 @@ export default function LagunaReserve2() {
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
                         {[
-                          ["Table", displayTable, false, seatRatio],
+                          // FIX: label "Type" instead of "Table" for standalone, hide seatRatio for standalone
+                          [isStandalone ? "Type" : "Table", displayTable, false, (!isStandalone && seatRatio) ? seatRatio : null],
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (
@@ -1152,13 +1342,48 @@ export default function LagunaReserve2() {
       </div>
 
       {modal === "guestCount" && (
-        <ModalGuestCount seatData={mode === "individual" ? selectedSeat : null} tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable} mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark} />
+        <ModalGuestCount
+          seatData={mode === "individual" ? selectedSeat : null}
+          tableData={modalTableData}
+          mode={mode}
+          isStandalone={isStandalone}
+          onContinue={handleGuestContinue}
+          onCancel={() => setModal(null)}
+          C={C}
+          isDark={isDark}
+        />
       )}
       {modal === "details" && (
-        <ModalDetails tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests} onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }} prefill={detailsPrefill} C={C} isDark={isDark} secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }} />
+        <ModalDetails
+          tableData={modalTableData}
+          seatData={selectedSeat}
+          mode={mode}
+          guests={guests}
+          isStandalone={isStandalone}
+          onReview={handleReview}
+          onCancel={() => { setModal(null); resetHoldTimer(); }}
+          prefill={detailsPrefill}
+          C={C}
+          isDark={isDark}
+          secondsLeft={holdSecondsLeft}
+          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+        />
       )}
       {modal === "review" && formData && (
-        <ModalReview form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat} onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C} />
+        <ModalReview
+          form={formData}
+          guests={guests}
+          mode={mode}
+          tableData={modalTableData}
+          seatData={selectedSeat}
+          isStandalone={isStandalone}
+          onSubmit={handleSubmit}
+          onEdit={handleEditDetails}
+          submitting={submitting}
+          isRebook={!!rebookFrom}
+          rebookFrom={rebookFrom}
+          C={C}
+        />
       )}
       {modal === "success" && (
         <ModalSuccess refCode={refCode} onBack={handleBack} mode={mode} guests={guests} isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark} />

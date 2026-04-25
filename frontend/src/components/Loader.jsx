@@ -26,9 +26,20 @@ const LOADER_CSS = `
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes grain-shift {
+    0%, 100% { transform: translate(0, 0); }
+    10%  { transform: translate(-2%, -3%); }
+    20%  { transform: translate(3%, 2%); }
+    30%  { transform: translate(-1%, 4%); }
+    40%  { transform: translate(4%, -1%); }
+    50%  { transform: translate(-3%, 3%); }
+    60%  { transform: translate(2%, -4%); }
+    70%  { transform: translate(-4%, 1%); }
+    80%  { transform: translate(1%, -2%); }
+    90%  { transform: translate(3%, 4%); }
+  }
 `;
 
-// ── Self-contained Lottie renderer (loads lottie-web from CDN) ────────────────
 function LottiePlayer({ animationData, style }) {
   const containerRef = useRef(null);
   const animRef      = useRef(null);
@@ -60,7 +71,6 @@ function LottiePlayer({ animationData, style }) {
   return <div ref={containerRef} style={style} />;
 }
 
-// ── Main Loader ───────────────────────────────────────────────────────────────
 export default function Loader({ onDone }) {
   const [phase, setPhase] = useState('in');
   const [exit,  setExit]  = useState(false);
@@ -78,27 +88,38 @@ export default function Loader({ onDone }) {
       <style dangerouslySetInnerHTML={{ __html: LOADER_CSS }} />
       <div style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        backgroundImage: 'url("/src/assets/bg-login.png")',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        /* Deep black gradient — no image dependency */
+        background: 'radial-gradient(ellipse 80% 60% at 50% 40%, #1A1208 0%, #0A0804 40%, #000000 100%)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         animation: phase === 'out' ? 'loader-exit 0.7s ease forwards' : 'none',
+        overflow: 'hidden',
       }}>
 
-        {/* Dark overlay */}
+        {/* Grain texture overlay */}
         <div style={{
-          position: 'absolute', inset: 0,
-          background: 'rgba(14,13,9,0.60)',
+          position: 'absolute', inset: '-50%',
+          width: '200%', height: '200%',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '200px 200px',
+          opacity: 0.04,
+          animation: 'grain-shift 0.5s steps(1) infinite',
           pointerEvents: 'none',
         }} />
 
-        {/* Radial glow */}
+        {/* Gold vignette glow */}
         <div style={{
           position: 'absolute',
-          width: 380, height: 380, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(201,168,76,0.10) 0%, transparent 68%)',
+          width: 500, height: 500, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%)',
           pointerEvents: 'none',
+        }} />
+
+        {/* Subtle top border */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.4), transparent)',
         }} />
 
         {/* Logo */}

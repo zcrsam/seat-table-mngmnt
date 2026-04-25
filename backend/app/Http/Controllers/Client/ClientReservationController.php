@@ -38,10 +38,18 @@ class ClientReservationController extends Controller
             'event_date'       => 'required|date',
             'event_time'       => 'required|string|max:50',
             'special_requests' => 'nullable|string',
-            'type'             => 'required|in:whole,individual',
+            'type'             => 'required|in:whole,individual,standalone',
+            'is_standalone'    => 'nullable|boolean',
+            'seat_id'          => 'nullable|string|max:50',
         ]);
 
-        if (empty($validated['room'])) {
+        // Fix: Find venue by room name to ensure correct venue_id
+        if (!empty($validated['room'])) {
+            $venue = Venue::where('name', $validated['room'])->first();
+            if ($venue) {
+                $validated['venue_id'] = $venue->id;
+            }
+        } else {
             $validated['room'] = Venue::find($validated['venue_id'])?->name;
         }
 

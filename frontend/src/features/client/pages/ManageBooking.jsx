@@ -9,6 +9,7 @@ import {
 } from "../../../utils/seatMapPersistence.js";
 import Echo from "../../../utils/websocket.js";
 import bellevueLogo from "../../../assets/bellevue-logo.png";
+import SharedNavbar from "../../../components/SharedNavbar.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -344,9 +345,6 @@ function ThemeToggle() {
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
     >
-    
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderAccent; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
     
       <span style={{
         position: "relative", width: 28, height: 16, borderRadius: 8,
@@ -1529,32 +1527,7 @@ function CancelSuccessModal({ reference, onClose, C }) {
     );
   }
 
-  function NavBar() {
-    const { isDark: dark, toggle } = useTheme();
-    const colors = getTokens(dark);
-    return (
-      <nav style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000,
-        height: 64, display: "flex", alignItems: "center",
-        justifyContent: "space-between", padding: "0 clamp(20px,5vw,64px)",
-        background: colors.navBg, backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderBottom: `1px solid ${colors.navBorder}`,
-        boxSizing: "border-box", transition: "background 0.30s",
-      }}>
-        <img src={bellevueLogo} alt="The Bellevue Manila" onClick={() => navigate("/")}
-          style={{
-            height: 26, width: "auto", cursor: "pointer", display: "block", flexShrink: 0,
-            filter: dark
-              ? "brightness(0) saturate(100%) invert(82%) sepia(18%) saturate(400%) hue-rotate(0deg) brightness(96%)"
-              : "brightness(0) saturate(100%)",
-            transition: "filter 0.30s",
-          }} />
-        <ThemeToggle />
-      </nav>
-    );
-  }
-
+  
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
@@ -1587,7 +1560,7 @@ function CancelSuccessModal({ reference, onClose, C }) {
           }} />
         </div>
 
-        <NavBar />
+        <SharedNavbar isDark={isDark} toggle={toggleTheme} />
 
         <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", paddingTop: 64 }}>
           <div style={{

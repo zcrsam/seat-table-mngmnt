@@ -86,16 +86,58 @@ const FONT = "'Inter','Helvetica Neue',Arial,sans-serif";
 // Persistence helpers
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
+// ─── Status normalisation (ported from Tower1) ──────────────────────────────
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
+  return "available";
+}
+
+// ─── mergeApiStatusIntoLayout (ported from Tower1) ──────────────────────────
 function mergeApiStatusIntoLayout(localLayout, apiData) {
-  if (!apiData?.tables) return localLayout;
-  const updated = { ...localLayout, tables: [...(localLayout?.tables || [])] };
-  apiData.tables.forEach(apiTable => {
-    const idx = updated.tables.findIndex(t => t.id === apiTable.id);
-    if (idx >= 0) {
-      updated.tables[idx] = { ...updated.tables[idx], seats: apiTable.seats || updated.tables[idx].seats };
+  if (!localLayout || !apiData) return localLayout;
+
+  const apiStatusMap = {};
+  const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
+  apiTables.forEach(t => {
+    if (Array.isArray(t?.seats)) {
+      t.seats.forEach(s => {
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
+      });
+      return;
+    }
+
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+
+    if (tableKey || seatKey) {
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
     }
   });
-  return updated;
+
+  const mergedTables = (localLayout.tables || []).map(t => ({
+    ...t,
+    seats: (t.seats || []).map(s => {
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+      if (apiStatus !== undefined) return { ...s, status: apiStatus };
+      return s;
+    }),
+  }));
+
+  const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
+    const seatNum   = String(s.num ?? s.label ?? s.id ?? "").trim();
+    const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`STANDALONE|${seatNum}`] ?? apiStatusMap[seatNum];
+    if (apiStatus !== undefined) return { ...s, status: apiStatus };
+    return s;
+  });
+
+  return { ...localLayout, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
 }
 
 function loadLayoutForClient(wing, room) {
@@ -118,7 +160,7 @@ function saveLayoutForAdmin(wing, room, layout) {
 const apiCall = async (endpoint, options = {}) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers: { "Content-Type": "application/json", Accept: "application/json", ...options.headers },
   });
   if (!response.ok) {
     const error = await response.text();
@@ -132,8 +174,8 @@ const apiCall = async (endpoint, options = {}) => {
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
-    const seatIds = tableData.seats.slice(0, guests).map(s => s.num || s.id).join(", ");
-    return `Seat ${seatIds}`;
+    const bookable = tableData.seats.filter(s => s.status === "available").slice(0, guests).map(s => s.num ?? s.id);
+    if (bookable.length > 0) return `Seat ${bookable.join(", ")}`;
   }
   return `Seat ${Array.from({ length: guests }, (_, i) => i + 1).join(", ")}`;
 };
@@ -725,7 +767,8 @@ export default function Tower3() {
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
-  const echoRef = useRef(null);
+  const echoRef        = useRef(null);
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -755,21 +798,80 @@ export default function Tower3() {
     return () => { window.removeEventListener("storage", onStorage); window.removeEventListener("seatmap:saved", onSeatMapSaved); };
   }, []);
 
+  // ─── fetchAndMerge: uses /reservations endpoint (same as Tower1) ────────────
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const apiUrl = `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=3`;
+      const res = await fetch(apiUrl, { headers: { Accept: "application/json" } });
+      if (!res.ok) {
+        console.error("[Tower3] Reservations API failed:", res.status, apiUrl);
+        return;
+      }
+      const data = await res.json();
+      const reservations = Array.isArray(data) ? data : (data.data || []);
+
+      if (!reservations.length) return;
+
+      // Build seat status map from reservations
+      const seatStatusMap = {};
+      reservations.forEach(r => {
+        const tableKey = String(r.table_number ?? "").trim();
+        const seatNums = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+        const status   = normaliseApiStatus(r.status);
+
+        seatNums.forEach(seatNum => {
+          // Composite key for table seats
+          seatStatusMap[`${tableKey}|${seatNum}`] = status;
+          // Standalone key
+          if (tableKey === "STANDALONE") {
+            seatStatusMap[`STANDALONE|${seatNum}`] = status;
+          }
+          // Bare seat num fallback
+          seatStatusMap[seatNum] = status;
+        });
+      });
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        if (!base) return prev;
+
+        const mergedTables = (base.tables || []).map(t => ({
+          ...t,
+          seats: (t.seats || []).map(s => {
+            const tableId  = String(t.id ?? t.label ?? "").trim();
+            const seatNum  = String(s.num ?? s.label ?? s.id ?? "").trim();
+            const newStatus =
+              seatStatusMap[`${tableId}|${seatNum}`] ??
+              seatStatusMap[seatNum] ??
+              s.status;
+            return { ...s, status: newStatus };
+          }),
+        }));
+
+        const mergedStandaloneSeats = (base.standaloneSeats || []).map(s => {
+          const seatNum   = String(s.num ?? s.label ?? s.id ?? "").trim();
+          const newStatus =
+            seatStatusMap[`STANDALONE|${seatNum}`] ??
+            seatStatusMap[seatNum] ??
+            s.status;
+          return { ...s, status: newStatus };
+        });
+
+        const merged = { ...base, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+
+    } catch (err) {
+      console.error("[Tower3] Failed to fetch reservations:", err);
+    }
+  }, []);
+
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
-    const fetchAndMerge = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data?.data) return;
-        setTableData(prev => { const base = prev || localLayout; if (!base) return data.data; return mergeApiStatusIntoLayout(base, data.data); });
-        setTableData(merged => { try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {} return merged; });
-      } catch (err) { console.error("[TwentyTwentyReserveA] Failed to fetch seat status:", err); }
-    };
     fetchAndMerge();
-  }, []);
+  }, [fetchAndMerge]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -777,34 +879,97 @@ export default function Tower3() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // ─── WebSocket + polling fallback (same pattern as Tower1) ─────────────────
   useEffect(() => {
-    const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+    const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
+    let wsConnected = false;
+
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(() => { fetchAndMerge(); }, 5_000);
+    };
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") {
+      startPolling();
+      return () => stopPolling();
     }
-    const echo = echoRef.current; if (!echo) return;
+
     try {
-      const channel = echo.channel(`seatmap.${WING}.${ROOM}`);
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/3/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) { const data = await res.json(); if (data?.data) setTableData(prev => mergeApiStatusIntoLayout(prev, data.data)); }
-        } catch {}
+      echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
+    } catch (err) {
+      console.error("[Tower3] WebSocket initialization failed:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+
+    const echo = echoRef.current;
+    try {
+      const channel = echo.channel("reservations");
+      const events = [
+        "ReservationCreated",
+        "ReservationUpdated",
+        "ReservationDeleted",
+        "ReservationApproved",
+        "ReservationRejected",
+        "ReservationStatusUpdated",
+        "SeatReserved",
+        "TableReserved",
+        "SeatStatusChanged",
+        "reservation.approved",
+        "reservation.updated",
+        "reservation.status.updated",
+      ];
+
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMerge();
+      }));
+
+      const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
+      return () => {
+        clearTimeout(fallbackTimer);
+        stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
+    } catch {
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [fetchAndMerge]);
+
+  useEffect(() => {
+    return () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
   }, []);
 
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
-  const getActiveTable      = () => selectedTable || getTables()[0] || null;
+  const getStandaloneSeats  = () => tableData?.standaloneSeats || [];
+  const resolveTableForSeat = seat => {
+    if (!seat) return null;
+    const tables = getTables();
+    // Only return a table if the seat actually belongs to one
+    return tables.find(t => t.seats?.some(s => s.id === seat.id)) || null;
+  };
+  const getActiveTable = () => selectedTable || getTables()[0] || null;
+
+  const isStandaloneSelected = useCallback(() => {
+    if (!selectedSeat) return false;
+    const inTable = getTables().some(t => (t.seats || []).some(s => s.id === selectedSeat.id));
+    if (inTable) return false;
+    return getStandaloneSeats().some(s => s.id === selectedSeat.id);
+  }, [selectedSeat, tableData]);
 
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
-    setSelectedSeat(seat); setSelectedTable(resolveTableForSeat(seat));
+    setSelectedSeat(seat);
+    // For standalone seats, clear the table selection
+    const parentTable = getTables().find(t => t.seats?.some(s => s.id === seat.id)) || null;
+    setSelectedTable(parentTable);
   };
   const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
@@ -814,30 +979,57 @@ export default function Tower3() {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      const activeTable = getActiveTable();
+      const isStandalone = isStandaloneSelected();
+      const activeTable  = isStandalone ? null : getActiveTable();
+
+      const seatNum = isStandalone
+        ? String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "")
+        : mode === "individual"
+          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "1")
+          : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email, phone: formData.phone,
-        venue_id: 3, // Tower 3 Ballroom venue id
+        venue_id: 3,
         room: ROOM,
-        table_number: String(activeTable?.id ?? "T1"),
-        seat_number: mode === "individual"
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "1")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count: mode === "individual" ? 1 : guests,
+        table_number: isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
+        seat_number: seatNum,
+        guests_count: isStandalone ? 1 : (mode === "individual" ? 1 : guests),
         event_date: formData.eventDate,
         event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
-        type: mode,
+        type: isStandalone ? "standalone" : mode,
+        is_standalone: isStandalone ? 1 : 0,
+        seat_id: isStandalone ? (selectedSeat?.id ?? null) : null,
       };
+
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "TBD";
       setRefCode(newRefCode);
-      setLastBookingDetails({ room: ROOM, table: `Table ${activeTable?.id ?? "T1"}`, date: formData.eventDate, name: `${formData.firstName} ${formData.lastName}` });
+      setLastBookingDetails({
+        room: ROOM,
+        table: isStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "T1"}`,
+        date: formData.eventDate,
+        name: `${formData.firstName} ${formData.lastName}`,
+      });
+
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
-      if (activeTable) {
-        setTableData(prev => {
-          if (!prev) return prev;
+
+      // Optimistic update — mark seat as "pending" immediately
+      setTableData(prev => {
+        if (!prev) return prev;
+
+        if (isStandalone && selectedSeat) {
+          const updatedStandaloneSeats = (prev.standaloneSeats || []).map(s =>
+            s.id === selectedSeat.id ? { ...s, status: "pending" } : s
+          );
+          const updated = { ...prev, standaloneSeats: updatedStandaloneSeats };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
+
+        if (activeTable) {
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
             if (mode === "individual") return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
@@ -847,15 +1039,25 @@ export default function Tower3() {
           const updated = { ...prev, tables };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
-        });
-      }
+        }
+
+        return prev;
+      });
+
+      // Re-fetch immediately after submission so map reflects true server state
+      await fetchAndMerge();
       setModal("success");
       resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }
     finally { setSubmitting(false); }
   };
 
-  const handleBack = () => { setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null); setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer(); };
+  const handleBack = () => {
+    setModal(null); setSelectedSeat(null); setSelectedTable(null); setRefCode(null);
+    setFormData(null); setGuests(2); setRebookFrom(null); setLastBookingDetails(null);
+    resetHoldTimer();
+    fetchAndMerge();
+  };
 
   const isMobile    = windowSize.width < 640;
   const isTablet    = windowSize.width < 1024;
@@ -1004,7 +1206,7 @@ export default function Tower3() {
                   Tower 3 Ballroom
                 </h1>
                 <p style={{ fontFamily: FONT, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
-                  Book your preferred table in 20/20 Function Room. Select your reservation type and click on the map to get started.
+                  Book your preferred table in Tower 3 Ballroom. Select your reservation type and click on the map to get started.
                 </p>
               </div>
 

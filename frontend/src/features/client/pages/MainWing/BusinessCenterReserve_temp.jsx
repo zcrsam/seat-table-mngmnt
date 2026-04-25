@@ -474,7 +474,10 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
               </div>
             ))}
           </div>
-          
+          <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 20, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+            <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Guests</div>
+            <div style={{ fontFamily: F.body, fontSize: 13, color: C.gold, fontWeight: 600 }}>1 guest (standalone seat)</div>
+          </div>
           <PrimaryBtn onClick={() => onContinue(1)} C={C}>Continue</PrimaryBtn>
           <GhostBtn onClick={onCancel} C={C}>Cancel</GhostBtn>
         </div>
@@ -633,6 +636,7 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
           <Field label="Event Time" value={form.eventTime} onChange={set("eventTime")} type="time" C={C} isDark={isDark} />
         </div>
         <Field label="Special Requests" value={form.specialRequests} onChange={set("specialRequests")} type="textarea" C={C} isDark={isDark} placeholder="Dietary needs, accessibility, preferences…" />
+
         <button
           onClick={() => allFilled && onReview(form)}
           disabled={!allFilled}

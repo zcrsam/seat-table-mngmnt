@@ -73,31 +73,42 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
+// ─── FIX: normalise any raw API status string into canonical statuses
+//   "approved" / "reserved" → "reserved"  (seat taken, shown RED)
+//   "rejected"              → "rejected"   (seat freed, shown differently)
+//   "pending"               → "pending"    (awaiting admin, shown GOLD)
+//   anything else           → "available"
+function normaliseApiStatus(raw) {
+  const s = (raw || "available").toLowerCase();
+  if (s === "approved" || s === "reserved") return "reserved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
+  return "available";
+}
+
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
+// ─── FIX: identical merge logic to AlabangReserve ────────────────────────────
 function mergeApiStatusIntoLayout(localLayout, apiData) {
   if (!localLayout || !apiData) return localLayout;
   const apiStatusMap = {};
   const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
   apiTables.forEach(t => {
     if (Array.isArray(t?.seats)) {
       (t.seats || []).forEach(s => {
-        const rawStatus = (s.status || "available").toLowerCase();
-        apiStatusMap[s.id] = (rawStatus === "approved" || rawStatus === "reserved")
-          ? "reserved"
-          : (rawStatus === "rejected" ? "rejected" : rawStatus);
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
       });
       return;
     }
+
     const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
     const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
     const compositeKey = `${tableKey}|${seatKey}`;
+
     if (tableKey || seatKey) {
-      const rawStatus = (t.status || "available").toLowerCase();
-      apiStatusMap[compositeKey] = (rawStatus === "approved" || rawStatus === "reserved")
-      ? "reserved"
-      : (rawStatus === "rejected" ? "rejected" : rawStatus);
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
     }
   });
 
@@ -107,13 +118,17 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
       const apiStatus =
         apiStatusMap[s.id] ??
         apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
-      return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
+      if (apiStatus !== undefined) return { ...s, status: apiStatus };
+      return s;
     }),
   }));
 
   const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
-    const apiStatus = apiStatusMap[s.id] ?? apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
-    return apiStatus !== undefined ? { ...s, status: apiStatus } : s;
+    const apiStatus =
+      apiStatusMap[s.id] ??
+      apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+    if (apiStatus !== undefined) return { ...s, status: apiStatus };
+    return s;
   });
 
   return { ...localLayout, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
@@ -125,7 +140,7 @@ function loadLayoutForClient(wing, room) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.v === 2) return parsed;
-    if (Array.isArray(parsed)) return { tables: parsed, labels: null, standaloneSeats: [] };
+    if (Array.isArray(parsed)) return { tables: parsed, labels: null, venueZones: [], standaloneSeats: [] };
     return null;
   } catch { return null; }
 }
@@ -151,9 +166,6 @@ const makeOfflineReservation = (payload) => ({
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const apiCall = async (endpoint, options = {}) => {
-  const isCreateReservation =
-    endpoint === "/reservations" && (options.method || "GET").toUpperCase() === "POST";
-
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
@@ -161,7 +173,6 @@ const apiCall = async (endpoint, options = {}) => {
     });
     const text = await response.text();
     const data = text ? JSON.parse(text) : {};
-
     if (!response.ok) {
       let msg = data?.message || `HTTP ${response.status}`;
       if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
@@ -169,9 +180,9 @@ const apiCall = async (endpoint, options = {}) => {
     }
     return data;
   } catch (error) {
-    const isNetworkError = error instanceof TypeError;
-    if (isCreateReservation && isNetworkError) {
-      console.error("[apiCall] POST /reservations network error — falling back to offline:", error.message);
+    const isCreateReservation = endpoint === "/reservations" && (options.method || "GET").toUpperCase() === "POST";
+    if (isCreateReservation) {
+      console.error("[apiCall] POST /reservations failed — falling back to offline:", error.message);
       const payload = JSON.parse(options.body || "{}");
       const offlineReservation = makeOfflineReservation(payload);
       const reservations = loadStoredReservations();
@@ -184,7 +195,6 @@ const apiCall = async (endpoint, options = {}) => {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
@@ -408,19 +418,14 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
             {[
               ["Room",        ROOM,                                                                          null],
               ["Seat Number", `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                              null],
-              ["Type",        "Standalone Seat",                                                            C.gold],
               ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
-                               seatData?.status === "available" ? C.green : C.gold],
+               seatData?.status === "available" ? C.green : C.gold],
             ].map(([key, val, color], i, arr) => (
               <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
                 <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
                 <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: color || C.textPrimary }}>{val}</span>
               </div>
             ))}
-          </div>
-          <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 20, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Guests</div>
-            <div style={{ fontFamily: F.body, fontSize: 13, color: C.gold, fontWeight: 600 }}>1 guest (standalone seat)</div>
           </div>
           <PrimaryBtn onClick={() => onContinue(1)} C={C}>Continue</PrimaryBtn>
           <GhostBtn onClick={onCancel} C={C}>Cancel</GhostBtn>
@@ -555,7 +560,6 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
         onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />}
       />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
-        {/* Timer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
             <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isUrgent ? C.red : C.textSecondary, marginBottom: 2 }}>Seat Hold Timer</div>
@@ -564,7 +568,6 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
           <div style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
 
-        {/* Booking summary strip */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
           {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
@@ -892,12 +895,12 @@ export default function BusinessCenterReserve() {
   const [submitting,         setSubmitting]         = useState(false);
   const [rebookFrom,         setRebookFrom]         = useState(null);
   const [lastBookingDetails, setLastBookingDetails] = useState(null);
-
-  const [tableData, setTableData] = useState(() => loadLayoutForClient(WING, ROOM));
+  const [tableData,          setTableData]          = useState(() => loadLayoutForClient(WING, ROOM));
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
   const echoRef        = useRef(null);
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -937,39 +940,34 @@ export default function BusinessCenterReserve() {
     };
   }, []);
 
-  // ── Mount: read from localStorage + optionally merge API status ───────────
+  // ── FIX: fetchAndMerge uses same /seatmap/ endpoint as AlabangReserve ───────
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.data) return;
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
+        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch (err) {
+      console.warn("[BusinessCenterReserve] fetchAndMerge failed:", err);
+    }
+  }, []);
+
+  // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
-
-    const fetchAndMerge = async () => {
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`,
-          { headers: { Accept: "application/json" } }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-
-        const apiTables = data?.data?.tables || (Array.isArray(data?.data) ? data.data : []);
-        if (!data?.data || apiTables.length === 0) return;
-
-        setTableData(prev => {
-          const base = prev || loadLayoutForClient(WING, ROOM);
-          if (!base) return prev;
-          const merged = mergeApiStatusIntoLayout(base, data.data);
-          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
-          return merged;
-        });
-      } catch (err) {
-        console.warn("[BusinessCenterReserve] API fetch failed (offline?):", err);
-        const fallback = loadLayoutForClient(WING, ROOM);
-        if (fallback) setTableData(fallback);
-      }
-    };
-
     fetchAndMerge();
-  }, []);
+  }, [fetchAndMerge]);
 
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -977,73 +975,95 @@ export default function BusinessCenterReserve() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── WebSocket ─────────────────────────────────────────────────────────────
+  // ── FIX: Pusher/Echo with polling fallback — mirrors AlabangReserve exactly ──
   useEffect(() => {
     const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-    if (!echoRef.current && pusherKey && pusherKey !== "your_key") {
-      try { echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster }); } catch { return; }
+
+    let wsConnected = false;
+
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      console.log("[BusinessCenterReserve] Starting polling fallback (10s interval)");
+      pollingRef.current = setInterval(() => fetchAndMerge(), 10_000);
+    };
+
+    const stopPolling = () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+
+    if (!pusherKey || pusherKey === "your_key") {
+      startPolling();
+      return () => stopPolling();
     }
-    const echo = echoRef.current; if (!echo) return;
+
     try {
-      const channel  = echo.channel(`seatmap.${WING}.${ROOM}`);
-      const syncSeats = async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/rooms/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}/seats`, { headers: { Accept: "application/json" } });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.data) {
-              setTableData(prev => {
-                if (!prev) return prev;
-                return mergeApiStatusIntoLayout(prev, data.data);
-              });
-            }
-          }
-        } catch {}
+      echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
+    } catch (err) {
+      console.warn("[BusinessCenterReserve] Echo init failed, falling back to polling:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+
+    const echo = echoRef.current;
+
+    try {
+      const channel = echo.channel("reservations");
+      const events = [
+        "ReservationCreated", "ReservationUpdated", "ReservationDeleted",
+        "ReservationApproved", "ReservationRejected", "SeatReserved", "TableReserved",
+      ];
+
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMerge();
+      }));
+
+      const fallbackTimer = setTimeout(() => {
+        if (!wsConnected) {
+          console.log("[BusinessCenterReserve] WebSocket not active after 8s, starting polling fallback");
+          startPolling();
+        }
+      }, 8_000);
+
+      return () => {
+        clearTimeout(fallbackTimer);
+        stopPolling();
+        try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
-      ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.listen(e, syncSeats));
-      return () => { try { ["ReservationCreated","ReservationUpdated","ReservationDeleted","SeatReserved","TableReserved"].forEach(e => channel.stopListening(e)); } catch {} };
-    } catch {}
+    } catch (err) {
+      console.warn("[BusinessCenterReserve] Channel subscription failed, falling back to polling:", err);
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [fetchAndMerge]);
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
   }, []);
 
   // ── Derived helpers ───────────────────────────────────────────────────────
   const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
   const getStandaloneSeats  = () => tableData?.standaloneSeats || [];
 
-  /**
-   * Pure helper — checks whether a given seat is standalone.
-   * Accepts explicit seat + tableData snapshots to avoid stale closure bugs
-   * inside async functions like handleSubmit.
-   */
   const checkIsStandalone = useCallback((seat, currentTableData) => {
     if (!seat) return false;
-    const tables = currentTableData?.tables
-      ? currentTableData.tables
-      : Array.isArray(currentTableData)
-        ? currentTableData
-        : [];
+    const tables = currentTableData?.tables ? currentTableData.tables : Array.isArray(currentTableData) ? currentTableData : [];
     const inTable = tables.some(t => (t.seats || []).some(s => s.id === seat.id));
     if (inTable) return false;
-    const standaloneSeats = currentTableData?.standaloneSeats || [];
-    return standaloneSeats.some(s => s.id === seat.id);
+    return (currentTableData?.standaloneSeats || []).some(s => s.id === seat.id);
   }, []);
 
-  /**
-   * Render-time standalone check using current state — safe to use in JSX.
-   * Do NOT call this inside async handlers; use checkIsStandalone with
-   * snapshots instead.
-   */
   const isStandaloneSelected = useCallback(() => {
     return checkIsStandalone(selectedSeat, tableData);
   }, [selectedSeat, tableData, checkIsStandalone]);
 
   const resolveTableForSeat = (seat, currentTableData = tableData) => {
     if (!seat) return null;
-    const tables = currentTableData?.tables
-      ? currentTableData.tables
-      : Array.isArray(currentTableData)
-        ? currentTableData
-        : [];
+    const tables = currentTableData?.tables ? currentTableData.tables : Array.isArray(currentTableData) ? currentTableData : [];
     return tables.find(t => t.seats?.some(s => s.id === seat.id)) || null;
   };
 
@@ -1071,42 +1091,30 @@ export default function BusinessCenterReserve() {
     if (!formData || submitting) return;
     setSubmitting(true);
 
-    // ── CRITICAL: snapshot React state BEFORE any await to prevent stale closures ──
     const snapshotSeat      = selectedSeat;
     const snapshotTableData = tableData;
     const snapshotMode      = mode;
     const snapshotGuests    = guests;
 
-    // Derive standalone status from snapshots — never from post-await state
     const isStandalone = checkIsStandalone(snapshotSeat, snapshotTableData);
 
-    // Resolve the active table from snapshots
     const activeTable = isStandalone
       ? null
       : (snapshotMode === "whole"
           ? (selectedTable || (snapshotTableData?.tables?.[0] ?? null))
           : resolveTableForSeat(snapshotSeat, snapshotTableData));
 
-    // ── Build seat_number string ──────────────────────────────────────────
-    // Standalone: use the seat's num or id. Fall back to its label if both are missing.
-    // Individual: same — use the seat's own identifier.
-    // Whole-table: join the actual seat num values of the first `guests` available seats.
     let seatNumberValue;
     if (isStandalone || snapshotMode === "individual") {
-      // Ensure we always produce a non-empty string for standalone/individual seats
-      seatNumberValue = String(
-        snapshotSeat?.num ?? snapshotSeat?.label ?? snapshotSeat?.id ?? "1"
-      );
+      seatNumberValue = String(snapshotSeat?.num ?? snapshotSeat?.label ?? snapshotSeat?.id ?? "1");
     } else {
-      // whole-table mode
       const availableSeats = (activeTable?.seats || [])
         .filter(s => s.status === "available")
         .slice(0, snapshotGuests)
         .map(s => String(s.num ?? s.label ?? s.id));
-      seatNumberValue =
-        availableSeats.length > 0
-          ? availableSeats.join(",")
-          : String(snapshotSeat?.num ?? snapshotSeat?.label ?? snapshotSeat?.id ?? "1");
+      seatNumberValue = availableSeats.length > 0
+        ? availableSeats.join(",")
+        : String(snapshotSeat?.num ?? snapshotSeat?.label ?? snapshotSeat?.id ?? "1");
     }
 
     const payload = {
@@ -1116,18 +1124,15 @@ export default function BusinessCenterReserve() {
       venue_id:         7,
       room:             ROOM,
       wing:             WING,
-      // "STANDALONE" is the reliable admin-dashboard marker for standalone seats
       table_number:     isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
       seat_number:      seatNumberValue,
       guests_count:     (isStandalone || snapshotMode === "individual") ? 1 : snapshotGuests,
       event_date:       formData.eventDate,
       event_time:       formData.eventTime ? formData.eventTime.substring(0, 5) : null,
       special_requests: formData.specialRequests || "",
-      // Always send "individual" for individual seats (including standalone)
-      type:             "individual",
-      // Belt-and-suspenders boolean — some backends key off this dedicated flag
+      type:             isStandalone ? "standalone" : snapshotMode,
       is_standalone:    isStandalone ? 1 : 0,
-      // All new reservations start as pending
+      seat_id:          isStandalone ? (snapshotSeat?.id ?? null) : null,
       status:           "pending",
     };
 
@@ -1136,8 +1141,6 @@ export default function BusinessCenterReserve() {
     try {
       const response   = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || response.data?.reference_code || "—";
-
-      console.log("[BusinessCenterReserve] Reservation saved, ref:", newRefCode);
 
       setRefCode(newRefCode);
       setLastBookingDetails({
@@ -1153,7 +1156,7 @@ export default function BusinessCenterReserve() {
         catch (err) { console.warn("[Rebook] Failed to cancel old reservation:", err); }
       }
 
-      // ── Update local seat status optimistically ───────────────────────────
+      // Optimistic: mark seat(s) as pending immediately
       setTableData(prev => {
         if (!prev) return prev;
 
@@ -1166,24 +1169,27 @@ export default function BusinessCenterReserve() {
           return updated;
         }
 
-        if (!activeTable) return prev;
-        const tables = (prev.tables || []).map(t => {
-          if (t.id !== activeTable.id) return t;
-          if (snapshotMode === "individual") {
-            return { ...t, seats: t.seats.map(s => s.id === snapshotSeat?.id ? { ...s, status: "pending" } : s) };
-          }
-          let marked = 0;
-          return {
-            ...t,
-            seats: t.seats.map(s => {
-              if (marked < snapshotGuests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
-              return s;
-            }),
-          };
-        });
-        const updated = { ...prev, tables };
-        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
-        return updated;
+        if (activeTable) {
+          const tables = (prev.tables || []).map(t => {
+            if (t.id !== activeTable.id) return t;
+            if (snapshotMode === "individual") {
+              return { ...t, seats: t.seats.map(s => s.id === snapshotSeat?.id ? { ...s, status: "pending" } : s) };
+            }
+            let marked = 0;
+            return {
+              ...t,
+              seats: t.seats.map(s => {
+                if (marked < snapshotGuests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
+                return s;
+              }),
+            };
+          });
+          const updated = { ...prev, tables };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
+
+        return prev;
       });
 
       setModal("success");
@@ -1196,30 +1202,26 @@ export default function BusinessCenterReserve() {
     }
   };
 
+  // ── FIX: also re-fetch from server on back, just like AlabangReserve ────────
   const handleBack = () => {
     setModal(null); setSelectedSeat(null); setSelectedTable(null);
     setRefCode(null); setFormData(null); setGuests(2);
     setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
+    // Re-fetch authoritative server statuses after closing success modal
+    fetchAndMerge();
   };
 
   // ── Derived display values ────────────────────────────────────────────────
   const isMobile    = windowSize.width < 640;
   const isTablet    = windowSize.width < 1024;
   const activeTable = getActiveTable();
-
   const currentIsStandalone = isStandaloneSelected();
-
-  const canProceed  = (mode === "individual" || currentIsStandalone) &&
-                      selectedSeat &&
-                      selectedSeat.status !== "reserved";
-
+  const canProceed  = (mode === "individual" || currentIsStandalone) && selectedSeat && selectedSeat.status !== "reserved";
   const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
 
   const displayTable = currentIsStandalone
     ? "Standalone"
-    : mode === "whole"
-      ? (activeTable ? `Table ${activeTable.id}` : "—")
-      : (selectedTable ? `Table ${selectedTable.id}` : "—");
+    : mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "—") : (selectedTable ? `Table ${selectedTable.id}` : "—");
 
   const displaySeat = currentIsStandalone
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
@@ -1227,21 +1229,14 @@ export default function BusinessCenterReserve() {
       ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
       : getWholeSeatLabel(guests, activeTable);
 
-  const rebookPrefill  = rebookFrom
-    ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "09:00", specialRequests: rebookFrom.special_requests || "" }
-    : null;
-  const detailsPrefill = formData
-    ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "09:00", specialRequests: formData.specialRequests || "" }
-    : rebookPrefill;
+  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "09:00", specialRequests: rebookFrom.special_requests || "" } : null;
+  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "09:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
 
-  // Table context passed to modals — null for standalone seats
   const modalTableData = currentIsStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
 
   const BOTTOM_SHEET_H = 180;
   const NAV_H          = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
-
-  const seatMapCanvasBg = isDark ? "#1A1712" : "#EDEAE2";
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
@@ -1259,7 +1254,6 @@ export default function BusinessCenterReserve() {
 
       <div style={{ minHeight: "100vh", fontFamily: F.body, background: C.pageBg, transition: "background 0.30s", position: "relative" }}>
 
-        {/* Background */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
           <div style={{ position: "absolute", inset: 0, backgroundImage: `url('${bellevueLogo}')`, backgroundSize: "cover", backgroundPosition: "center", filter: isDark ? "blur(6px) brightness(0.30)" : "blur(6px) brightness(0.45) saturate(0.3)", transform: "scale(1.05)", transition: "filter 0.40s" }} />
           <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(12,11,10,0.80)" : "rgba(237,233,224,0.68)", transition: "background 0.40s" }} />
@@ -1267,11 +1261,9 @@ export default function BusinessCenterReserve() {
 
         <SharedNavbar />
 
-        {/* ═══════════ MOBILE ═══════════ */}
+        {/* ═══════════════ MOBILE LAYOUT ═══════════════ */}
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
-
-            {/* Mobile top bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px", background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderAccent}` }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
@@ -1284,7 +1276,6 @@ export default function BusinessCenterReserve() {
               <ThemeToggle />
             </div>
 
-            {/* Mode toggle */}
             <div style={{ display: "flex", gap: 0, padding: "10px 16px", background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: `1px solid ${C.borderDefault}` }}>
               {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label], i) => (
                 <button key={val} onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
@@ -1293,7 +1284,6 @@ export default function BusinessCenterReserve() {
               ))}
             </div>
 
-            {/* Rebooking notice */}
             {rebookFrom && (
               <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 14 }}>🔄</span>
@@ -1307,34 +1297,23 @@ export default function BusinessCenterReserve() {
               </div>
             )}
 
-            {/* Map */}
-            <div style={{ width: "100%", height: mobileMapHeight, position: "relative", overflow: "hidden", background: seatMapCanvasBg, transition: "background 0.30s" }}>
+            <div style={{ width: "100%", height: mobileMapHeight, position: "relative", overflow: "hidden", background: C.surfaceBase }}>
               {tableData ? (
                 <>
-                  <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch", position: "relative" }}>
-                    <div style={{ minWidth: 700, minHeight: Math.max(mobileMapHeight, 520), position: "relative" }}>
-                      <SeatMap
-                        tableData={tableData}
-                        editMode={false}
-                        selectedSeat={selectedSeat}
-                        onSeatClick={handleSeatClick}
-                        onTableClick={handleTableClick}
-                        windowWidth={700}
-                        wing={WING}
-                        room={ROOM}
-                        mode={mode}
-                        isDark={isDark}
-                      />
-                    </div>
+                  <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch" }}>
+                    <SeatMap
+                      tableData={tableData}
+                      editMode={false}
+                      mode={mode}
+                      selectedSeat={selectedSeat}
+                      onSeatClick={handleSeatClick}
+                      onTableClick={handleTableClick}
+                      windowWidth={windowSize.width}
+                      wing={WING}
+                      room={ROOM}
+                    />
                   </div>
-                  {/* Scroll hint */}
-                  <div style={{ position: "absolute", bottom: 10, right: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "5px 12px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 3, display: "flex", alignItems: "center", gap: 5, pointerEvents: "none" }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-                    <span style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Scroll to explore</span>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                  </div>
-                  {/* Legend */}
-                  <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3, pointerEvents: "none" }}>
+                  <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3 }}>
                     {Object.entries(STATUS_COLORS).map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
@@ -1348,34 +1327,26 @@ export default function BusinessCenterReserve() {
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
                   </div>
-                  <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>No seat layout published yet.<br /><span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span></div>
+                  <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>No seat layout published for this room.<br /><span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span></div>
                 </div>
               )}
             </div>
 
             <MobileBottomSheet
-              mode={mode}
-              selectedSeat={selectedSeat}
-              activeTable={activeTable}
-              isStandalone={currentIsStandalone}
-              guests={guests}
-              seatRatio={seatRatio}
-              canProceed={canProceed}
-              rebookFrom={rebookFrom}
-              onReserve={() => setModal("guestCount")}
-              C={C}
-              isDark={isDark}
+              mode={mode} selectedSeat={selectedSeat} activeTable={activeTable}
+              isStandalone={currentIsStandalone} guests={guests} seatRatio={seatRatio}
+              canProceed={canProceed} rebookFrom={rebookFrom}
+              onReserve={() => setModal("guestCount")} C={C} isDark={isDark}
             />
           </div>
 
         ) : (
-          /* ═══════════ DESKTOP ═══════════ */
+          /* ═══════════════ TABLET / DESKTOP LAYOUT ═══════════════ */
           <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto", padding: isTablet ? "28px 24px" : "36px 48px" }}>
 
-              {/* Back breadcrumb */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, animation: "fadeUp 0.28s ease" }}>
-                <button onClick={() => navigate("/venues")} title="Back"
+                <button onClick={() => navigate("/venues")} title="Back to venues"
                   style={{ width: 36, height: 36, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s", padding: 0, flexShrink: 0 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.background = "transparent"; }}>
@@ -1385,7 +1356,6 @@ export default function BusinessCenterReserve() {
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
               </div>
 
-              {/* Page heading */}
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
                 {rebookFrom && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
@@ -1409,40 +1379,36 @@ export default function BusinessCenterReserve() {
                 </p>
               </div>
 
-              {/* Mode toggle */}
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28, flexWrap: "wrap", animation: "fadeUp 0.34s ease" }}>
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>Reserve a:</span>
                 <div style={{ display: "flex", alignItems: "center", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: 3, gap: 3, border: `1px solid ${C.borderDefault}` }}>
                   {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label]) => (
-                    <button key={val} onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
+                    <button key={val}
+                      onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
                       style={{ padding: "8px 18px", border: "none", background: mode === val ? C.gold : "transparent", color: mode === val ? C.textOnAccent : C.textSecondary, cursor: "pointer", fontSize: 10, letterSpacing: "0.12em", fontWeight: 700, fontFamily: F.label, borderRadius: 6, transition: "all 0.18s", outline: "none", textTransform: "uppercase" }}
                     >{label}</button>
                   ))}
-                </div>
-                <div style={{ marginLeft: "auto" }}>
-                  <ThemeToggle />
                 </div>
               </div>
 
               <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexDirection: isTablet ? "column" : "row", animation: "fadeUp 0.36s ease" }}>
 
-                {/* Map card */}
-                <div style={{ flex: "1 1 0", width: isTablet ? "100%" : undefined, minWidth: 0, minHeight: 520, background: isDark ? "#1A1712" : C.surfaceBase, borderRadius: 14, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 8px 40px rgba(0,0,0,0.40)" : "0 4px 24px rgba(0,0,0,0.08)", position: "relative", display: "flex", flexDirection: "column", transition: "background 0.30s" }}>
+                <div style={{ flex: "1 1 0", width: isTablet ? "100%" : undefined, minWidth: 0, minHeight: 520, background: C.surfaceBase, borderRadius: 14, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 8px 40px rgba(0,0,0,0.40)" : "0 4px 24px rgba(0,0,0,0.08)", position: "relative", display: "flex", flexDirection: "column" }}>
                   <div style={{ height: "2px", flexShrink: 0, background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 30%, ${C.gold}60 70%, transparent 100%)` }} />
+
                   {tableData ? (
                     <>
                       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
                         <SeatMap
                           tableData={tableData}
                           editMode={false}
+                          mode={mode}
                           selectedSeat={selectedSeat}
                           onSeatClick={handleSeatClick}
                           onTableClick={handleTableClick}
                           windowWidth={windowSize.width}
                           wing={WING}
                           room={ROOM}
-                          mode={mode}
-                          isDark={isDark}
                         />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
@@ -1461,7 +1427,8 @@ export default function BusinessCenterReserve() {
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
                       </div>
                       <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
-                        No seat layout has been published for this room yet.<br /><span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later or contact the venue.</span>
+                        No seat layout has been published for this room yet.<br />
+                        <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later or contact the venue.</span>
                       </div>
                     </div>
                   )}
@@ -1471,8 +1438,7 @@ export default function BusinessCenterReserve() {
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
 
-                    {/* Legend */}
-                    <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)", transition: "background 0.30s" }}>
+                    <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
@@ -1487,8 +1453,7 @@ export default function BusinessCenterReserve() {
                       </div>
                     </div>
 
-                    {/* Selection card */}
-                    <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)", transition: "background 0.30s" }}>
+                    <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
@@ -1499,7 +1464,7 @@ export default function BusinessCenterReserve() {
                         ].map(([label, value, isGold, badge]) => (
                           <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.divider}` }}>
                             <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{label}</span>
-                            <span style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: isGold ? C.gold : currentIsStandalone && label === "Type" ? C.gold : C.textPrimary, textAlign: "right", display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: isGold ? C.gold : C.textPrimary, textAlign: "right", display: "flex", alignItems: "center", gap: 5 }}>
                               {value}
                               {badge && <span style={{ background: C.goldFaint, border: `1px solid ${C.borderAccent}`, borderRadius: 4, padding: "1px 5px", fontSize: 9, color: C.gold, fontWeight: 700, fontFamily: F.label }}>{badge}</span>}
                             </span>
@@ -1509,48 +1474,16 @@ export default function BusinessCenterReserve() {
                     </div>
                   </div>
 
-                  {/* Facilities card */}
-                  <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)", transition: "background 0.30s" }}>
-                    <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
-                    <div style={{ padding: "14px 16px" }}>
-                      <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Facilities</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        {[
-                          { path: <><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></>, label: "High-Speed WiFi" },
-                          { path: <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></>, label: "Projector" },
-                          { path: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, label: "Boardroom" },
-                          { path: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />, label: "Power Outlets" },
-                          { path: <><rect x="2" y="2" width="20" height="20" rx="2" /><path d="M7 7h10M7 12h10M7 17h6" /></>, label: "Whiteboard" },
-                          { path: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>, label: "Video Conf." },
-                        ].map(({ path, label }) => (
-                          <div key={label} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{path}</svg>
-                            <span style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary }}>{label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Reserve button */}
                   <button
-                    onClick={
-                      currentIsStandalone
-                        ? (canProceed ? () => setModal("guestCount") : undefined)
-                        : mode === "whole"
-                          ? () => setModal("guestCount")
-                          : (canProceed ? () => setModal("guestCount") : undefined)
-                    }
-                    disabled={(currentIsStandalone || mode === "individual") && !canProceed}
-                    style={{ width: "100%", padding: "13px", background: (currentIsStandalone ? canProceed : (mode === "whole" || canProceed)) ? C.gold : (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"), border: "none", borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: (currentIsStandalone ? canProceed : (mode === "whole" || canProceed)) ? C.textOnAccent : C.textTertiary, cursor: (currentIsStandalone ? canProceed : (mode === "whole" || canProceed)) ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                    onMouseEnter={e => { if (currentIsStandalone ? canProceed : (mode === "whole" || canProceed)) e.currentTarget.style.background = C.goldLight; }}
-                    onMouseLeave={e => { if (currentIsStandalone ? canProceed : (mode === "whole" || canProceed)) e.currentTarget.style.background = C.gold; }}
+                    onClick={mode === "whole" ? () => setModal("guestCount") : (canProceed ? () => setModal("guestCount") : undefined)}
+                    disabled={mode === "individual" && !canProceed}
+                    style={{ width: "100%", padding: "13px", background: (mode === "whole" || canProceed) ? C.gold : (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"), border: "none", borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: (mode === "whole" || canProceed) ? C.textOnAccent : C.textTertiary, cursor: (mode === "whole" || canProceed) ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                    onMouseEnter={e => { if (mode === "whole" || canProceed) e.currentTarget.style.background = C.goldLight; }}
+                    onMouseLeave={e => { if (mode === "whole" || canProceed) e.currentTarget.style.background = C.gold; }}
                   >
-                    {currentIsStandalone
-                      ? selectedSeat ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat") : "Select a Seat First"
-                      : mode === "whole"
-                        ? (rebookFrom ? "Move to This Table" : "Reserve This Table")
-                        : selectedSeat ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat") : "Select a Seat First"
+                    {mode === "whole"
+                      ? (rebookFrom ? "Move to This Table" : "Reserve This Table")
+                      : selectedSeat ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat") : "Select a Seat First"
                     }
                   </button>
                 </div>
@@ -1569,52 +1502,37 @@ export default function BusinessCenterReserve() {
           isStandalone={currentIsStandalone}
           onContinue={handleGuestContinue}
           onCancel={() => setModal(null)}
-          C={C}
-          isDark={isDark}
+          C={C} isDark={isDark}
         />
       )}
       {modal === "details" && (
         <ModalDetails
-          tableData={modalTableData}
-          seatData={selectedSeat}
+          tableData={modalTableData} seatData={selectedSeat}
           mode={currentIsStandalone ? "individual" : mode}
-          isStandalone={currentIsStandalone}
-          guests={guests}
+          isStandalone={currentIsStandalone} guests={guests}
           onReview={handleReview}
           onCancel={() => { setModal(null); resetHoldTimer(); }}
-          prefill={detailsPrefill}
-          C={C}
-          isDark={isDark}
+          prefill={detailsPrefill} C={C} isDark={isDark}
           secondsLeft={holdSecondsLeft}
           onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
         />
       )}
       {modal === "review" && formData && (
         <ModalReview
-          form={formData}
-          guests={guests}
+          form={formData} guests={guests}
           mode={currentIsStandalone ? "individual" : mode}
           isStandalone={currentIsStandalone}
-          tableData={modalTableData}
-          seatData={selectedSeat}
-          onSubmit={handleSubmit}
-          onEdit={handleEditDetails}
-          submitting={submitting}
-          isRebook={!!rebookFrom}
-          rebookFrom={rebookFrom}
-          C={C}
+          tableData={modalTableData} seatData={selectedSeat}
+          onSubmit={handleSubmit} onEdit={handleEditDetails}
+          submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
         />
       )}
       {modal === "success" && (
         <ModalSuccess
-          refCode={refCode}
-          onBack={handleBack}
+          refCode={refCode} onBack={handleBack}
           mode={currentIsStandalone ? "standalone" : mode}
-          guests={guests}
-          isRebook={!!rebookFrom}
-          bookingDetails={lastBookingDetails}
-          C={C}
-          isDark={isDark}
+          guests={guests} isRebook={!!rebookFrom}
+          bookingDetails={lastBookingDetails} C={C} isDark={isDark}
         />
       )}
     </ThemeContext.Provider>

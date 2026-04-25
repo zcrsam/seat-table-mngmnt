@@ -39,7 +39,7 @@ class SeatMapController extends Controller
 
             // Get all reservations for this venue
             $reservations = Reservation::where('venue_id', $venue->id)
-                ->whereIn('status', ['pending', 'approved'])
+                ->whereIn('status', ['pending', 'approved', 'reserved'])
                 ->get();
 
             // Group seats by table to match frontend structure
@@ -69,6 +69,26 @@ class SeatMapController extends Controller
                 ];
             }
 
+            // Process standalone seats
+            $standaloneSeats = [];
+            $standaloneReservations = $reservations->filter(function($reservation) {
+                return $reservation->table_number === 'STANDALONE' || 
+                       $reservation->type === 'standalone' || 
+                       $reservation->is_standalone == 1;
+            });
+
+            // Create standalone seat entries for reservations
+            foreach ($standaloneReservations as $reservation) {
+                $standaloneSeats[] = [
+                    'id' => $reservation->seat_id ?? 'STANDALONE-' . $reservation->seat_number,
+                    'num' => $reservation->seat_number,
+                    'label' => $reservation->seat_number,
+                    'status' => $reservation->status === 'approved' ? 'reserved' : $reservation->status,
+                    'x' => 50 + (count($standaloneSeats) * 100), // Position dynamically
+                    'y' => 300,
+                ];
+            }
+
             // Convert to array and sort by table ID
             $tableArray = array_values($tables);
             usort($tableArray, function($a, $b) {
@@ -81,7 +101,7 @@ class SeatMapController extends Controller
                     'v' => 2,
                     'tables' => $tableArray,
                     'labels' => null,
-                    'standaloneSeats' => []
+                    'standaloneSeats' => $standaloneSeats
                 ],
                 'venue' => [
                     'id' => $venue->id,
@@ -112,7 +132,7 @@ class SeatMapController extends Controller
 
             // Get all reservations for this venue
             $reservations = Reservation::where('venue_id', $venue->id)
-                ->whereIn('status', ['pending', 'approved'])
+                ->whereIn('status', ['pending', 'approved', 'reserved'])
                 ->get();
 
             // Group seats by table to match frontend structure
@@ -142,6 +162,26 @@ class SeatMapController extends Controller
                 ];
             }
 
+            // Process standalone seats
+            $standaloneSeats = [];
+            $standaloneReservations = $reservations->filter(function($reservation) {
+                return $reservation->table_number === 'STANDALONE' || 
+                       $reservation->type === 'standalone' || 
+                       $reservation->is_standalone == 1;
+            });
+
+            // Create standalone seat entries for reservations
+            foreach ($standaloneReservations as $reservation) {
+                $standaloneSeats[] = [
+                    'id' => $reservation->seat_id ?? 'STANDALONE-' . $reservation->seat_number,
+                    'num' => $reservation->seat_number,
+                    'label' => $reservation->seat_number,
+                    'status' => $reservation->status === 'approved' ? 'reserved' : $reservation->status,
+                    'x' => 50 + (count($standaloneSeats) * 100), // Position dynamically
+                    'y' => 300,
+                ];
+            }
+
             // Convert to array and sort by table ID
             $tableArray = array_values($tables);
             usort($tableArray, function($a, $b) {
@@ -154,7 +194,7 @@ class SeatMapController extends Controller
                     'v' => 2,
                     'tables' => $tableArray,
                     'labels' => null,
-                    'standaloneSeats' => []
+                    'standaloneSeats' => $standaloneSeats
                 ],
                 'venue' => [
                     'id' => $venue->id,
