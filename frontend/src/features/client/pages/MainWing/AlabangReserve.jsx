@@ -7,6 +7,40 @@ import SeatMap, { STATUS_COLORS } from "../../../../components/seatmap/SeatMap";
 import Echo from "../../../../utils/websocket.js";
 import bellevueLogo from "../../../../assets/bellevue-logo.png";
 
+function getActualWingForRoom(room) {
+  // Check dynamic venue structure first
+  try {
+    const raw = localStorage.getItem("bellevue_venue_structure");
+    if (raw) {
+      const structure = JSON.parse(raw);
+      for (const wing of structure) {
+        if (wing.rooms.includes(room)) return wing.label;
+      }
+    }
+  } catch {}
+  // Hardcoded fallback (matches SeatMap.jsx)
+  const map = {
+    "Alabang Function Room": "Main Wing",
+    "Business Center":       "Main Wing",
+    "Laguna Ballroom 1":     "Main Wing",
+    "Laguna Ballroom 2":     "Main Wing",
+    "20/20 Function Room A": "Main Wing",
+    "20/20 Function Room B": "Main Wing",
+    "20/20 Function Room C": "Main Wing",
+    "Grand Ballroom A":      "Grand Ballroom",
+    "Grand Ballroom B":      "Grand Ballroom",
+    "Grand Ballroom C":      "Grand Ballroom",
+    "Tower 1":               "Tower Wing",
+    "Tower 2":               "Tower Wing",
+    "Tower 3":               "Tower Wing",
+    "Qsina":                 "Dining",
+    "Hanakazu":              "Dining",
+    "Phoenix Court":         "Dining",
+  };
+  return map[room] || "Main Wing";
+}
+
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Main Wing";
 const ROOM = "Alabang Function Room";
@@ -145,27 +179,8 @@ function loadLayoutForClient(wing, room) {
     const raw = localStorage.getItem(layoutKey(wing, room));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed?.v === 2) {
-      // Add test standalone seats if they don't exist
-      if (!parsed.standaloneSeats || parsed.standaloneSeats.length === 0) {
-        parsed.standaloneSeats = [
-          { id: "STANDALONE-1", num: "S1", label: "Standalone 1", status: "available", x: 50, y: 300 },
-          { id: "STANDALONE-2", num: "S2", label: "Standalone 2", status: "available", x: 150, y: 300 },
-          { id: "STANDALONE-3", num: "S3", label: "Standalone 3", status: "available", x: 250, y: 300 },
-        ];
-      }
-      return parsed;
-    }
-    if (Array.isArray(parsed)) return { 
-      tables: parsed, 
-      labels: null, 
-      venueZones: [], 
-      standaloneSeats: [
-        { id: "STANDALONE-1", num: "S1", label: "Standalone 1", status: "available", x: 50, y: 300 },
-        { id: "STANDALONE-2", num: "S2", label: "Standalone 2", status: "available", x: 150, y: 300 },
-        { id: "STANDALONE-3", num: "S3", label: "Standalone 3", status: "available", x: 250, y: 300 },
-      ] 
-    };
+    if (parsed?.v === 2) return parsed;
+    if (Array.isArray(parsed)) return { tables: parsed, labels: null, venueZones: [], standaloneSeats: [] };
     return null;
   } catch { return null; }
 }

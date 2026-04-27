@@ -88,6 +88,7 @@ const NAV_H   = 64;
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  button { outline: none; }
   html { scroll-behavior: smooth; }
 
   @keyframes partners-scroll { from { transform:translateX(0); } to { transform:translateX(-50%); } }
@@ -180,13 +181,20 @@ const GLOBAL_CSS = `
   }
   /* Light mode primary */
   .hero-cta-solid-light { background: #1A1510; color: #F0E8D0; border-color: #1A1510; }
-  .hero-cta-solid-light:hover { background: transparent; color: #1A1510; border-color: #1A1510; transform: translateY(-2px); }
+  .hero-cta-solid-light:hover { background: #C9A84C; color: #fff; border-color: #C9A84C; transform: translateY(-2px); }
   /* Dark mode primary */
   .hero-cta-solid-dark { background: #F0E8D0; color: #18140E; border-color: #F0E8D0; }
-  .hero-cta-solid-dark:hover { background: transparent; color: #F0E8D0; border-color: #F0E8D0; transform: translateY(-2px); }
+  .hero-cta-solid-dark:hover { background: #C9A84C; color: #fff; border-color: #C9A84C; transform: translateY(-2px); }
+  /* Outline only (no bg) */
+  .hero-cta-outline-light { background: transparent; color: #1A1510; border-color: transparent; }
+  .hero-cta-outline-light:hover { background: #C9A84C; color: #fff; border-color: #C9A84C; transform: translateY(-2px); }
+  .hero-cta-outline-dark { background: transparent; color: #F0E8D0; border-color: transparent; }
+  .hero-cta-outline-dark:hover { background: #C9A84C; color: #fff; border-color: #C9A84C; transform: translateY(-2px); }
+
   /* Ghost / quiet */
-  .hero-cta-quiet { background: transparent; border-color: transparent; padding: 13px 4px; }
+  .hero-cta-quiet { background: transparent; border-color: transparent; padding: 13px 4px; outline: none; }
   .hero-cta-quiet:hover { color: #C9A84C !important; transform: translateX(3px); }
+  .hero-cta:focus, .hero-cta:focus-visible { outline: none; box-shadow: none; }
 
   .hero-stat { transition: transform .28s ease; cursor: default; }
   .hero-stat:hover { transform: translateY(-2px); }
@@ -281,19 +289,19 @@ function NavDot({ disabled, icon, C, onClick }) {
       onMouseEnter={() => { if (active) setHov(true); }}
       onMouseLeave={() => setHov(false)}
       style={{
-        width: 38, height: 38, borderRadius: "50%",
-        border: `1.5px solid ${active ? C.gold : "rgba(201,168,76,0.22)"}`,
+        width: 42, height: 42, borderRadius: "50%",
+        border: hov && active ? "none" : `1.5px solid ${active ? C.gold : "rgba(201,168,76,0.22)"}`,
         background: hov && active ? C.gold : "transparent",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.28 : 1,
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "all 0.22s cubic-bezier(0.4,0,0.2,1)",
-        flexShrink: 0, outline: "none",
+        flexShrink: 0, outline: "none", boxShadow: "none",
       }}
     >
       {icon === "left"
-        ? <ChevLeft  size={16} color={hov && active ? "#18140E" : C.gold} strokeWidth={2.5} />
-        : <ChevRight size={16} color={hov && active ? "#18140E" : C.gold} strokeWidth={2.5} />
+        ? <ChevLeft  size={17} color={hov && active ? "#18140E" : C.gold} strokeWidth={2.8} />
+        : <ChevRight size={17} color={hov && active ? "#18140E" : C.gold} strokeWidth={2.8} />
       }
     </button>
   );
@@ -368,8 +376,8 @@ function HeroSection({ loaded, isDark, onNavigateToVenues, onManageBooking }) {
             <button className={`h-cta ${btnClass}`} onClick={() => onNavigateToVenues && onNavigateToVenues()}>
               Browse Venues
             </button>
-            <button className="h-cta hero-cta hero-cta-quiet" onClick={onManageBooking} style={{ color: textMain }}>
-              Manage Booking <ChevRight size={11} />
+            <button className={`h-cta ${isDark ? "hero-cta hero-cta-outline-dark" : "hero-cta hero-cta-outline-light"}`} onClick={onManageBooking}>
+              Manage Booking
             </button>
           </div>
           {/* Stats */}
@@ -429,11 +437,11 @@ function HeroSection({ loaded, isDark, onNavigateToVenues, onManageBooking }) {
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
-        /* exact height — nav already occupies NAV_H so section starts below it */
-        height: `calc(100vh - ${NAV_H}px)`,
+        // FIX: use full 100vh and no marginTop so right panel fills edge-to-edge
+        height: "100vh",
         minHeight: 520,
         maxHeight: 940,
-        marginTop: NAV_H,
+        marginTop: 0,
         background: pageBg,
         overflow: "hidden",
         position: "relative",
@@ -455,7 +463,8 @@ function HeroSection({ loaded, isDark, onNavigateToVenues, onManageBooking }) {
       {/* ── LEFT PANEL ── */}
       <div style={{
         display: "flex", flexDirection: "column", justifyContent: "center",
-        padding: "clamp(36px,4.8vw,76px) clamp(32px,5.2vw,70px)",
+        // FIX: add paddingTop so content clears the fixed navbar
+        padding: `${NAV_H + 36}px clamp(32px,5.2vw,70px) clamp(36px,4.8vw,76px)`,
         position: "relative", overflow: "hidden",
       }}>
         {/* Eyebrow */}
@@ -486,12 +495,12 @@ function HeroSection({ loaded, isDark, onNavigateToVenues, onManageBooking }) {
           <button className={`h-cta ${btnClass}`} onClick={() => onNavigateToVenues && onNavigateToVenues()}>
             Browse Venues
           </button>
-          <button className="h-cta hero-cta hero-cta-quiet" onClick={onManageBooking} style={{ color: textMain }}>
-            Manage Booking <ChevRight size={11} />
+          <button className={`h-cta ${isDark ? "hero-cta hero-cta-outline-dark" : "hero-cta hero-cta-outline-light"}`} onClick={onManageBooking}>
+            Manage Booking
           </button>
         </div>
 
-        {/* Stats bar — horizontal flex, no grid */}
+        {/* Stats bar */}
         <div style={{
           display: "flex", alignItems: "center",
           marginTop: "clamp(16px,2.4vw,32px)",
@@ -513,7 +522,7 @@ function HeroSection({ loaded, isDark, onNavigateToVenues, onManageBooking }) {
         </div>
       </div>
 
-      {/* ── RIGHT PANEL — two stacked wing cards, no extra margins ── */}
+      {/* ── RIGHT PANEL — two stacked wing cards filling full height ── */}
       <div style={{
         display: "grid",
         gridTemplateRows: "1fr 1fr",
@@ -744,7 +753,7 @@ function NewsletterSection() {
   const isMobile = useIsMobile();
   const ref = useGsapScroll({ y:30, opacity:0, duration:0.9, delay:0.05 });
   return (
-    <section ref={ref} className="full-section" style={{ position:"relative", overflow:"hidden", background:C.nlBg, transition:"background 0.35s" }}>
+    <section ref={ref} style={{ position:"relative", overflow:"hidden", background:C.nlBg, transition:"background 0.35s" }}>
       <div style={{ position:"absolute", inset:0, opacity:isDark?0.04:0.05, backgroundImage:`linear-gradient(${C.gold} 1px,transparent 1px),linear-gradient(90deg,${C.gold} 1px,transparent 1px)`, backgroundSize:"60px 60px", pointerEvents:"none" }} />
       <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${C.gold},transparent)` }} />
       <div style={{ position:"relative", maxWidth:1100, margin:"0 auto", padding:"clamp(36px,6vw,72px) clamp(20px,5vw,60px)", display:"flex", alignItems:isMobile?"flex-start":"center", justifyContent:"space-between", flexDirection:isMobile?"column":"row", gap:isMobile?24:36, flexWrap:"wrap", width:"100%" }}>
