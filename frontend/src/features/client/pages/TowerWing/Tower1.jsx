@@ -1,6 +1,6 @@
 // src/features/client/pages/TowerWing/TowerBallroom1.jsx
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import SharedNavbar from "../../../../components/SharedNavbar.jsx";
 import SeatMap from "../../../../components/seatmap/SeatMap.jsx";
 import Echo from "../../../../utils/websocket.js";
@@ -8,15 +8,6 @@ import twentyTwentyImg from "../../../../assets/20-20.jpeg";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-/**
- * WING / ROOM must exactly match the values used in:
- *   1. SeatMap's WingRoomSidebar (Tower Wing → "Tower 1")
- *   2. SeatMap's getActualWingForRoom mapping
- *
- * This guarantees both the admin editor and this client page
- * read/write the same localStorage key:
- *   seatmap_layout:Tower Wing:Tower 1
- */
 const WING = "Tower Wing";
 const ROOM = "Tower 1";
 
@@ -99,16 +90,16 @@ function getTokens(isDark) {
       };
 }
 
-const FONT = "'Inter','Helvetica Neue',Arial,sans-serif";
+const F = {
+  display: "'Playfair Display','Georgia',serif",
+  body:    "'Inter','Helvetica Neue',Arial,sans-serif",
+  mono:    "'DM Mono','Courier New',monospace",
+  label:   "'Inter','Helvetica Neue',Arial,sans-serif",
+};
+
+const LEGEND_STATUSES = ["available", "pending", "reserved"];
 
 // ─── Persistence helpers ─────────────────────────────────────────────────────
-/**
- * layoutKey must produce:  seatmap_layout:Tower Wing:Tower 1
- *
- * SeatMap's getActualWingForRoom maps "Tower 1" → "Tower Wing", so the
- * admin editor writes:  localStorage["seatmap_layout:Tower Wing:Tower 1"]
- * This helper reads the exact same key.
- */
 function layoutKey(wing, room) {
   return `seatmap_layout:${wing}:${room}`;
 }
@@ -117,15 +108,85 @@ function layoutKey(wing, room) {
 function normaliseApiStatus(raw) {
   const s = (raw || "available").toLowerCase();
   if (s === "approved" || s === "reserved") return "reserved";
-  if (s === "pending") return "pending";
   if (s === "rejected" || s === "cancelled") return "available";
+  if (s === "pending") return "pending";
   return "available";
+}
+
+// ─── Merge API status into local layout (ported from AlabangReserve) ─────────
+function mergeApiStatusIntoLayout(localLayout, apiData) {
+  if (!localLayout || !apiData) return localLayout;
+  const apiStatusMap = {};
+  const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
+  apiTables.forEach(t => {
+    if (Array.isArray(t?.seats)) {
+      (t.seats || []).forEach(s => {
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
+      });
+      return;
+    }
+
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+
+    if (tableKey || seatKey) {
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
+    }
+  });
+
+  const mergedTables = (localLayout.tables || []).map(t => ({
+    ...t,
+    seats: (t.seats || []).map(s => {
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+      // API status wins; if API has no record → seat is available (never inherit stale localStorage status)
+      return { ...s, status: apiStatus ?? "available" };
+    }),
+  }));
+
+  const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
+    const apiStatus =
+      apiStatusMap[s.id] ??
+      apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+    return { ...s, status: apiStatus ?? "available" };
+  });
+
+  return { ...localLayout, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
+}
+
+/**
+ * Strip all seat statuses back to "available".
+ * We NEVER trust localStorage for seat status — only the API is authoritative.
+ * localStorage is used only for layout geometry (positions, labels, capacity).
+ */
+function resetAllSeatsToAvailable(layout) {
+  if (!layout) return layout;
+  return {
+    ...layout,
+    tables: (layout.tables || []).map(t => ({
+      ...t,
+      seats: (t.seats || []).map(s => ({ ...s, status: "available" })),
+    })),
+    standaloneSeats: (layout.standaloneSeats || []).map(s => ({ ...s, status: "available" })),
+    seats: (layout.seats || []).map(s => ({ ...s, status: "available" })),
+  };
+}
+
+function ensureAvailableDefaults(layout) {
+  // Alias — always reset to available so stale localStorage never shows red
+  return resetAllSeatsToAvailable(layout);
 }
 
 function loadLayoutForClient(wing, room) {
   try {
     const raw = localStorage.getItem(layoutKey(wing, room));
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Reset all statuses to available — API will overlay real statuses
+    return resetAllSeatsToAvailable(parsed);
   } catch { return null; }
 }
 
@@ -166,9 +227,8 @@ function Spinner({ size = 13, C }) {
   return (
     <span style={{
       display: "inline-block", width: size, height: size,
-      border: `${Math.ceil(size / 3)}px solid ${C.spinnerBorder}`,
-      borderTopColor: C.spinnerTop, borderRadius: "50%",
-      animation: "spin 0.6s linear infinite",
+      border: `1.5px solid ${C.spinnerBorder}`, borderTopColor: C.spinnerTop,
+      borderRadius: "50%", animation: "spin 0.65s linear infinite", flexShrink: 0,
     }} />
   );
 }
@@ -176,7 +236,7 @@ function Spinner({ size = 13, C }) {
 function SectionLabel({ children, C, style = {} }) {
   return (
     <div style={{
-      fontFamily: FONT, fontSize: 9, letterSpacing: "0.20em",
+      fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em",
       color: C.gold, fontWeight: 700, textTransform: "uppercase",
       marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid ${C.divider}`, ...style,
     }}>{children}</div>
@@ -186,11 +246,16 @@ function SectionLabel({ children, C, style = {} }) {
 function CloseBtn({ onClick, disabled = false, C }) {
   return (
     <button onClick={onClick} disabled={disabled} title="Close"
-      style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "1px solid rgba(255,255,255,0.10)", cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "border-color 0.18s, background 0.18s", padding: 0, zIndex: 10 }}
+      style={{
+        width: 32, height: 32, borderRadius: "50%", background: "transparent",
+        border: `1px solid ${C.borderStrong}`, cursor: disabled ? "not-allowed" : "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0, transition: "border-color 0.18s, background 0.18s", padding: 0, zIndex: 10,
+      }}
       onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; } }}
-      onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.background = "transparent"; } }}
+      onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.background = "transparent"; } }}
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(237,232,223,0.50)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     </button>
@@ -203,7 +268,7 @@ function ModalShell({ children, onClose, disabled, C, maxWidth = 500 }) {
       style={{ position: "fixed", inset: 0, background: C.modalOverlay, zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
       onClick={e => { if (e.target === e.currentTarget && !disabled) onClose(); }}
     >
-      <div style={{ background: C.surfaceBase, borderRadius: 14, width: "100%", maxWidth, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 24px 80px rgba(0,0,0,0.30)", border: `1px solid ${C.borderDefault}`, fontFamily: FONT, position: "relative", animation: "modalIn 0.20s cubic-bezier(0.16,1,0.3,1)", overflow: "hidden" }}>
+      <div style={{ background: C.surfaceBase, borderRadius: 14, width: "100%", maxWidth, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 24px 80px rgba(0,0,0,0.40)", border: `1px solid ${C.borderDefault}`, fontFamily: F.body, position: "relative", animation: "modalIn 0.20s cubic-bezier(0.16,1,0.3,1)", overflow: "hidden" }}>
         <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}80 30%, ${C.gold}80 70%, transparent 100%)` }} />
         {children}
       </div>
@@ -218,8 +283,8 @@ function ModalHeader({ eyebrow, title, onClose, disabled, C, meta }) {
         <CloseBtn onClick={onClose} disabled={disabled} C={C} />
       </div>
       <div style={{ paddingRight: 44 }}>
-        {eyebrow && <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 6, opacity: 0.80 }}>{eyebrow}</div>}
-        <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 20, fontWeight: 600, color: "#EDE8DF", letterSpacing: "0.01em", lineHeight: 1.2 }}>{title}</div>
+        {eyebrow && <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 6, opacity: 0.80 }}>{eyebrow}</div>}
+        <div style={{ fontFamily: F.display, fontSize: 20, fontWeight: 600, color: C.textPrimary, letterSpacing: "0.01em", lineHeight: 1.2 }}>{title}</div>
         {meta && <div style={{ marginTop: 8 }}>{meta}</div>}
       </div>
     </div>
@@ -229,7 +294,7 @@ function ModalHeader({ eyebrow, title, onClose, disabled, C, meta }) {
 function PrimaryBtn({ children, onClick, disabled = false, loading = false, C, style = {} }) {
   return (
     <button onClick={onClick} disabled={disabled || loading}
-      style={{ width: "100%", padding: "13px", background: disabled ? C.textTertiary : C.gold, border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: disabled ? C.textSecondary : C.textOnAccent, cursor: disabled || loading ? "not-allowed" : "pointer", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8, ...style }}
+      style={{ width: "100%", padding: "13px", background: disabled ? (C.surfaceInput) : C.gold, border: disabled ? `1px solid ${C.borderDefault}` : "none", borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: disabled ? C.textTertiary : C.textOnAccent, cursor: disabled || loading ? "not-allowed" : "pointer", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8, ...style }}
       onMouseEnter={e => { if (!disabled && !loading) e.currentTarget.style.background = C.goldLight; }}
       onMouseLeave={e => { if (!disabled && !loading) e.currentTarget.style.background = C.gold; }}
     >
@@ -241,7 +306,7 @@ function PrimaryBtn({ children, onClick, disabled = false, loading = false, C, s
 function GhostBtn({ children, onClick, disabled = false, C, style = {} }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      style={{ width: "100%", padding: "12px", background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textSecondary, cursor: disabled ? "not-allowed" : "pointer", transition: "all 0.18s", ...style }}
+      style={{ width: "100%", padding: "12px", background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textSecondary, cursor: disabled ? "not-allowed" : "pointer", transition: "all 0.18s", ...style }}
       onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
       onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
     >{children}</button>
@@ -258,16 +323,16 @@ function StepIndicator({ step, C }) {
         return (
           <div key={label} style={{ display: "flex", alignItems: "flex-start", flex: i < steps.length - 1 ? 1 : "none" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 26, height: 26, borderRadius: "50%", background: done ? C.gold : active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)", border: done || active ? "none" : "1.5px solid rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+              <div style={{ width: 26, height: 26, borderRadius: "50%", background: done ? C.gold : active ? C.goldFaint : "transparent", border: done ? "none" : `1.5px solid ${active ? C.gold : C.borderStrong}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                 {done
-                  ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  : <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: active ? "#EDE8DF" : "rgba(237,232,223,0.40)" }}>{idx}</span>
+                  ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textOnAccent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  : <span style={{ fontFamily: F.label, fontSize: 10, fontWeight: 700, color: active ? C.gold : C.textTertiary }}>{idx}</span>
                 }
               </div>
-              <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: done ? C.gold : active ? "#EDE8DF" : "rgba(237,232,223,0.35)", whiteSpace: "nowrap", textTransform: "uppercase" }}>{label}</span>
+              <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: done ? C.gold : active ? C.gold : C.textTertiary, whiteSpace: "nowrap", textTransform: "uppercase" }}>{label}</span>
             </div>
             {i < steps.length - 1 && (
-              <div style={{ flex: 1, height: 1.5, marginTop: 12, marginLeft: 6, marginRight: 6, background: done ? C.gold : "rgba(255,255,255,0.10)", borderRadius: 2, transition: "background 0.2s" }} />
+              <div style={{ flex: 1, height: 1.5, marginTop: 12, marginLeft: 6, marginRight: 6, background: done ? C.gold : C.borderDefault, borderRadius: 2, transition: "background 0.2s" }} />
             )}
           </div>
         );
@@ -280,10 +345,19 @@ function StepIndicator({ step, C }) {
 function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, rows }) {
   const [focused, setFocused] = useState(false);
   const isTextarea = type === "textarea";
-  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 14px", border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`, borderRadius: 8, background: C.surfaceInput, fontFamily: FONT, fontSize: 13, color: C.textPrimary, outline: "none", transition: "border-color 0.18s, box-shadow 0.18s", boxShadow: focused ? C.inputFocusShadow : "none", colorScheme: isDark ? "dark" : "light", resize: isTextarea ? "vertical" : undefined, minHeight: isTextarea ? 72 : undefined };
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", padding: "11px 14px",
+    border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderRadius: 8, background: C.surfaceInput, fontFamily: F.body,
+    fontSize: 13, color: C.textPrimary, outline: "none",
+    transition: "border-color 0.18s, box-shadow 0.18s",
+    boxShadow: focused ? C.inputFocusShadow : "none",
+    colorScheme: isDark ? "dark" : "light",
+    resize: isTextarea ? "vertical" : undefined, minHeight: isTextarea ? 72 : undefined,
+  };
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: "block", fontFamily: FONT, fontSize: 9, letterSpacing: "0.18em", color: focused ? C.gold : C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 7, transition: "color 0.18s" }}>
+      <label style={{ display: "block", fontFamily: F.label, fontSize: 9, letterSpacing: "0.18em", color: focused ? C.gold : C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 7, transition: "color 0.18s" }}>
         {label}{required && <span style={{ color: C.red, marginLeft: 3 }}>*</span>}
       </label>
       {isTextarea
@@ -296,12 +370,13 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
 
 // ─── Status Legend ───────────────────────────────────────────────────────────
 function LocalStatusLegend({ C }) {
+  const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {Object.entries(STATUS_COLORS).map(([key, color]) => (
+      {legendEntries.map(([key, color]) => (
         <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
           <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
-          <span style={{ fontFamily: FONT, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
+          <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
             {key === "reserved" ? "Approved / Reserved" : key.charAt(0).toUpperCase() + key.slice(1)}
           </span>
         </div>
@@ -350,6 +425,7 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
 
+  // Standalone seat: simple info card
   if (isStandalone) {
     return (
       <ModalShell onClose={onCancel} C={C}>
@@ -357,13 +433,14 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
         <div style={{ padding: "22px 24px 26px" }}>
           <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
             {[
-              ["Room",         ROOM],
-              ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`],
-              ["Availability", seatData?.status === "available" ? "Available" : "Unavailable"],
-            ].map(([key, val], i, arr) => (
+              ["Room",         ROOM,                                                                          null],
+              ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`,                              null],
+              ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
+                               seatData?.status === "available" ? C.green : C.gold],
+            ].map(([key, val, color], i, arr) => (
               <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
-                <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
-                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{val}</span>
+                <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
+                <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: color || C.textPrimary }}>{val}</span>
               </div>
             ))}
           </div>
@@ -375,10 +452,11 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
   }
 
   const infoRows = [
-    ["Room",         ROOM],
-    ...(tableData ? [["Table", `Table ${tableData?.id ?? "T1"}`]] : []),
-    ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "1"}`],
-    ["Availability", seatData?.status === "available" ? "Available" : "Unavailable"],
+    ["Room",         ROOM,                                                                          null],
+    ...(tableData ? [["Table", `Table ${tableData?.id ?? "T1"}`, null]] : []),
+    ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "1"}`,                               null],
+    ["Availability", seatData?.status === "available" ? "Available" : "Unavailable",
+                     seatData?.status === "available" ? C.green : C.gold],
   ];
 
   return (
@@ -391,10 +469,10 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
       <div style={{ padding: "22px 24px 26px" }}>
         {mode === "individual" && (
           <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
-            {infoRows.map(([key, val], i) => (
+            {infoRows.map(([key, val, color], i) => (
               <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < infoRows.length - 1 ? `1px solid ${C.divider}` : "none" }}>
-                <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
-                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{val}</span>
+                <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
+                <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: color || C.textPrimary }}>{val}</span>
               </div>
             ))}
           </div>
@@ -403,15 +481,15 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
         {mode === "whole" && (
           <>
             <div style={{ textAlign: "center", marginBottom: 22 }}>
-              <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 14 }}>Number of Guests</div>
+              <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 14 }}>Number of Guests</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 10 }}>
                 <button onClick={dec} disabled={atMin}
                   style={{ width: 44, height: 52, border: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`, borderRight: "none", borderRadius: "8px 0 0 8px", background: C.surfaceInput, color: atMin ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMin ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMin ? 0.4 : 1 }}
                   onMouseEnter={e => { if (!atMin) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
-                >-</button>
+                >−</button>
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={inputVal} onChange={handleInputChange} onBlur={handleInputBlur}
-                  style={{ width: 80, height: 52, border: `1.5px solid ${C.borderAccent}`, borderLeft: "none", borderRight: "none", background: C.surfaceInput, textAlign: "center", fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 28, fontWeight: 700, color: C.textPrimary, outline: "none", colorScheme: isDark ? "dark" : "light", MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box" }}
+                  style={{ width: 80, height: 52, border: `1.5px solid ${C.borderAccent}`, borderLeft: "none", borderRight: "none", background: C.surfaceInput, textAlign: "center", fontFamily: F.display, fontSize: 28, fontWeight: 700, color: C.textPrimary, outline: "none", colorScheme: isDark ? "dark" : "light", MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box" }}
                 />
                 <button onClick={inc} disabled={atMax}
                   style={{ width: 44, height: 52, border: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`, borderLeft: "none", borderRadius: "0 8px 8px 0", background: C.surfaceInput, color: atMax ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMax ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMax ? 0.4 : 1 }}
@@ -419,20 +497,20 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >+</button>
               </div>
-              <div style={{ fontFamily: FONT, fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.6 }}>
                 Table <strong style={{ color: C.textPrimary }}>{tableData?.id || "T1"}</strong> has{" "}
                 <strong style={{ color: C.textPrimary }}>{capacity} available seat{capacity !== 1 ? "s" : ""}</strong>
                 {pendingSeats.length > 0 && <span style={{ color: C.gold }}>{" "}({pendingSeats.length} pending approval)</span>}
               </div>
               {atMax && (
-                <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, fontFamily: FONT, fontSize: 11.5, color: C.gold, lineHeight: 1.5 }}>
+                <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 7, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, fontFamily: F.body, fontSize: 11.5, color: C.gold, lineHeight: 1.5 }}>
                   Maximum reached — only <strong>{capacity}</strong> seat{capacity !== 1 ? "s" : ""} available on this table.
                 </div>
               )}
             </div>
             <div style={{ padding: "12px 16px", borderRadius: 8, marginBottom: 20, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-              <div style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Seats to be Reserved</div>
-              <div style={{ fontFamily: FONT, fontSize: 13, color: C.gold, fontWeight: 600 }}>{getWholeSeatLabel(guests, tableData)}</div>
+              <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Seats to be Reserved</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, color: C.gold, fontWeight: 600 }}>{getWholeSeatLabel(guests, tableData)}</div>
             </div>
           </>
         )}
@@ -480,6 +558,7 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
     ? getWholeSeatLabel(guests, tableData)
     : seatData ? `Seat ${seatData.num ?? seatData.id}` : "Seat 1";
 
+  // For standalone: hide table column; also hide wing column
   const summaryColumns = [
     ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "T1"}`]]),
     ["Seat", seatDisplay],
@@ -490,22 +569,24 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
   return (
     <ModalShell onClose={onCancel} C={C}>
       <ModalHeader
-        eyebrow={isStandalone ? "Standalone Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"}
         title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />}
       />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
+        {/* Timer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
-            <div style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isUrgent ? C.red : C.textSecondary, marginBottom: 2 }}>Seat Hold Timer</div>
-            <div style={{ fontFamily: FONT, fontSize: 11, color: isUrgent ? C.red : C.textTertiary }}>{isUrgent ? "Hold expiring soon" : "Complete before the timer expires"}</div>
+            <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isUrgent ? C.red : C.textSecondary, marginBottom: 2 }}>Seat Hold Timer</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: isUrgent ? C.red : C.textTertiary }}>{isUrgent ? "⚠ Hold expiring soon" : "Complete before the timer expires"}</div>
           </div>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
+          <div style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
+        {/* Summary bar */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
           {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
-              <div style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
-              <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+              <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
+              <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
             </div>
           ))}
         </div>
@@ -521,9 +602,9 @@ function ModalDetails({ tableData, seatData, mode, guests, isStandalone, onRevie
           <Field label="Event Date" value={form.eventDate} onChange={set("eventDate")} type="date" min={today} C={C} isDark={isDark} required />
           <Field label="Event Time" value={form.eventTime} onChange={set("eventTime")} type="time" C={C} isDark={isDark} />
         </div>
-        <Field label="Special Requests" value={form.specialRequests} onChange={set("specialRequests")} type="textarea" C={C} isDark={isDark} placeholder="Dietary needs, accessibility, preferences" />
+        <Field label="Special Requests" value={form.specialRequests} onChange={set("specialRequests")} type="textarea" C={C} isDark={isDark} placeholder="Dietary needs, accessibility, preferences…" />
         <button onClick={() => allFilled && onReview(form)} disabled={!allFilled}
-          style={{ width: "100%", padding: "13px", marginTop: 6, background: allFilled ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"), border: allFilled ? "none" : `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: allFilled ? C.textOnAccent : C.textTertiary, cursor: allFilled ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          style={{ width: "100%", padding: "13px", marginTop: 6, background: allFilled ? C.gold : C.surfaceInput, border: allFilled ? "none" : `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: allFilled ? C.textOnAccent : C.textTertiary, cursor: allFilled ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           onMouseEnter={e => { if (allFilled) e.currentTarget.style.background = C.goldLight; }}
           onMouseLeave={e => { if (allFilled) e.currentTarget.style.background = C.gold; }}
         >Review Booking</button>
@@ -539,7 +620,7 @@ function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, on
 
   const reservationRows = [
     ["Venue", "The Bellevue Manila"],
-    ["Room",  `${WING} — ${ROOM}`],
+    ["Room",  ROOM],
     ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "T1"}`]]),
     ["Seat(s)", seatDisplay],
     ["Guests", `${guests} guest${guests !== 1 ? "s" : ""}`],
@@ -553,15 +634,15 @@ function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, on
 
   const Row = ({ label, value, accent }) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: `1px solid ${C.divider}` }}>
-      <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary, minWidth: 90, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontFamily: FONT, fontSize: 12.5, color: accent ? C.gold : C.textPrimary, fontWeight: accent ? 700 : 500, textAlign: "right", maxWidth: 260, lineHeight: 1.5 }}>{value}</span>
+      <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary, minWidth: 90, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontFamily: F.body, fontSize: 12.5, color: accent ? C.gold : C.textPrimary, fontWeight: accent ? 700 : 500, textAlign: "right", maxWidth: 260, lineHeight: 1.5 }}>{value}</span>
     </div>
   );
 
   return (
     <ModalShell onClose={onEdit} disabled={submitting} C={C}>
       <ModalHeader
-        eyebrow={isRebook ? "Rebook / Move Seat" : isStandalone ? "Standalone Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        eyebrow={isRebook ? "Rebook / Move Seat" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
         title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />}
       />
       <div style={{ padding: "20px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
@@ -580,16 +661,16 @@ function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, on
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onEdit} disabled={submitting}
-            style={{ flex: 1, padding: "12px", border: `1px solid ${C.borderDefault}`, borderRadius: 8, background: "transparent", color: C.textSecondary, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: submitting ? "not-allowed" : "pointer", transition: "all 0.18s" }}
+            style={{ flex: 1, padding: "12px", border: `1px solid ${C.borderDefault}`, borderRadius: 8, background: "transparent", color: C.textSecondary, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: submitting ? "not-allowed" : "pointer", transition: "all 0.18s" }}
             onMouseEnter={e => { if (!submitting) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
             onMouseLeave={e => { if (!submitting) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
           >Edit Details</button>
           <button onClick={onSubmit} disabled={submitting}
-            style={{ flex: 2, padding: "12px", border: "none", borderRadius: 8, background: submitting ? C.textSecondary : C.gold, color: C.textOnAccent, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: submitting ? "not-allowed" : "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            style={{ flex: 2, padding: "12px", border: "none", borderRadius: 8, background: submitting ? C.textSecondary : C.gold, color: C.textOnAccent, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: submitting ? "not-allowed" : "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = C.goldLight; }}
             onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = C.gold; }}
           >
-            {submitting ? <><Spinner C={C} />Submitting</> : isRebook ? "Confirm Rebook" : "Submit Booking"}
+            {submitting ? <><Spinner C={C} />Submitting…</> : isRebook ? "Confirm Rebook" : "Submit Booking"}
           </button>
         </div>
       </div>
@@ -628,9 +709,11 @@ function QRCodeWithRef({ value, size = 120, imgRef }) {
     return () => { cancelled = true; };
   }, [value, size]);
 
-  if (!imgSrc) return <div style={{ width: size, height: size, borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "rgba(237,232,223,0.20)", fontFamily: FONT }}>QR</div>;
+  if (!imgSrc) return <div style={{ width: size, height: size, borderRadius: 8, background: C_FALLBACK_QR, border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "rgba(237,232,223,0.20)" }}>QR</div>;
   return <img src={imgSrc} alt="QR Code" style={{ width: size, height: size, display: "block", borderRadius: 8, imageRendering: "pixelated" }} />;
 }
+
+const C_FALLBACK_QR = "rgba(255,255,255,0.04)";
 
 const buildQrValue = ({ refCode }) => {
   const base = (import.meta.env.VITE_APP_URL || window.location.origin).replace(/\/$/, "");
@@ -682,26 +765,25 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           </div>
           <div>
-            <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.22em", color: isRebook ? C.gold : C.green, fontWeight: 700, textTransform: "uppercase", marginBottom: 3 }}>{isRebook ? "Seat Moved" : "Reservation Submitted"}</div>
-            <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 22, fontWeight: 600, color: C.textPrimary, lineHeight: 1.2 }}>Pending Approval</div>
+            <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: isRebook ? C.gold : C.green, fontWeight: 700, textTransform: "uppercase", marginBottom: 3 }}>{isRebook ? "Seat Moved" : "Reservation Submitted"}</div>
+            <div style={{ fontFamily: F.display, fontSize: 22, fontWeight: 600, color: C.textPrimary, lineHeight: 1.2 }}>Pending Approval</div>
           </div>
         </div>
         <div style={{ padding: "14px 16px", borderRadius: 10, marginBottom: 16, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-          <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.20em", fontWeight: 700, textTransform: "uppercase", color: C.textTertiary, marginBottom: 6 }}>Reference Code</div>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 24, fontWeight: 800, color: C.textPrimary, letterSpacing: "0.12em" }}>{refCode || "TBD"}</div>
+          <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.20em", fontWeight: 700, textTransform: "uppercase", color: C.textTertiary, marginBottom: 6 }}>Reference Code</div>
+          <div style={{ fontFamily: F.mono, fontSize: 24, fontWeight: 800, color: C.textPrimary, letterSpacing: "0.12em" }}>{refCode || "TBD"}</div>
         </div>
         <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
           <div style={{ flex: 1 }}>
             {[
-              { label: "Wing",   value: WING },
               { label: "Room",   value: ROOM },
               { label: "Date",   value: fmtDate(bookingDetails?.date) },
               { label: "Guests", value: String(guests) },
               { label: "Status", value: "Pending Review", gold: true },
             ].map(({ label, value, gold }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
-                <span style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", color: C.textTertiary, textTransform: "uppercase" }}>{label}</span>
-                <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: gold ? C.gold : C.textPrimary }}>{value}</span>
+                <span style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", color: C.textTertiary, textTransform: "uppercase" }}>{label}</span>
+                <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: gold ? C.gold : C.textPrimary }}>{value}</span>
               </div>
             ))}
           </div>
@@ -709,24 +791,24 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
             <div style={{ padding: 8, background: "#FFFFFF", borderRadius: 8, border: `1px solid ${C.borderDefault}` }}>
               <QRCodeWithRef value={qrValue} size={88} imgRef={qrImgRef} />
             </div>
-            <div style={{ fontFamily: FONT, fontSize: 8, color: C.textTertiary, letterSpacing: "0.06em" }}>Scan to verify</div>
+            <div style={{ fontFamily: F.label, fontSize: 8, color: C.textTertiary, letterSpacing: "0.06em" }}>Scan to verify</div>
           </div>
         </div>
-        <div style={{ fontFamily: FONT, fontSize: 12, color: C.textSecondary, lineHeight: 1.65, padding: "10px 14px", borderRadius: 8, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, marginBottom: 20 }}>
+        <div style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.65, padding: "10px 14px", borderRadius: 8, background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, marginBottom: 20 }}>
           Your booking is awaiting confirmation. You'll be notified once an admin reviews your reservation.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={handleSavePhoto} disabled={saving || !qrReady}
-            style={{ flex: 1, padding: "12px", background: "transparent", border: `1px solid ${(saving || !qrReady) ? C.borderDefault : C.borderStrong}`, borderRadius: 8, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: (saving || !qrReady) ? C.textTertiary : C.textSecondary, cursor: (saving || !qrReady) ? "not-allowed" : "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
+            style={{ flex: 1, padding: "12px", background: "transparent", border: `1px solid ${(saving || !qrReady) ? C.borderDefault : C.borderStrong}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: (saving || !qrReady) ? C.textTertiary : C.textSecondary, cursor: (saving || !qrReady) ? "not-allowed" : "pointer", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
             onMouseEnter={e => { if (!saving && qrReady) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
             onMouseLeave={e => { if (!saving && qrReady) { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.color = C.textSecondary; } }}
           >
-            {saving ? <><Spinner C={C} />Saving</> : !qrReady ? "Loading" : (
+            {saving ? <><Spinner C={C} />Saving…</> : !qrReady ? "Loading…" : (
               <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>Save Pass</>
             )}
           </button>
           <button onClick={onBack}
-            style={{ flex: 1, padding: "12px", border: "none", borderRadius: 8, background: C.gold, color: C.textOnAccent, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", transition: "background 0.18s" }}
+            style={{ flex: 1, padding: "12px", border: "none", borderRadius: 8, background: C.gold, color: C.textOnAccent, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", transition: "background 0.18s" }}
             onMouseEnter={e => { e.currentTarget.style.background = C.goldLight; }}
             onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
           >Back to Map</button>
@@ -739,10 +821,10 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
 // ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
 function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark, isStandalone }) {
   const displayTable = isStandalone
-    ? "Standalone"
+    ? null
     : mode === "whole"
       ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
-      : (activeTable ? `Table ${activeTable.id}` : "T1");
+      : (activeTable ? `Table ${activeTable.id}` : "—");
   const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
@@ -756,22 +838,24 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
       </div>
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{isStandalone ? "Type" : "Table"}</div>
-            <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && !isStandalone && <div style={{ fontFamily: FONT, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
-          </div>
+          {!isStandalone && (
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+              <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
+              {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
+            </div>
+          )}
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
-            <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
-            <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
+            <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
           </div>
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
-            <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
-            <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ROOM}</div>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ROOM}</div>
           </div>
         </div>
         <button onClick={canGo ? onReserve : undefined} disabled={!canGo}
-          style={{ width: "100%", padding: "13px", background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"), border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: canGo ? C.textOnAccent : C.textTertiary, cursor: canGo ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          style={{ width: "100%", padding: "13px", background: canGo ? C.gold : C.surfaceInput, border: canGo ? "none" : `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: canGo ? C.textOnAccent : C.textTertiary, cursor: canGo ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           onMouseEnter={e => { if (canGo) e.currentTarget.style.background = C.goldLight; }}
           onMouseLeave={e => { if (canGo) e.currentTarget.style.background = C.gold; }}
         >
@@ -803,7 +887,7 @@ export default function TowerBallroom1() {
   const [rebookFrom,         setRebookFrom]         = useState(null);
   const [lastBookingDetails, setLastBookingDetails] = useState(null);
 
-  // ── tableData: seeded from localStorage key seatmap_layout:Tower Wing:Tower 1 ──
+  // Load layout geometry only — statuses always come from API, never from localStorage
   const [tableData, setTableData] = useState(() => loadLayoutForClient(WING, ROOM));
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
@@ -825,28 +909,24 @@ export default function TowerBallroom1() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
-  // ── Listen for admin editor saves (same-tab & cross-tab) ──────────────────
+  // Cross-tab / same-tab layout sync
   useEffect(() => {
     const KEY = layoutKey(WING, ROOM);
-
-    // cross-tab: StorageEvent fires when another tab writes localStorage
     const onStorage = e => {
       if (e.key !== KEY) return;
       try {
         const parsed = e.newValue ? JSON.parse(e.newValue) : null;
-        if (parsed) setTableData(parsed);
+        // Reset all statuses — API will re-overlay on next fetchAndMerge
+        if (parsed) { setTableData(resetAllSeatsToAvailable(parsed)); fetchAndMerge(); }
       } catch {}
     };
-
-    // same-tab: SeatMap dispatches a CustomEvent after every auto-save
     const onSeatMapSaved = e => {
       if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
       try {
         const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
-        if (parsed) setTableData(parsed);
+        if (parsed) { setTableData(resetAllSeatsToAvailable(parsed)); fetchAndMerge(); }
       } catch {}
     };
-
     window.addEventListener("storage",       onStorage);
     window.addEventListener("seatmap:saved", onSeatMapSaved);
     return () => {
@@ -855,67 +935,72 @@ export default function TowerBallroom1() {
     };
   }, []);
 
-  // ─── fetchAndMerge: reads /reservations and overlays statuses ────────────
+  // ── fetchAndMerge: ported from AlabangReserve — uses /seatmap/{wing}/{room} ──
   const fetchAndMerge = useCallback(async () => {
     try {
-      const apiUrl = `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=3`;
-      const res = await fetch(apiUrl, { headers: { Accept: "application/json" } });
-      if (!res.ok) return;
-      const data = await res.json();
-      const reservations = Array.isArray(data) ? data : (data.data || []);
+      const res = await fetch(
+        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) {
+        // Fallback: try /reservations endpoint
+        const res2 = await fetch(
+          `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=3`,
+          { headers: { Accept: "application/json" } }
+        );
+        if (!res2.ok) return;
+        const data2 = await res2.json();
+        const reservations = Array.isArray(data2) ? data2 : (data2.data || []);
 
-      const seatStatusMap = {};
-      reservations.forEach(r => {
-        const rawStatus = normaliseApiStatus(r.status);
-        const tableKey  = String(r.table_number ?? "").trim();
-        const seatNums  = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
-        const seatId    = r.seat_id ? String(r.seat_id).trim() : null;
-        const isStandaloneRow =
-          tableKey === "" || tableKey === "STANDALONE" ||
-          r.type === "standalone" || r.is_standalone;
+        const seatStatusMap = {};
+        reservations.forEach(r => {
+          const rawStatus = normaliseApiStatus(r.status);
+          const tableKey  = String(r.table_number ?? "").trim();
+          const seatNums  = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+          const seatId    = r.seat_id ? String(r.seat_id).trim() : null;
+          const isStandaloneRow = tableKey === "" || tableKey === "STANDALONE" || r.type === "standalone" || r.is_standalone;
 
-        seatNums.forEach(seatNum => {
-          if (tableKey && !isStandaloneRow) seatStatusMap[`${tableKey}|${seatNum}`] = rawStatus;
-          seatStatusMap[seatNum] = rawStatus;
-          if (isStandaloneRow) seatStatusMap[`STANDALONE|${seatNum}`] = rawStatus;
+          seatNums.forEach(seatNum => {
+            if (tableKey && !isStandaloneRow) seatStatusMap[`${tableKey}|${seatNum}`] = rawStatus;
+            seatStatusMap[seatNum] = rawStatus;
+            if (isStandaloneRow) seatStatusMap[`STANDALONE|${seatNum}`] = rawStatus;
+          });
+          if (seatId) seatStatusMap[`ID|${seatId}`] = rawStatus;
         });
-        if (seatId) seatStatusMap[`ID|${seatId}`] = rawStatus;
-      });
 
       setTableData(prev => {
         const base = prev || loadLayoutForClient(WING, ROOM);
         if (!base) return prev;
 
         const resolveTableSeat = (t, s) => {
-          const tid = String(t.id ?? t.label ?? "").trim();
+          const tid  = String(t.id ?? t.label ?? "").trim();
           const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
           const dbId = s.db_id ? String(s.db_id).trim() : null;
-          return (
-            seatStatusMap[`${tid}|${snum}`] ??
-            seatStatusMap[snum] ??
-            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
-            s.status
-          );
+          return seatStatusMap[`${tid}|${snum}`] ?? seatStatusMap[snum] ?? (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ?? "available";
         };
-
         const resolveStandaloneSeat = s => {
           const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
           const dbId = s.db_id ? String(s.db_id).trim() : null;
-          return (
-            seatStatusMap[`STANDALONE|${snum}`] ??
-            seatStatusMap[snum] ??
-            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
-            s.status
-          );
+          return seatStatusMap[`STANDALONE|${snum}`] ?? seatStatusMap[snum] ?? (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ?? "available";
         };
 
         const merged = {
           ...base,
           tables:          (base.tables          || []).map(t => ({ ...t, seats: (t.seats || []).map(s => ({ ...s, status: resolveTableSeat(t, s) })) })),
           standaloneSeats: (base.standaloneSeats  || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })),
-          ...(base.seats ? { seats: (base.seats || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })) } : {}),
         };
+        // Don't persist statuses to localStorage — keep layout geometry only
+        return merged;
+      });
+      return;
+      }
 
+      const data = await res.json();
+      if (!data?.data) return;
+
+      setTableData(prev => {
+        const base = prev || loadLayoutForClient(WING, ROOM);
+        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : ensureAvailableDefaults(data.data);
         try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
         return merged;
       });
@@ -938,7 +1023,7 @@ export default function TowerBallroom1() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ─── WebSocket + polling fallback ─────────────────────────────────────────
+  // WebSocket + polling fallback
   useEffect(() => {
     const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
@@ -946,7 +1031,7 @@ export default function TowerBallroom1() {
 
     const startPolling = () => {
       if (pollingRef.current) return;
-      pollingRef.current = setInterval(fetchAndMerge, 5_000);
+      pollingRef.current = setInterval(fetchAndMerge, 10_000);
     };
     const stopPolling = () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -964,7 +1049,6 @@ export default function TowerBallroom1() {
         "ReservationCreated","ReservationUpdated","ReservationDeleted",
         "ReservationApproved","ReservationRejected","ReservationStatusUpdated",
         "SeatReserved","TableReserved","SeatStatusChanged",
-        "reservation.approved","reservation.updated","reservation.status.updated",
       ];
       events.forEach(ev => channel.listen(ev, () => { wsConnected = true; stopPolling(); fetchAndMerge(); }));
       const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
@@ -977,7 +1061,7 @@ export default function TowerBallroom1() {
 
   useEffect(() => () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } }, []);
 
-  // ─── Derived helpers ──────────────────────────────────────────────────────
+  // Derived helpers
   const getTables          = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
   const getStandaloneSeats = () => tableData?.standaloneSeats || tableData?.seats || [];
 
@@ -994,7 +1078,7 @@ export default function TowerBallroom1() {
   };
   const getActiveTable = () => selectedTable || getTables()[0] || null;
 
-  // ─── Event handlers ───────────────────────────────────────────────────────
+  // Event handlers
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
@@ -1054,7 +1138,6 @@ export default function TowerBallroom1() {
       // Optimistic update
       setTableData(prev => {
         if (!prev) return prev;
-
         if (seatIsStandalone && selectedSeat) {
           const updated = {
             ...prev,
@@ -1064,7 +1147,6 @@ export default function TowerBallroom1() {
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
         }
-
         if (activeTable) {
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
@@ -1078,7 +1160,6 @@ export default function TowerBallroom1() {
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
         }
-
         return prev;
       });
 
@@ -1099,7 +1180,7 @@ export default function TowerBallroom1() {
     fetchAndMerge();
   };
 
-  // ─── Layout calculations ──────────────────────────────────────────────────
+  // Layout
   const isMobile  = windowSize.width < 640;
   const isTablet  = windowSize.width < 1024;
   const activeTable      = getActiveTable();
@@ -1108,10 +1189,10 @@ export default function TowerBallroom1() {
   const seatRatio        = activeTable ? getSeatRatio(activeTable) : null;
 
   const displayTable = seatIsStandalone
-    ? "Standalone"
+    ? null
     : mode === "whole"
-      ? (activeTable ? `Table ${activeTable.id}` : "T1")
-      : (selectedTable ? `Table ${selectedTable.id}` : "T1");
+      ? (activeTable ? `Table ${activeTable.id}` : "—")
+      : (selectedTable ? `Table ${selectedTable.id}` : "—");
 
   const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
@@ -1125,8 +1206,8 @@ export default function TowerBallroom1() {
     : rebookPrefill;
   const modalTableData = seatIsStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
 
-  const BOTTOM_SHEET_H = 180;
-  const NAV_H          = 64;
+  const BOTTOM_SHEET_H  = 180;
+  const NAV_H           = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
 
   return (
@@ -1143,7 +1224,7 @@ export default function TowerBallroom1() {
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
 
-      <div style={{ minHeight: "100vh", fontFamily: FONT, background: C.pageBg, transition: "background 0.30s", position: "relative" }}>
+      <div style={{ minHeight: "100vh", fontFamily: F.body, background: C.pageBg, transition: "background 0.30s", position: "relative" }}>
 
         {/* Background */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
@@ -1162,8 +1243,8 @@ export default function TowerBallroom1() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: FONT, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation · {WING}</div>
-                <div style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ROOM}</div>
+                <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation · {WING}</div>
+                <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ROOM}</div>
               </div>
             </div>
 
@@ -1171,7 +1252,7 @@ export default function TowerBallroom1() {
               {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label], i) => (
                 <button key={val}
                   onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
-                  style={{ flex: 1, padding: "9px 0", background: mode === val ? C.gold : "transparent", border: `1px solid ${mode === val ? C.gold : C.borderDefault}`, borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0", color: mode === val ? C.textOnAccent : C.textSecondary, fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.18s" }}
+                  style={{ flex: 1, padding: "9px 0", background: mode === val ? C.gold : "transparent", border: `1px solid ${mode === val ? C.gold : C.borderDefault}`, borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0", color: mode === val ? C.textOnAccent : C.textSecondary, fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.18s" }}
                 >{label}</button>
               ))}
             </div>
@@ -1179,10 +1260,10 @@ export default function TowerBallroom1() {
             {rebookFrom && (
               <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Rebooking Mode</div>
-                  <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Prev: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong></div>
+                  <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Rebooking Mode</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Prev: <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong></div>
                 </div>
-                <button onClick={() => setRebookFrom(null)} style={{ background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 8px", fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer", flexShrink: 0 }}>Cancel</button>
+                <button onClick={() => setRebookFrom(null)} style={{ background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 8px", fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer", flexShrink: 0 }}>Cancel</button>
               </div>
             )}
 
@@ -1206,13 +1287,13 @@ export default function TowerBallroom1() {
                     </div>
                   </div>
                   <div style={{ position: "absolute", bottom: 10, right: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "5px 12px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 3, display: "flex", alignItems: "center", gap: 5, pointerEvents: "none" }}>
-                    <span style={{ fontFamily: FONT, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Scroll to explore</span>
+                    <span style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>Scroll to explore</span>
                   </div>
                   <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3, pointerEvents: "none" }}>
-                    {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                    {Object.entries(STATUS_COLORS).filter(([k]) => LEGEND_STATUSES.includes(k)).map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
-                        <span style={{ fontFamily: FONT, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>
+                        <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>
                           {key === "reserved" ? "Approved" : key}
                         </span>
                       </div>
@@ -1221,7 +1302,7 @@ export default function TowerBallroom1() {
                 </>
               ) : (
                 <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 32 }}>
-                  <div style={{ fontFamily: FONT, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
                     No seat layout published for this room.<br />
                     <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later.</span>
                   </div>
@@ -1250,38 +1331,38 @@ export default function TowerBallroom1() {
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
                 </button>
                 <span style={{ display: "inline-block", width: 20, height: "1px", background: C.gold, opacity: 0.5 }} />
-                <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
+                <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
               </div>
 
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
                 {rebookFrom && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
                     <div>
-                      <div style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, marginBottom: 2 }}>Rebooking Mode</div>
-                      <div style={{ fontFamily: FONT, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> — select your new {mode === "individual" ? "seat" : "table"}</div>
+                      <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, marginBottom: 2 }}>Rebooking Mode</div>
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: C.textSecondary }}>Previous booking <strong style={{ color: C.textPrimary }}>{rebookFrom.reference_code || rebookFrom.id}</strong> — select your new {mode === "individual" ? "seat" : "table"}</div>
                     </div>
-                    <button onClick={() => setRebookFrom(null)} style={{ marginLeft: 8, background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 10px", fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
+                    <button onClick={() => setRebookFrom(null)} style={{ marginLeft: 8, background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 6, padding: "4px 10px", fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
                   </div>
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <span style={{ display: "inline-block", width: 24, height: "1px", background: C.gold, opacity: 0.6 }} />
-                  <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation · {WING}</span>
+                  <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation · {WING}</span>
                 </div>
-                <h1 style={{ fontFamily: "'Playfair Display','Times New Roman',serif", fontSize: isTablet ? 34 : 42, fontWeight: 600, color: C.textPrimary, lineHeight: 1.1, margin: "0 0 10px", letterSpacing: "0.01em" }}>
+                <h1 style={{ fontFamily: F.display, fontSize: isTablet ? 34 : 42, fontWeight: 600, color: C.textPrimary, lineHeight: 1.1, margin: "0 0 10px", letterSpacing: "0.01em" }}>
                   {ROOM}
                 </h1>
-                <p style={{ fontFamily: FONT, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
+                <p style={{ fontFamily: F.body, fontSize: 13.5, color: C.textSecondary, margin: 0, lineHeight: 1.70, maxWidth: 560 }}>
                   Book your preferred table or seat in {ROOM}. Select your reservation type and click on the map to get started.
                 </p>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28, flexWrap: "wrap", animation: "fadeUp 0.34s ease" }}>
-                <span style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>Reserve a:</span>
+                <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>Reserve a:</span>
                 <div style={{ display: "flex", alignItems: "center", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: 3, gap: 3, border: `1px solid ${C.borderDefault}` }}>
                   {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label]) => (
                     <button key={val}
                       onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
-                      style={{ padding: "8px 18px", border: "none", background: mode === val ? C.gold : "transparent", color: mode === val ? C.textOnAccent : C.textSecondary, cursor: "pointer", fontSize: 10, letterSpacing: "0.12em", fontWeight: 700, fontFamily: FONT, borderRadius: 6, transition: "all 0.18s", outline: "none", textTransform: "uppercase" }}
+                      style={{ padding: "8px 18px", border: "none", background: mode === val ? C.gold : "transparent", color: mode === val ? C.textOnAccent : C.textSecondary, cursor: "pointer", fontSize: 10, letterSpacing: "0.12em", fontWeight: 700, fontFamily: F.label, borderRadius: 6, transition: "all 0.18s", outline: "none", textTransform: "uppercase" }}
                     >{label}</button>
                   ))}
                 </div>
@@ -1309,14 +1390,14 @@ export default function TowerBallroom1() {
                         />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
-                        <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>
+                        <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold }}>
                           {mode === "whole" ? "Click a table to reserve" : "Click a seat to select"}
                         </span>
                       </div>
                     </>
                   ) : (
                     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 48 }}>
-                      <div style={{ fontFamily: FONT, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
+                      <div style={{ fontFamily: F.body, fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 1.7 }}>
                         No seat layout has been published for this room yet.<br />
                         <span style={{ fontSize: 12, color: C.textTertiary }}>Please check back later or contact the venue.</span>
                       </div>
@@ -1331,7 +1412,7 @@ export default function TowerBallroom1() {
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
-                        <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
+                        <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
                         <LocalStatusLegend C={C} />
                       </div>
                     </div>
@@ -1339,18 +1420,17 @@ export default function TowerBallroom1() {
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
-                        <div style={{ fontFamily: FONT, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
+                        <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
                         {[
-                          [seatIsStandalone ? "Type" : "Table", displayTable, false, (!seatIsStandalone && seatRatio) ? seatRatio : null],
+                          ...(!seatIsStandalone ? [["Table", displayTable, false, seatRatio ?? null]] : []),
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
-                          ["Room",  ROOM, false, null],
-                          ["Wing",  WING, false, null],
+                          ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (
                           <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.divider}` }}>
-                            <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{label}</span>
-                            <span style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: isGold ? C.gold : C.textPrimary, textAlign: "right", display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{label}</span>
+                            <span style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: isGold ? C.gold : C.textPrimary, textAlign: "right", display: "flex", alignItems: "center", gap: 5 }}>
                               {value}
-                              {badge && <span style={{ background: C.goldFaint, border: `1px solid ${C.borderAccent}`, borderRadius: 4, padding: "1px 5px", fontSize: 9, color: C.gold, fontWeight: 700, fontFamily: FONT }}>{badge}</span>}
+                              {badge && <span style={{ background: C.goldFaint, border: `1px solid ${C.borderAccent}`, borderRadius: 4, padding: "1px 5px", fontSize: 9, color: C.gold, fontWeight: 700, fontFamily: F.label }}>{badge}</span>}
                             </span>
                           </div>
                         ))}
@@ -1361,7 +1441,7 @@ export default function TowerBallroom1() {
                   <button
                     onClick={mode === "whole" ? () => setModal("guestCount") : (canProceed ? () => setModal("guestCount") : undefined)}
                     disabled={mode === "individual" && !canProceed}
-                    style={{ width: "100%", padding: "13px", background: (mode === "whole" || canProceed) ? C.gold : (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"), border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: (mode === "whole" || canProceed) ? C.textOnAccent : C.textTertiary, cursor: (mode === "whole" || canProceed) ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                    style={{ width: "100%", padding: "13px", background: (mode === "whole" || canProceed) ? C.gold : C.surfaceInput, border: (mode === "whole" || canProceed) ? "none" : `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: (mode === "whole" || canProceed) ? C.textOnAccent : C.textTertiary, cursor: (mode === "whole" || canProceed) ? "pointer" : "not-allowed", transition: "all 0.20s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                     onMouseEnter={e => { if (mode === "whole" || canProceed) e.currentTarget.style.background = C.goldLight; }}
                     onMouseLeave={e => { if (mode === "whole" || canProceed) e.currentTarget.style.background = C.gold; }}
                   >

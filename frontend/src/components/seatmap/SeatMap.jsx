@@ -111,6 +111,7 @@ const C = {
   inputFocus: "0 0 0 3px rgba(140,107,42,0.10)", cardShadow: "0 1px 4px rgba(0,0,0,0.06)",
 };
 
+// FIX: Use let so these can be reset when a room is loaded
 let _tableCounter = 1, _standaloneCounter = 1;
 
 function makeTable(x = 120, y = 80) {
@@ -135,16 +136,12 @@ const DEFAULT_LABELS = [
 ];
 
 // ─── FIX: Canonical wing resolver — single source of truth ───────────────────
-// This must be kept in sync with AlabangReserve.jsx, BusinessCenterReserve.jsx, etc.
-// Any room not listed here falls back to "Main Wing".
 function getActualWingForRoom(room, venueStructure) {
-  // First try dynamic venue structure if provided
   if (venueStructure) {
     for (const wing of venueStructure) {
       if (wing.rooms.includes(room)) return wing.label;
     }
   }
-  // Fallback to hardcoded map for backward compatibility
   const roomToWingMap = {
     "Alabang Function Room": "Main Wing",
     "Business Center": "Main Wing",
@@ -167,7 +164,6 @@ function getActualWingForRoom(room, venueStructure) {
 }
 
 // ─── FIX: layoutKey always derived from room name, never from caller's wing ──
-// This ensures AlabangReserve and the editor use the IDENTICAL key.
 function layoutKey(wing, room) {
   const actualWing = getActualWingForRoom(room);
   return `seatmap_layout:${actualWing}:${room}`;
@@ -556,10 +552,10 @@ function DeleteConfirmModal({ message, onConfirm, onCancel }) {
 function VenueManagerModal({ venueStructure, onSave, onClose }) {
   const [structure, setStructure] = useState(() => JSON.parse(JSON.stringify(venueStructure)));
   const [newWingName, setNewWingName] = useState("");
-  const [newRoomNames, setNewRoomNames] = useState({}); // wingId -> string
+  const [newRoomNames, setNewRoomNames] = useState({});
   const [editingWingId, setEditingWingId] = useState(null);
   const [editingWingVal, setEditingWingVal] = useState("");
-  const [editingRoomKey, setEditingRoomKey] = useState(null); // "wingId:roomIndex"
+  const [editingRoomKey, setEditingRoomKey] = useState(null);
   const [editingRoomVal, setEditingRoomVal] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -604,7 +600,6 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,0.60)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: C.surfaceBase, borderRadius: 14, width: "100%", maxWidth: 560, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 80px rgba(0,0,0,0.25)", border: `1px solid ${C.borderDefault}`, overflow: "hidden", animation: "sm-fadeIn 0.20s ease" }}>
-        {/* Header */}
         <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${C.gold}80 40%, ${C.gold}80 60%, transparent)` }} />
         <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${C.divider}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div>
@@ -616,9 +611,7 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="sm-scroll" style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-          {/* Add Wing */}
           <div style={{ marginBottom: 20, padding: "12px 14px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10 }}>
             <div style={{ fontFamily: F, fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", color: C.gold, textTransform: "uppercase", marginBottom: 8 }}>Add New Wing</div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -638,10 +631,8 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Wings list */}
           {structure.map((wing) => (
             <div key={wing.id} style={{ marginBottom: 16, border: `1px solid ${C.borderDefault}`, borderRadius: 10, overflow: "hidden" }}>
-              {/* Wing header */}
               <div style={{ padding: "10px 14px", background: C.surfaceRaised, borderBottom: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 8 }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
                 {editingWingId === wing.id
@@ -667,7 +658,6 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
                 </div>
               </div>
 
-              {/* Rooms list */}
               <div style={{ padding: "8px 14px" }}>
                 {wing.rooms.length === 0 && (
                   <div style={{ fontFamily: F, fontSize: 11, color: C.textTertiary, padding: "6px 0", fontStyle: "italic" }}>No rooms yet</div>
@@ -700,7 +690,6 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
                   );
                 })}
 
-                {/* Add room input */}
                 <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                   <input
                     value={newRoomNames[wing.id] || ""}
@@ -721,7 +710,6 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
           ))}
         </div>
 
-        {/* Footer */}
         <div style={{ padding: "12px 20px 16px", borderTop: `1px solid ${C.divider}`, display: "flex", gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${C.borderDefault}`, borderRadius: 8, fontFamily: F, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
           <button onClick={() => { onSave(structure); onClose(); }}
@@ -733,7 +721,6 @@ function VenueManagerModal({ venueStructure, onSave, onClose }) {
         </div>
       </div>
 
-      {/* Inline confirm for delete inside modal */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: "rgba(0,0,0,0.40)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: C.surfaceBase, borderRadius: 12, maxWidth: 340, width: "100%", padding: "20px", boxShadow: "0 16px 40px rgba(0,0,0,0.20)", border: `1px solid ${C.borderDefault}` }}>
@@ -765,7 +752,6 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect, venueStructure, onO
   const [expanded, setExpanded] = useState(() => Object.fromEntries(venueStructure.map(w => [w.id, true])));
   const toggle = id => setExpanded(e => ({ ...e, [id]: !e[id] }));
 
-  // Sync expanded state when venueStructure changes (e.g. new wing added)
   useEffect(() => {
     setExpanded(prev => {
       const next = { ...prev };
@@ -824,7 +810,6 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect, venueStructure, onO
         ))}
       </div>
 
-      {/* Manage Venue button */}
       <div style={{ padding: "10px 12px 14px", borderTop: `1px solid ${C.divider}`, flexShrink: 0 }}>
         <button onClick={onOpenVenueManager}
           style={{ width: "100%", padding: "8px 0", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 7, fontFamily: F, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.gold, cursor: "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
@@ -941,12 +926,8 @@ export default function SeatMap({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showVenueManager, setShowVenueManager] = useState(false);
 
-  // ── FIX: venueStructure is loaded from localStorage so it persists ──────────
   const [venueStructure, setVenueStructure] = useState(() => loadVenueStructure());
 
-  // ── Editor defaults ──────────────────────────────────────────────────────────
-  // FIX: default to "Alabang Function Room" so the admin lands on the same room
-  // that AlabangReserve.jsx shows by default, making the sync immediately visible.
   const [activeWing, setActiveWing] = useState(wing || "Main Wing");
   const [activeRoom, setActiveRoom] = useState(room || "Alabang Function Room");
 
@@ -956,7 +937,6 @@ export default function SeatMap({
   const adminScaleRef = useRef(1);
   const T = getClientTokens(isDark);
 
-  // ── Listen for venue structure changes from other tabs ───────────────────────
   useEffect(() => {
     const handler = e => {
       if (e.detail?.structure) setVenueStructure(e.detail.structure);
@@ -965,19 +945,31 @@ export default function SeatMap({
     return () => window.removeEventListener("venue:structure:changed", handler);
   }, []);
 
-  // ── FIX: LOAD — always use layoutKey() which canonicalizes the wing name ─────
+  // ── FIX: LOAD — reset counters before loading so new tables get clean IDs ───
   useEffect(() => {
     if (!editMode) return;
     loadedRef.current = false;
+
+    // FIX: Always reset counters when switching rooms to prevent ID collisions
+    _tableCounter = 1;
+    _standaloneCounter = 1;
+
     const stored = loadLayout(activeWing, activeRoom);
     if (stored) {
       const norm = normalize(stored.tables).filter(t => t.seats?.length > 0);
       setTables(norm);
-      norm.forEach(t => { const n = parseInt(t.id?.replace(/\D/g, "")) || 0; if (n >= _tableCounter) _tableCounter = n + 1; });
+      // FIX: Derive counters from loaded data so new IDs don't collide
+      norm.forEach(t => {
+        const n = parseInt(t.id?.replace(/\D/g, "")) || 0;
+        if (n >= _tableCounter) _tableCounter = n + 1;
+      });
       setLabels(stored.labels?.length ? stored.labels : DEFAULT_LABELS);
       const ss = (stored.standaloneSeats || []).map(s => ({ ...s, status: s.status || "available" }));
       setStandaloneSeats(ss);
-      ss.forEach(s => { const n = parseInt(s.id?.replace(/\D/g, "")) || 0; if (n >= _standaloneCounter) _standaloneCounter = n + 1; });
+      ss.forEach(s => {
+        const n = parseInt(s.id?.replace(/\D/g, "")) || 0;
+        if (n >= _standaloneCounter) _standaloneCounter = n + 1;
+      });
     } else {
       setTables([]); setLabels(DEFAULT_LABELS); setStandaloneSeats([]);
     }
@@ -986,14 +978,13 @@ export default function SeatMap({
     return () => clearTimeout(t);
   }, [editMode, activeWing, activeRoom, normalize]);
 
-  // ── FIX: AUTO-SAVE — uses layoutKey() to guarantee consistent key ────────────
+  // ── AUTO-SAVE ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!editMode) return;
     if (!activeWing || !activeRoom) return;
     if (!loadedRef.current) return;
     const completeData = { tables, labels, standaloneSeats };
     saveLayout(activeWing, activeRoom, completeData);
-    // FIX: dispatch uses the canonical wing so AlabangReserve receives the event
     const actualWing = getActualWingForRoom(activeRoom);
     dispatchSeatMapUpdate(actualWing, activeRoom, completeData);
   }, [tables, labels, standaloneSeats, editMode, activeWing, activeRoom]);
@@ -1318,7 +1309,8 @@ export default function SeatMap({
                   onDragStart={startTableDrag} onResizeStart={startTableResize}
                   onSeatClick={handleSeatClick} onLabelEdit={handleLabelEdit}
                   isDragging={activeDragId === t.id} onSeatMove={handleSeatMove}
-                  T={null} wing={activeWing} room={activeRoom} />
+                  T={T}  // FIX: Pass T instead of null so edit-mode seats use correct theme tokens
+                  wing={activeWing} room={activeRoom} />
               ))}
               {tables.length === 0 && standaloneSeats.length === 0 && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", gap: 10, animation: "sm-fadeUp 0.3s ease" }}>

@@ -135,19 +135,13 @@ function getSeatStatusWeight(status) {
   return ["approved", "reserved", "rejected", "cancelled", "pending"].includes(s) ? 700 : 400;
 }
 
-// ─── FIX: optimisticSeatUpdate — resolves wing+room from the reservation ──────
-// Previously this was hardcoded to "Alabang Function Room", which meant
-// approving/rejecting a Business Center reservation had zero effect on the BC
-// seatmap in localStorage (and therefore in the client page).
 function optimisticSeatUpdate(reservation, newSeatStatus) {
   try {
-    // Resolve wing + room from the reservation record itself.
-    // Fall back to DEFAULT_WING when the record doesn't carry a wing field.
     const wing = String(reservation.wing ?? DEFAULT_WING).trim();
     const room = String(reservation.room ?? "").trim();
 
     if (!room) {
-      console.warn("[Dashboard] optimisticSeatUpdate: reservation has no room field, skipping.", reservation);
+      console.warn("[Dashboard] optimisticSeatUpdate: no room field", reservation);
       return;
     }
 
@@ -163,46 +157,90 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
       reservation.is_standalone === 1 ||
       reservation.is_standalone === true;
 
-    const seatNum = String(
-      reservation.seat ?? reservation.seat_number ?? ""
-    ).trim();
+    // Parse comma-separated seat numbers
+    const rawSeatField = String(reservation.seat ?? reservation.seat_number ?? "").trim();
+    const seatNums = new Set(
+      rawSeatField.split(",").map(s => s.trim()).filter(Boolean)
+    );
+    const guestsCount = parseInt(reservation.guests_count ?? reservation.guests ?? 0, 10);
+    const reservationType = String(reservation.type ?? "").toLowerCase();
 
     if (isStandalone) {
       const updatedStandaloneSeats = (layout.standaloneSeats || []).map(s => {
         const num = String(s.num ?? s.label ?? s.id ?? "").trim();
-        if (num === seatNum || String(s.id).trim() === seatNum) {
+        if (seatNums.has(num) || seatNums.has(String(s.id).trim())) {
           return { ...s, status: newSeatStatus };
         }
         return s;
       });
       const updated = { ...layout, standaloneSeats: updatedStandaloneSeats };
       localStorage.setItem(key, JSON.stringify(updated));
-      // Notify the client page (same tab + other tabs)
       window.dispatchEvent(new StorageEvent("storage", {
-        key,
-        newValue: JSON.stringify(updated),
-        storageArea: localStorage,
+        key, newValue: JSON.stringify(updated), storageArea: localStorage,
       }));
       return;
     }
 
     const tableId = String(reservation.table_number ?? "").trim();
+
     const updatedTables = (layout.tables || []).map(t => {
-      if (String(t.id ?? "").trim() !== tableId) return t;
-      const updatedSeats = (t.seats || []).map(s => {
-        const num = String(s.num ?? s.label ?? s.id ?? "").trim();
-        if (num === seatNum) return { ...s, status: newSeatStatus };
-        return s;
-      });
-      return { ...t, seats: updatedSeats };
+      // Match table by id OR by label (e.g. "T13" vs "13")
+      const tId = String(t.id ?? "").trim();
+      const tLabel = String(t.label ?? "").trim();
+      const normalizedTableId = tableId.replace(/^T/i, "");
+      const normalizedTId = tId.replace(/^T/i, "");
+      const normalizedTLabel = tLabel.replace(/^T/i, "");
+
+      const tableMatches =
+        tId === tableId ||
+        tLabel === tableId ||
+        normalizedTId === normalizedTableId ||
+        normalizedTLabel === normalizedTableId;
+
+      if (!tableMatches) return t;
+
+      const isWholeTable = reservationType === "whole" || seatNums.size > 1;
+
+      if (isWholeTable) {
+        if (seatNums.size > 0) {
+          // Match by explicit seat nums from the reservation
+          return {
+            ...t,
+            seats: t.seats.map(s => {
+              const num = String(s.num ?? s.label ?? s.id ?? "").trim();
+              return seatNums.has(num) ? { ...s, status: newSeatStatus } : s;
+            }),
+          };
+        } else {
+          // Fallback: mark first guestsCount available/pending seats
+          let marked = 0;
+          return {
+            ...t,
+            seats: t.seats.map(s => {
+              if (marked < guestsCount && (s.status === "available" || s.status === "pending")) {
+                marked++;
+                return { ...s, status: newSeatStatus };
+              }
+              return s;
+            }),
+          };
+        }
+      }
+
+      // Individual seat
+      return {
+        ...t,
+        seats: t.seats.map(s => {
+          const num = String(s.num ?? s.label ?? s.id ?? "").trim();
+          return seatNums.has(num) ? { ...s, status: newSeatStatus } : s;
+        }),
+      };
     });
 
     const updated = { ...layout, tables: updatedTables };
     localStorage.setItem(key, JSON.stringify(updated));
     window.dispatchEvent(new StorageEvent("storage", {
-      key,
-      newValue: JSON.stringify(updated),
-      storageArea: localStorage,
+      key, newValue: JSON.stringify(updated), storageArea: localStorage,
     }));
   } catch (err) {
     console.warn("[Dashboard] optimisticSeatUpdate error:", err);

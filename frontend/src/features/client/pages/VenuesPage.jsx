@@ -1,6 +1,7 @@
 // src/features/client/pages/VenuesPage.jsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { Ellipsis } from 'lucide-react';
 import SharedNavbar from "../../../components/SharedNavbar.jsx";
 
 import alabangImg        from "../../../assets/afc.jpeg";
@@ -56,8 +57,6 @@ function getTokens(isDark) {
     dotsBg:          "#2A2720",
     dotsColor:       "#C9A84C",
     dotsBgHov:       "rgba(201,168,76,0.18)",
-    inlineResBg:     "#16140D",
-    inlineResBorder: "rgba(201,168,76,0.22)",
   } : {
     gold:            "#9A6E1C",
     goldLight:       "#C49A2C",
@@ -83,8 +82,6 @@ function getTokens(isDark) {
     dotsBg:          "#F0EBE0",
     dotsColor:       "#9A6E1C",
     dotsBgHov:       "rgba(154,110,28,0.14)",
-    inlineResBg:     "#FAF6EE",
-    inlineResBorder: "rgba(154,110,28,0.20)",
   };
 }
 
@@ -100,7 +97,7 @@ const SECTION_IDS = {
 
 const WING_FOR_ROOM = {};
 Object.entries({
-  "Main Wing":  ["Alabang Function Room","Laguna Ballroom","Laguna 1","Laguna 2","20/20 Function Room","20/20 Function Room A","20/20 Function Room B","20/20 Function Room C","Business Center"],
+  "Main Wing":  ["Alabang Function Room","Laguna Ballroom","Laguna Ballroom 1","Laguna Ballroom 2","20/20 Function Room","20/20 Function Room A","20/20 Function Room B","20/20 Function Room C","Business Center"],
   "Tower Wing": ["Tower Ballroom","Tower 1","Tower 2","Tower 3","Grand Ballroom","Grand A","Grand B","Grand C"],
   "Dining":     ["Qsina","Hanakazu","Phoenix Court"],
 }).forEach(([wing, rooms]) => rooms.forEach(r => { WING_FOR_ROOM[r] = wing; }));
@@ -108,7 +105,7 @@ Object.entries({
 const STATIC_VENUES = {
   "Main Wing": [
     { id:"alabang",         name:"Alabang Function Room", img:alabangImg,        seats:150, tables:14, rooms:[],                                          description:"The Alabang Function Room is an elegantly appointed venue ideal for intimate corporate events, private dinners, and social gatherings.", seatMapKeys:["Alabang Function Room"] },
-    { id:"laguna",          name:"Laguna Ballroom",       img:lagunaImg,         seats:250, tables:11, rooms:["Laguna 1","Laguna 2"],                      description:"The Laguna Ballroom combines timeless elegance with modern functionality — a favored choice for weddings, gala evenings, and corporate celebrations.", seatMapKeys:["Laguna Ballroom","Laguna 1","Laguna 2"] },
+    { id:"laguna",          name:"Laguna Ballroom",       img:lagunaImg,         seats:250, tables:11, rooms:["Laguna 1","Laguna 2"],                     description:"The Laguna Ballroom combines timeless elegance with modern functionality — a favored choice for weddings, gala evenings, and corporate celebrations.", seatMapKeys:["Laguna Ballroom","Laguna 1","Laguna 2"] },
     { id:"20-20",           name:"20/20 Function Room",   img:twentyTwentyImg,   seats:120, tables:12, rooms:["20/20 A","20/20 B","20/20 C"],              description:"A versatile multi-use function room with a contemporary aesthetic, the 20/20 offers three configurable sub-sections suited to seminars and board meetings.", seatMapKeys:["20/20 Function Room","20/20 Function Room A","20/20 Function Room B","20/20 Function Room C"] },
     { id:"business-center", name:"Business Center",       img:businessCenterImg, seats:80,  tables:10, rooms:[],                                          description:"A purpose-built executive venue designed for high-level conferences, board meetings, and corporate workshops.", seatMapKeys:["Business Center"] },
   ],
@@ -121,7 +118,6 @@ const STATIC_VENUES = {
     { id:"hanakazu",        name:"Hanakazu",              img:hanakazuImg,       seats:80,  tables:10, rooms:[],                                          description:"Hanakazu is Bellevue Manila's Japanese specialty restaurant, offering an authentic izakaya and kaiseki dining experience.", seatMapKeys:["Hanakazu"] },
     { id:"phoenix-court",   name:"Phoenix Court",         img:phoenixCourtImg,   seats:140, tables:16, rooms:[],                                          description:"Phoenix Court is Bellevue Manila's distinguished Chinese restaurant, renowned for masterfully prepared Cantonese dishes and traditional dim sum.", seatMapKeys:["Phoenix Court"] },
   ],
-  
 };
 
 // ── GSAP LOADER ───────────────────────────────────────────────────────────────
@@ -168,27 +164,90 @@ function readSeatMapCounts(wing, room) {
     const raw = localStorage.getItem(`seatmap_layout:${wing}:${room}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+
     let tableArr = [], standaloneArr = [];
-    if (parsed?.v === 2 && Array.isArray(parsed.tables)) { tableArr = parsed.tables; standaloneArr = parsed.standaloneSeats || []; }
-    else if (Array.isArray(parsed)) { tableArr = parsed; }
-    else if (parsed?.tables) { tableArr = parsed.tables; standaloneArr = parsed.standaloneSeats || []; }
-    else return null;
-    const valid = tableArr.filter(t => t && Array.isArray(t.seats) && t.seats.length > 0);
-    return { seats: valid.reduce((s, t) => s + t.seats.length, 0) + standaloneArr.length, tables: valid.length };
-  } catch { return null; }
+
+    if (parsed?.v === 2) {
+      tableArr = Array.isArray(parsed.tables) ? parsed.tables : [];
+      standaloneArr = Array.isArray(parsed.standaloneSeats) ? parsed.standaloneSeats : [];
+    } else if (Array.isArray(parsed)) {
+      tableArr = parsed;
+      standaloneArr = [];
+    } else if (parsed?.tables) {
+      tableArr = Array.isArray(parsed.tables) ? parsed.tables : [];
+      standaloneArr = Array.isArray(parsed.standaloneSeats) ? parsed.standaloneSeats : [];
+    } else {
+      return null;
+    }
+
+    const validTables = tableArr.filter(
+      t => t && Array.isArray(t.seats) && t.seats.length > 0
+    );
+    const tableSeats = validTables.reduce((sum, t) => sum + t.seats.length, 0);
+    const standaloneSeats = standaloneArr.length;
+
+    const total = tableSeats + standaloneSeats;
+    if (total === 0) return null;
+
+    return {
+      seats: total,
+      tables: validTables.length,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function aggregateCounts(venue) {
   const keys = venue.seatMapKeys || [];
   if (!keys.length) return null;
-  const primary = readSeatMapCounts(WING_FOR_ROOM[keys[0]], keys[0]);
-  if (primary && primary.seats > 0) return primary;
-  let seats = 0, tables = 0, found = false;
-  for (let i = 1; i < keys.length; i++) {
-    const c = readSeatMapCounts(WING_FOR_ROOM[keys[i]], keys[i]);
-    if (c) { seats += c.seats; tables += c.tables; found = true; }
+
+  const allStorageKeys = Object.keys(localStorage).filter(k =>
+    k.startsWith("seatmap_layout:")
+  );
+
+  let totalSeats = 0, totalTables = 0, found = false;
+
+  for (const roomName of keys) {
+    const matchingKey = allStorageKeys.find(k =>
+      k.toLowerCase().endsWith(`:${roomName.toLowerCase()}`)
+    );
+
+    if (!matchingKey) continue;
+
+    try {
+      const raw = localStorage.getItem(matchingKey);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+
+      let tableArr = [], standaloneArr = [];
+
+      if (parsed?.v === 2) {
+        tableArr = parsed.tables || [];
+        standaloneArr = parsed.standaloneSeats || [];
+      } else if (Array.isArray(parsed)) {
+        tableArr = parsed;
+      } else if (parsed?.tables) {
+        tableArr = parsed.tables;
+        standaloneArr = parsed.standaloneSeats || [];
+      } else continue;
+
+      const validTables = tableArr.filter(
+        t => t && Array.isArray(t.seats) && t.seats.length > 0
+      );
+      const tableSeats = validTables.reduce((s, t) => s + t.seats.length, 0);
+      const standaloneSeats = standaloneArr.length;
+      const total = tableSeats + standaloneSeats;
+
+      if (total > 0) {
+        totalSeats += total;
+        totalTables += validTables.length;
+        found = true;
+      }
+    } catch { continue; }
   }
-  return found ? { seats, tables } : null;
+
+  return found ? { seats: totalSeats, tables: totalTables } : null;
 }
 
 async function fetchVenueStats() {
@@ -286,23 +345,20 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
-  
-  // Handle subroom selection - find the correct venue object
+
   const getVenueForReservation = () => {
-    // If this venue has subrooms, find the matching subroom
     if (venue.rooms && venue.rooms.length > 0) {
-      // This is a parent venue with subrooms - need to find the specific subroom
       const allVenues = Object.values(STATIC_VENUES).flat();
       return allVenues.find(v => v.id === venue.id);
     }
-    // This is already a specific venue (no subrooms)
     return venue;
   };
-  
+
   const reservationVenue = getVenueForReservation();
   const live    = aggregateCounts(reservationVenue);
   const dSeats  = live?.seats  ?? reservationVenue.seats;
   const dTables = live?.tables ?? reservationVenue.tables;
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 10000, background: C.overlayBg, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: isMobile ? "16px" : "32px" }}>
       <style>{`@keyframes bvFadeIn{from{opacity:0}to{opacity:1}}@keyframes bvSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
@@ -370,173 +426,8 @@ function VenueModal({ venue, onClose, onReserve, C, isDark }) {
   );
 }
 
-// ── INLINE RESERVATION PANEL ─────────────────────────────────────────────────
-function InlineReservationPanel({ venue, onClose, onNavigate, C, isDark }) {
-  const [form, setForm] = useState({
-    name: "", email: "", phone: "", date: "", time: "", guests: "", notes: "",
-    selectedSubRoom: "",
-  });
-  const [submitted, setSubmitted] = useState(false);
-  const [loading,   setLoading]   = useState(false);
-  const panelRef = useRef(null);
-
-  useEffect(() => {
-    if (panelRef.current) {
-      setTimeout(() => {
-        panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 80);
-    }
-  }, []);
-
-  const subRooms = venue.rooms || [];
-  const handleChange  = (field, val) => setForm(f => ({ ...f, [field]: val }));
-  const handleSubmit  = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 900));
-    setLoading(false);
-    setSubmitted(true);
-  };
-
-  if (submitted) {
-    return (
-      <div ref={panelRef} style={{ background: C.inlineResBg, border: `1px solid ${C.gold}`, borderTop: "none", padding: "32px 28px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, textAlign: "center" }}>
-        <div style={{ width: 52, height: 52, borderRadius: "50%", background: C.goldFaint, border: `1px solid ${C.goldBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        </div>
-        <p style={{ fontFamily: FONT, fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>Request Received</p>
-        <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, lineHeight: 1.75, margin: 0, maxWidth: 320 }}>
-          Your reservation request for <strong style={{ color: C.text }}>{venue.name}</strong> has been submitted. Our events team will contact you within 24 hours.
-        </p>
-        <button type="button" onClick={onClose}
-          style={{ marginTop: 8, padding: "10px 28px", background: "transparent", border: `1px solid ${C.goldBorder}`, color: C.gold, cursor: "pointer", fontFamily: FONT, fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", transition: "all 0.18s" }}
-          onMouseEnter={e => { e.currentTarget.style.background = C.goldFaint; e.currentTarget.style.borderColor = C.gold; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.goldBorder; }}>
-          Close
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div ref={panelRef} style={{ background: C.inlineResBg, border: `1px solid ${C.inlineResBorder}`, borderTop: "none", overflow: "hidden" }}>
-      {/* Panel header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px 14px", borderBottom: `1px solid ${C.divider}` }}>
-        <div>
-          <p style={{ fontFamily: FONT, fontSize: 9, fontWeight: 700, color: C.gold, letterSpacing: "0.22em", textTransform: "uppercase", margin: "0 0 4px" }}>Reservation Request</p>
-          <p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{venue.name}</p>
-        </div>
-        <button type="button" onClick={onClose}
-          style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s", padding: 0, flexShrink: 0 }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{ padding: "20px 22px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-        {/* Sub-room selector */}
-        {subRooms.length > 0 && (
-          <div>
-            <label style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.14em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Select Sub-room</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {subRooms.map(r => {
-                const sel = form.selectedSubRoom === r;
-                return (
-                  <button key={r} type="button" onClick={() => handleChange("selectedSubRoom", sel ? "" : r)}
-                    style={{ padding: "6px 14px", background: sel ? C.goldFaint : "transparent", border: `1px solid ${sel ? C.gold : C.goldBorder}`, fontFamily: FONT, fontSize: 12, fontWeight: sel ? 600 : 400, color: sel ? C.gold : C.textMuted, cursor: "pointer", transition: "all 0.16s", letterSpacing: "0.04em" }}
-                    onMouseEnter={e => { if (!sel) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; } }}
-                    onMouseLeave={e => { if (!sel) { e.currentTarget.style.borderColor = C.goldBorder; e.currentTarget.style.color = C.textMuted; } }}>
-                    {r}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Name + email */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[["name","Full Name","text",true],["email","Email Address","email",true]].map(([field, placeholder, type, required]) => (
-            <div key={field}>
-              <label style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.14em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>{placeholder}</label>
-              <input type={type} placeholder={placeholder} required={required} value={form[field]}
-                onChange={e => handleChange(field, e.target.value)}
-                style={{ width: "100%", padding: "9px 12px", background: C.cardBg, border: `1px solid ${C.border}`, fontFamily: FONT, fontSize: 13, color: C.text, outline: "none", transition: "border-color 0.18s" }}
-                onFocus={e => e.target.style.borderColor = C.gold}
-                onBlur={e  => e.target.style.borderColor = C.border}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Phone + date */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[["phone","Phone Number","tel",false],["date","Preferred Date","date",true]].map(([field, placeholder, type, required]) => (
-            <div key={field}>
-              <label style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.14em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>{placeholder}</label>
-              <input type={type} placeholder={placeholder} required={required} value={form[field]}
-                onChange={e => handleChange(field, e.target.value)}
-                style={{ width: "100%", padding: "9px 12px", background: C.cardBg, border: `1px solid ${C.border}`, fontFamily: FONT, fontSize: 13, color: C.text, outline: "none", transition: "border-color 0.18s", colorScheme: isDark ? "dark" : "light" }}
-                onFocus={e => e.target.style.borderColor = C.gold}
-                onBlur={e  => e.target.style.borderColor = C.border}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Time + guests */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[["time","Preferred Time","time",false],["guests","Number of Guests","number",true]].map(([field, placeholder, type, required]) => (
-            <div key={field}>
-              <label style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.14em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>{placeholder}</label>
-              <input type={type} placeholder={placeholder} required={required} value={form[field]}
-                onChange={e => handleChange(field, e.target.value)} min={type === "number" ? 1 : undefined}
-                style={{ width: "100%", padding: "9px 12px", background: C.cardBg, border: `1px solid ${C.border}`, fontFamily: FONT, fontSize: 13, color: C.text, outline: "none", transition: "border-color 0.18s", colorScheme: isDark ? "dark" : "light" }}
-                onFocus={e => e.target.style.borderColor = C.gold}
-                onBlur={e  => e.target.style.borderColor = C.border}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.14em", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Special Requirements (optional)</label>
-          <textarea placeholder="Any special setup, dietary needs, or additional notes..." rows={3} value={form.notes}
-            onChange={e => handleChange("notes", e.target.value)}
-            style={{ width: "100%", padding: "9px 12px", background: C.cardBg, border: `1px solid ${C.border}`, fontFamily: FONT, fontSize: 13, color: C.text, outline: "none", transition: "border-color 0.18s", resize: "vertical", minHeight: 72 }}
-            onFocus={e => e.target.style.borderColor = C.gold}
-            onBlur={e  => e.target.style.borderColor = C.border}
-          />
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center", paddingTop: 4 }}>
-          <button type="submit" disabled={loading}
-            style={{ flex: 1, padding: "11px 20px", background: loading ? C.goldDim : C.gold, color: "#FFFFFF", border: "none", cursor: loading ? "wait" : "pointer", fontWeight: 700, fontSize: 12, fontFamily: FONT, letterSpacing: "0.14em", textTransform: "uppercase", transition: "background 0.18s,transform 0.18s" }}
-            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.01)"; } }}
-            onMouseLeave={e => { e.currentTarget.style.background = loading ? C.goldDim : C.gold; e.currentTarget.style.transform = "scale(1)"; }}>
-            {loading ? "Submitting…" : "Submit Request"}
-          </button>
-          <button type="button" onClick={() => onNavigate(venue.id)}
-            style={{ padding: "11px 18px", background: "transparent", border: `1px solid ${C.goldBorder}`, color: C.gold, cursor: "pointer", fontFamily: FONT, fontSize: 11, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", transition: "all 0.18s", whiteSpace: "nowrap" }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.goldFaint; e.currentTarget.style.borderColor = C.gold; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.goldBorder; }}>
-            Full Page
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 // ── VENUE CARD ────────────────────────────────────────────────────────────────
-function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer, showInlineReserve, onToggleInlineReserve, onNavigateToReserve }) {
+function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer }) {
   const [hov,      setHov]      = useState(false);
   const [dotsHov,  setDotsHov]  = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -549,21 +440,14 @@ function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer, showInlin
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-        style={{ background: C.cardBg, borderTop: `1px solid ${showInlineReserve ? C.gold : (hov ? C.borderHov : C.border)}`, borderLeft: `1px solid ${showInlineReserve ? C.gold : (hov ? C.borderHov : C.border)}`, borderRight: `1px solid ${showInlineReserve ? C.gold : (hov ? C.borderHov : C.border)}`, borderBottom: showInlineReserve ? "none" : `1px solid ${showInlineReserve ? C.gold : (hov ? C.borderHov : C.border)}`, boxShadow: hov ? C.shadowHov : C.shadow, transition: "box-shadow 0.32s,border-color 0.32s,transform 0.32s", transform: hov && !showInlineReserve ? "translateY(-5px)" : "translateY(0)", display: "flex", flexDirection: "column", overflow: "visible" }}>
+        style={{ background: C.cardBg, border: `1px solid ${hov ? C.borderHov : C.border}`, boxShadow: hov ? C.shadowHov : C.shadow, transition: "box-shadow 0.32s,border-color 0.32s,transform 0.32s", transform: hov ? "translateY(-5px)" : "translateY(0)", display: "flex", flexDirection: "column", overflow: "visible" }}>
 
         {/* Image */}
         <div onClick={() => onDetails(venue)} style={{ height: 220, position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}>
           <img src={venue.img} alt={venue.name}
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94)", transform: hov ? "scale(1.06)" : "scale(1)" }} />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,rgba(0,0,0,0)35%,rgba(0,0,0,0.72)100%)" }} />
-          {/* Seats badge */}
-          <div style={{ position: "absolute", top: 12, right: 12, background: "rgba(0,0,0,0.58)", backdropFilter: "blur(6px)", border: "1px solid rgba(201,168,76,0.35)", padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: "#E8D898", letterSpacing: "0.06em" }}>{dSeats > 0 ? dSeats : venue.seats}</span>
-          </div>
+          
           <div style={{ position: "absolute", bottom: 14, left: 16, right: 16 }}>
             <p style={{ fontFamily: FONT, fontSize: 17, fontWeight: 600, color: "#FFFFFF", margin: 0, lineHeight: 1.25, letterSpacing: "-0.2px" }}>{venue.name}</p>
           </div>
@@ -571,20 +455,6 @@ function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer, showInlin
 
         {/* Card body */}
         <div style={{ padding: "16px 18px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1, background: C.cardBg }}>
-
-          {/* Stats */}
-          <div style={{ display: "flex", gap: 0, border: `1px solid ${C.divider}`, overflow: "hidden" }}>
-            {[
-              { label: "Seats",  value: dSeats  > 0 ? dSeats  : venue.seats  },
-              { label: "Tables", value: dTables > 0 ? dTables : venue.tables },
-              ...(hasSubRooms ? [{ label: "Rooms", value: venue.rooms.length }] : []),
-            ].map((s, i) => (
-              <div key={s.label} style={{ flex: 1, padding: "8px 10px", borderLeft: i === 0 ? "none" : `1px solid ${C.divider}`, background: C.surfaceEl, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <span style={{ fontFamily: FONT, fontSize: 15, fontWeight: 700, color: C.gold, lineHeight: 1 }}>{s.value}</span>
-                <span style={{ fontFamily: FONT, fontSize: 9, fontWeight: 600, color: C.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 3 }}>{s.label}</span>
-              </div>
-            ))}
-          </div>
 
           {/* Sub-room area */}
           <div style={{ minHeight: hasSubRooms || !hideSpacer ? 52 : 0 }}>
@@ -621,44 +491,41 @@ function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer, showInlin
 
           {/* CTA */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {onToggleInlineReserve ? (
-              <button type="button" onClick={(e) => { e.stopPropagation(); onToggleInlineReserve(venue.id); }}
-                style={{ flex: 1, padding: "10px 14px", background: showInlineReserve ? C.goldLight : C.gold, color: "#FFFFFF", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12, fontFamily: FONT, letterSpacing: "0.10em", textTransform: "uppercase", transition: "background 0.18s,transform 0.18s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.02)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = showInlineReserve ? C.goldLight : C.gold; e.currentTarget.style.transform = "scale(1)"; }}>
-                {showInlineReserve ? "Hide Details" : "Reserve"}
-              </button>
-            ) : (
-              <button type="button" onClick={(e) => { e.stopPropagation(); if (reserveEnabled) onClick(venue.id, selectedRoom ? { subRoom: selectedRoom } : {}); }} disabled={!reserveEnabled}
-                style={{ flex: 1, padding: "10px 14px", background: reserveEnabled ? C.gold : C.goldDim, color: "#FFFFFF", border: "none", cursor: reserveEnabled ? "pointer" : "not-allowed", fontWeight: 600, fontSize: 12, fontFamily: FONT, letterSpacing: "0.10em", textTransform: "uppercase", transition: "background 0.18s,transform 0.18s", opacity: reserveEnabled ? 1 : 0.55 }}
-                onMouseEnter={e => { if (reserveEnabled) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.02)"; } }}
-                onMouseLeave={e => { e.currentTarget.style.background = reserveEnabled ? C.gold : C.goldDim; e.currentTarget.style.transform = "scale(1)"; }}>
-                View & Reserve
-              </button>
-            )}
-            <button type="button" onClick={(e) => { e.stopPropagation(); onDetails(venue); }}
-              onMouseEnter={() => setDotsHov(true)} onMouseLeave={() => setDotsHov(false)}
-              style={{ width: 40, height: 40, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: dotsHov ? C.dotsBgHov : C.dotsBg, border: "none", cursor: "pointer", transition: "all 0.20s" }}>
-              <svg width="18" height="4" viewBox="0 0 18 4" fill="none">
-                <circle cx="2"    cy="2" r="2" fill={C.dotsColor}/>
-                <circle cx="9"    cy="2" r="2" fill={C.dotsColor}/>
-                <circle cx="16"   cy="2" r="2" fill={C.dotsColor}/>
-              </svg>
+            <button type="button" onClick={(e) => { e.stopPropagation(); if (reserveEnabled) onClick(venue.id, selectedRoom ? { subRoom: selectedRoom } : {}); }} disabled={!reserveEnabled}
+              style={{ flex: 1, padding: "10px 14px", background: reserveEnabled ? C.gold : C.goldDim, color: "#FFFFFF", border: "none", cursor: reserveEnabled ? "pointer" : "not-allowed", fontWeight: 600, fontSize: 12, fontFamily: FONT, letterSpacing: "0.10em", textTransform: "uppercase", transition: "background 0.18s,transform 0.18s", opacity: reserveEnabled ? 1 : 0.55 }}
+              onMouseEnter={e => { if (reserveEnabled) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.02)"; } }}
+              onMouseLeave={e => { e.currentTarget.style.background = reserveEnabled ? C.gold : C.goldDim; e.currentTarget.style.transform = "scale(1)"; }}>
+              View & Reserve
+            </button>
+
+            {/* ── DOTS BUTTON — using Lucide React Ellipsis ── */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDetails(venue); }}
+              onMouseEnter={() => setDotsHov(true)}
+              onMouseLeave={() => setDotsHov(false)}
+              style={{
+                width: 40,
+                height: 40,
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: dotsHov ? C.goldFaint : C.surfaceEl,
+                border: `1px solid ${dotsHov ? C.gold : C.goldBorder}`,
+                cursor: "pointer",
+                transition: "all 0.20s",
+              }}
+            >
+              <Ellipsis 
+                size={18} 
+                color={dotsHov ? C.gold : C.textSub}
+                strokeWidth={2}
+              />
             </button>
           </div>
         </div>
       </div>
-
-      {/* Inline reservation panel */}
-      {showInlineReserve && (
-        <InlineReservationPanel
-          venue={venue}
-          onClose={() => onToggleInlineReserve(venue.id)}
-          onNavigate={onNavigateToReserve}
-          C={C}
-          isDark={isDark}
-        />
-      )}
     </div>
   );
 }
@@ -688,7 +555,6 @@ export default function VenuesPage() {
   const [modalVenue,    setModalVenue]    = useState(null);
   const [subcategories, setSubcategories] = useState(STATIC_VENUES);
 
-  // ✅ Proper scroll state — wired to window scroll event
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -760,142 +626,55 @@ export default function VenuesPage() {
   const handleVenueClick = (id, options = {}) => {
     const subRoom = options?.subRoom ?? "";
 
-    // ── Laguna subroom routing ────────────────────────────────────────────────
-    // When the Laguna Ballroom card is clicked with a subroom selected,
-    // map the subroom label to the correct dedicated page.
     if (id === "laguna") {
-      if (subRoom === "Laguna 1") {
-        navigate("/laguna-reserv1e", { state: { openRoomId: "laguna-ballroom-1" } });
-        return;
-      }
-      if (subRoom === "Laguna 2") {
-        navigate("/laguna-reserv2e", { state: { openRoomId: "laguna-ballroom-2" } });
-        return;
-      }
-      // No subroom selected — fall through to default
+      if (subRoom === "Laguna 1") { navigate("/laguna-reserv1e", { state: { openRoomId: "laguna-ballroom-1" } }); return; }
+      if (subRoom === "Laguna 2") { navigate("/laguna-reserv2e", { state: { openRoomId: "laguna-ballroom-2" } }); return; }
     }
-
-    // Tower Ballroom sub-room routing
     if (id === "tower-ballroom") {
-      if (subRoom === "Tower 1") {
-        navigate("/tower1", { state: { openRoomId: "tower1" } });
-        return;
-      }
-      if (subRoom === "Tower 2") {
-        navigate("/tower2", { state: { openRoomId: "tower2" } });
-        return;
-      }
-      if (subRoom === "Tower 3") {
-        navigate("/tower3", { state: { openRoomId: "tower3" } });
-        return;
-      }
-      // No subroom selected — fall through to default
+      if (subRoom === "Tower 1") { navigate("/tower1", { state: { openRoomId: "tower1" } }); return; }
+      if (subRoom === "Tower 2") { navigate("/tower2", { state: { openRoomId: "tower2" } }); return; }
+      if (subRoom === "Tower 3") { navigate("/tower3", { state: { openRoomId: "tower3" } }); return; }
     }
+    if (id === "tower1") { navigate("/tower1", { state: { openRoomId: id } }); return; }
+    if (id === "tower2") { navigate("/tower2", { state: { openRoomId: id } }); return; }
+    if (id === "tower3") { navigate("/tower3", { state: { openRoomId: id } }); return; }
 
-    // Direct Tower venue object IDs (used from modal / section cards)
-    if (id === "tower1") {
-      navigate("/tower1", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "tower2") {
-      navigate("/tower2", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "tower3") {
-      navigate("/tower3", { state: { openRoomId: id } });
-      return;
-    }
-
-    // 20/20 Function Room sub-room routing ──────────────────────────────────
     if (id === "20-20") {
-      if (subRoom === "20/20 A") {
-        navigate("/twenty-twenty-a", { state: { openRoomId: "20-20-function-room-a" } });
-        return;
-      }
-      if (subRoom === "20/20 B") {
-        navigate("/twenty-twenty-b", { state: { openRoomId: "20-20-function-room-b" } });
-        return;
-      }
-      if (subRoom === "20/20 C") {
-        navigate("/twenty-twenty-c", { state: { openRoomId: "20-20-function-room-c" } });
-        return;
-      }
-      // No subroom selected — fall through to default
+      if (subRoom === "20/20 A") { navigate("/twenty-twenty-a", { state: { openRoomId: "20-20-function-room-a" } }); return; }
+      if (subRoom === "20/20 B") { navigate("/twenty-twenty-b", { state: { openRoomId: "20-20-function-room-b" } }); return; }
+      if (subRoom === "20/20 C") { navigate("/twenty-twenty-c", { state: { openRoomId: "20-20-function-room-c" } }); return; }
     }
-
-    // Grand Ballroom sub-room routing
     if (id === "grand-ballroom") {
-      if (subRoom === "Grand A") {
-        navigate("/grand-ballroom-a", { state: { openRoomId: "grand-ballroom-a" } });
-        return;
-      }
-      if (subRoom === "Grand B") {
-        navigate("/grand-ballroom-b", { state: { openRoomId: "grand-ballroom-b" } });
-        return;
-      }
-      if (subRoom === "Grand C") {
-        navigate("/grand-ballroom-c", { state: { openRoomId: "grand-ballroom-c" } });
-        return;
-      }
-      // No subroom selected — fall through to default
+      if (subRoom === "Grand A") { navigate("/grand-ballroom-a", { state: { openRoomId: "grand-ballroom-a" } }); return; }
+      if (subRoom === "Grand B") { navigate("/grand-ballroom-b", { state: { openRoomId: "grand-ballroom-b" } }); return; }
+      if (subRoom === "Grand C") { navigate("/grand-ballroom-c", { state: { openRoomId: "grand-ballroom-c" } }); return; }
     }
+    if (id === "grand-ballroom-a") { navigate("/grand-ballroom-a", { state: { openRoomId: id } }); return; }
+    if (id === "grand-ballroom-b") { navigate("/grand-ballroom-b", { state: { openRoomId: id } }); return; }
+    if (id === "grand-ballroom-c") { navigate("/grand-ballroom-c", { state: { openRoomId: id } }); return; }
+    if (id === "20-20-function-room-a") { navigate("/twenty-twenty-a", { state: { openRoomId: id } }); return; }
+    if (id === "20-20-function-room-b") { navigate("/twenty-twenty-b", { state: { openRoomId: id } }); return; }
+    if (id === "20-20-function-room-c") { navigate("/twenty-twenty-c", { state: { openRoomId: id } }); return; }
+    if (id === "laguna-ballroom-1") { navigate("/laguna-reserv1e", { state: { openRoomId: id } }); return; }
+    if (id === "laguna-ballroom-2") { navigate("/laguna-reserv2e", { state: { openRoomId: id } }); return; }
 
-    // Direct Grand Ballroom venue object IDs (used from modal / section cards)
-    if (id === "grand-ballroom-a") {
-      navigate("/grand-ballroom-a", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "grand-ballroom-b") {
-      navigate("/grand-ballroom-b", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "grand-ballroom-c") {
-      navigate("/grand-ballroom-c", { state: { openRoomId: id } });
-      return;
-    }
-
-    // Direct 20/20 venue object IDs (used from modal / section cards)
-    if (id === "20-20-function-room-a") {
-      navigate("/twenty-twenty-a", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "20-20-function-room-b") {
-      navigate("/twenty-twenty-b", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "20-20-function-room-c") {
-      navigate("/twenty-twenty-c", { state: { openRoomId: id } });
-      return;
-    }
-
-    // ── Direct Laguna venue object IDs (used from modal / section cards)
-    if (id === "laguna-ballroom-1") {
-      navigate("/laguna-reserv1e", { state: { openRoomId: id } });
-      return;
-    }
-    if (id === "laguna-ballroom-2") {
-      navigate("/laguna-reserv2e", { state: { openRoomId: id } });
-      return;
-    }
-
-    // ── Everything else ───────────────────────────────────────────────────────
     const roomState = subRoom ? { selectedSubRoom: subRoom } : {};
     const routes = {
-      "alabang":        "/alabang-reserve",
-      "laguna":         "/alabang-reserve",
-      "20-20":          "/alabang-reserve",
-      "business-center":"/business-center-reserve",
-      "tower-ballroom": "/tower-ballroom",
-      "tower1":         "/tower1",
-      "tower2":         "/tower2",
-      "tower3":         "/tower3",
-      "grand-ballroom": "/grand-ballroom",
+      "alabang":          "/alabang-reserve",
+      "laguna":           "/alabang-reserve",
+      "20-20":            "/alabang-reserve",
+      "business-center":  "/business-center-reserve",
+      "tower-ballroom":   "/tower-ballroom",
+      "tower1":           "/tower1",
+      "tower2":           "/tower2",
+      "tower3":           "/tower3",
+      "grand-ballroom":   "/grand-ballroom",
       "grand-ballroom-a": "/grand-ballroom-a",
       "grand-ballroom-b": "/grand-ballroom-b",
       "grand-ballroom-c": "/grand-ballroom-c",
-      "qsina":          "/qsina",
-      "hanakazu":       "/hanakazu",
-      "phoenix-court":  "/phoenix-court",
+      "qsina":            "/qsina",
+      "hanakazu":         "/hanakazu",
+      "phoenix-court":    "/phoenix-court",
     };
     navigate(routes[id] ?? `/reserve/${id}`, { state: { openRoomId: id, ...roomState } });
   };
@@ -916,19 +695,18 @@ export default function VenuesPage() {
 
       <div style={{ background: C.pageBg, minHeight: "100vh", fontFamily: FONT }}>
 
-      {/* ✅ scrolled is now a real live value from window.scrollY */}
-      <SharedNavbar
-        isDark={isDark}
-        toggle={toggle}
-        showNavigation={false}
-        scrolled={scrolled}
-        height={NAV_H}
-      />
+        <SharedNavbar
+          isDark={isDark}
+          toggle={toggle}
+          showNavigation={false}
+          scrolled={scrolled}
+          height={NAV_H}
+        />
 
-      {modalVenue && (
-        <VenueModal venue={modalVenue} isDark={isDark} C={C} onClose={() => setModalVenue(null)} onReserve={handleVenueClick} />
-      )}
-      <div style={{ paddingTop: NAV_H, marginTop: -1, background: C.pageBg }}></div>
+        {modalVenue && (
+          <VenueModal venue={modalVenue} isDark={isDark} C={C} onClose={() => setModalVenue(null)} onReserve={handleVenueClick} />
+        )}
+        <div style={{ paddingTop: NAV_H, marginTop: -1, background: C.pageBg }}></div>
 
         {/* PAGE HEADER */}
         <div ref={headerRef} style={{ padding: isMobile ? "36px 20px 28px" : `52px clamp(32px,5vw,72px) 36px`, maxWidth: 1280, margin: "0 auto", display: "flex", flexDirection: "column", gap: 28 }}>
@@ -1015,6 +793,6 @@ export default function VenuesPage() {
           </div>
         </div>
       </div>
-      </>
+    </>
   );
 }

@@ -478,9 +478,9 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
         {/* Booking summary strip */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
           {[
-            ["Room", ROOM.split(" ").slice(0, 2).join(" ")], 
+            ["Room", ROOM.split(" ").slice(0, 2).join(" ")],
             ...(tableData ? [["Table", `Table ${tableData?.id ?? "—"}`]] : []),
-            ["Seat", seatDisplay], 
+            ["Seat", seatDisplay],
             ["Guests", String(guests)]
           ].map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
@@ -715,12 +715,11 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
 
 // ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
 function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, isStandalone, rebookFrom, onReserve, C, isDark }) {
-  const displayTable = isStandalone 
-    ? "Standalone Seat"
-    : mode === "whole" 
-      ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") 
-      : (activeTable ? `Table ${activeTable.id}` : "—");
-  const displaySeat  = isStandalone
+  const displayTable = mode === "whole"
+    ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
+    : (activeTable ? `Table ${activeTable.id}` : "—");
+
+  const displaySeat = isStandalone
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : mode === "individual"
       ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
@@ -745,17 +744,23 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
 
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
-            <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
-          </div>
+
+          {/* ── Table chip: hidden for standalone seats ── */}
+          {!isStandalone && (
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+              <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
+              {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
+            </div>
+          )}
+
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
               {mode === "whole" ? "Seats" : "Seat"}
             </div>
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
           </div>
+
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
             <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Laguna 1</div>
@@ -834,7 +839,7 @@ export default function LagunaReserv1e() {
       if (e.key !== layoutKey(WING, ROOM)) return;
       try {
         const parsed = e.newValue ? JSON.parse(e.newValue) : null;
-        if (parsed?.v === 2) setTableData(parsed);
+        if (parsed && (parsed.tables || parsed.standaloneSeats)) setTableData(parsed);
       } catch {}
     };
     const onSeatMapSaved = e => {
@@ -852,7 +857,7 @@ export default function LagunaReserv1e() {
     };
   }, []);
 
-  // ── Centralised fetchAndMerge — used by initial load, polling, and WebSocket ──
+  // ── Centralised fetchAndMerge ─────────────────────────────────────────────
   const fetchAndMerge = useCallback(async () => {
     try {
       const res = await fetch(
@@ -873,7 +878,7 @@ export default function LagunaReserv1e() {
     }
   }, []);
 
-  // ── Initial load ──────────────────────────────────────────────────────────────
+  // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
@@ -886,7 +891,7 @@ export default function LagunaReserv1e() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── WebSocket with 10s polling fallback ───────────────────────────────────────
+  // ── WebSocket with 10s polling fallback ───────────────────────────────────
   useEffect(() => {
     const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
@@ -927,7 +932,6 @@ export default function LagunaReserv1e() {
         fetchAndMerge();
       }));
 
-      // Give WebSocket 8 seconds to prove itself, then fall back to polling
       const fallbackTimer = setTimeout(() => {
         if (!wsConnected) {
           console.log("[LagunaReserv1e] WebSocket not active after 8s, starting polling fallback");
@@ -947,7 +951,6 @@ export default function LagunaReserv1e() {
     }
   }, [fetchAndMerge]);
 
-  // ── Cleanup polling on unmount ────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -958,9 +961,6 @@ export default function LagunaReserv1e() {
   const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
   const getActiveTable      = () => selectedTable || getTables()[0] || null;
 
-  /**
-   * Check if a seat is standalone (not part of any table)
-   */
   const checkIsStandalone = useCallback((seat, currentTableData) => {
     if (!seat) return false;
     const tables = currentTableData?.tables ? currentTableData.tables : Array.isArray(currentTableData) ? currentTableData : [];
@@ -986,21 +986,19 @@ export default function LagunaReserv1e() {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      // Check if selected seat is standalone
       const isStandalone = checkIsStandalone(selectedSeat, tableData);
       const activeTable = isStandalone ? null : getActiveTable();
-      
+
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
         phone: formData.phone,
         venue_id: 2,
         room: selectedRoom,
-        // Standalone seats should not have table_number
         table_number: isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
         seat_number: mode === "individual"
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
+        ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+        : Array.from({ length: guests }, (_, i) => i + 1).join(","), 
         guests_count: mode === "individual" ? 1 : guests,
         event_date: formData.eventDate,
         event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
@@ -1013,25 +1011,23 @@ export default function LagunaReserv1e() {
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
-      setLastBookingDetails({ 
-        room: selectedRoom, 
-        table: isStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "—"}`, 
-        date: formData.eventDate, 
-        name: `${formData.firstName} ${formData.lastName}` 
+      setLastBookingDetails({
+        room: selectedRoom,
+        table: isStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "—"}`,
+        date: formData.eventDate,
+        name: `${formData.firstName} ${formData.lastName}`
       });
       if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
 
-      // Optimistic update — mark seats as pending immediately
+      // Optimistic update
       setTableData(prev => {
         if (!prev) return prev;
 
-        // Update standalone seats (only for standalone reservations)
         const standaloneSeats = (prev.standaloneSeats || []).map(s => {
           if (isStandalone && s.id === selectedSeat?.id) return { ...s, status: "pending" };
           return s;
         });
 
-        // Update table seats only when not a standalone reservation
         const tables = isStandalone ? (prev.tables || []) : (prev.tables || []).map(t => {
           if (!activeTable || t.id !== activeTable.id) return t;
           if (mode === "individual") {
@@ -1062,7 +1058,6 @@ export default function LagunaReserv1e() {
     setModal(null); setSelectedSeat(null); setSelectedTable(null);
     setRefCode(null); setFormData(null); setGuests(2);
     setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
-    // Re-fetch after closing success modal to get authoritative server statuses
     fetchAndMerge();
   };
 
@@ -1073,15 +1068,16 @@ export default function LagunaReserv1e() {
   const canProceed  = (mode === "individual" || currentIsStandalone) && selectedSeat && selectedSeat.status !== "reserved";
   const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
 
-  const displayTable = currentIsStandalone 
-    ? "Standalone Seat"
-    : mode === "whole" 
-      ? (activeTable ? `Table ${activeTable.id}` : "—") 
-      : (selectedTable ? `Table ${selectedTable.id}` : "—");
-  const displaySeat  = currentIsStandalone
+  // ── "Your Selection" display values ──────────────────────────────────────
+  // For standalone seats: no table label at all
+  const displayTable = mode === "whole"
+    ? (activeTable ? `Table ${activeTable.id}` : "—")
+    : (selectedTable ? `Table ${selectedTable.id}` : "—");
+
+  const displaySeat = currentIsStandalone
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
-    : mode === "individual" 
-      ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") 
+    : mode === "individual"
+      ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
       : getWholeSeatLabel(guests, activeTable);
 
   const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
@@ -1091,7 +1087,6 @@ export default function LagunaReserv1e() {
   const NAV_H = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
 
-  // Filter legend to only 3 visible states
   const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
 
   return (
@@ -1316,13 +1311,15 @@ export default function LagunaReserv1e() {
                       </div>
                     </div>
 
-                    {/* Selection card */}
+                    {/* ── Selection card ── */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
+
+                        {/* Table row — hidden when a standalone seat is selected */}
                         {[
-                          ["Table", displayTable, false, seatRatio],
+                          ...(!currentIsStandalone ? [["Table", displayTable, false, seatRatio]] : []),
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (
@@ -1363,15 +1360,15 @@ export default function LagunaReserv1e() {
         <ModalGuestCount
           seatData={currentIsStandalone ? selectedSeat : (mode === "individual" ? selectedSeat : null)}
           tableData={currentIsStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable)}
-          mode={currentIsStandalone ? "individual" : mode} 
+          mode={currentIsStandalone ? "individual" : mode}
           onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark}
         />
       )}
       {modal === "details" && (
         <ModalDetails
-          tableData={currentIsStandalone ? null : activeTable} 
-          seatData={selectedSeat} 
-          mode={currentIsStandalone ? "individual" : mode} 
+          tableData={currentIsStandalone ? null : activeTable}
+          seatData={selectedSeat}
+          mode={currentIsStandalone ? "individual" : mode}
           guests={guests}
           onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }}
           prefill={detailsPrefill} C={C} isDark={isDark}
@@ -1380,9 +1377,9 @@ export default function LagunaReserv1e() {
       )}
       {modal === "review" && formData && (
         <ModalReview
-          form={formData} guests={guests} 
-          mode={currentIsStandalone ? "individual" : mode} 
-          tableData={currentIsStandalone ? null : activeTable} 
+          form={formData} guests={guests}
+          mode={currentIsStandalone ? "individual" : mode}
+          tableData={currentIsStandalone ? null : activeTable}
           seatData={selectedSeat}
           onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting}
           isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
@@ -1390,8 +1387,8 @@ export default function LagunaReserv1e() {
       )}
       {modal === "success" && (
         <ModalSuccess
-          refCode={refCode} onBack={handleBack} 
-          mode={currentIsStandalone ? "standalone" : mode} 
+          refCode={refCode} onBack={handleBack}
+          mode={currentIsStandalone ? "standalone" : mode}
           guests={currentIsStandalone ? 1 : guests}
           isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark}
         />

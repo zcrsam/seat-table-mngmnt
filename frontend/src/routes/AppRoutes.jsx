@@ -48,9 +48,7 @@ export default function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<><Navbar /><HomePage /></>} />
-        <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
-        <Route path="/" element={<><Navbar /><HomePage /></>} />
-        <Route path="/venues" element={<><Navbar /><VenuesPage /></>} />
+        <Route path="/venues" element={<VenuesPage />} />
         <Route path="/manage-booking" element={<ManageBooking />} />
         <Route path="/alabang-reserve" element={<><SharedNavbar /><AlabangReserve /></>} />
         <Route path="/laguna-reserv1e" element={<><SharedNavbar /><LagunaReserv1e /></>} />

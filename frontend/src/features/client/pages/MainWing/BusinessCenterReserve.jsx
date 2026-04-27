@@ -1458,7 +1458,7 @@ export default function BusinessCenterReserve() {
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
                         {[
-                          [currentIsStandalone ? "Type" : "Table", currentIsStandalone ? "Standalone" : displayTable, false, seatRatio && !currentIsStandalone ? seatRatio : null],
+                          ...(!currentIsStandalone ? [["Table", displayTable, false, seatRatio ? seatRatio : null]] : []),
                           [mode === "whole" && !currentIsStandalone && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (

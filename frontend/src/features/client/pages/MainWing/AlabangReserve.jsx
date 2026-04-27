@@ -8,7 +8,6 @@ import Echo from "../../../../utils/websocket.js";
 import bellevueLogo from "../../../../assets/bellevue-logo.png";
 
 function getActualWingForRoom(room) {
-  // Check dynamic venue structure first
   try {
     const raw = localStorage.getItem("bellevue_venue_structure");
     if (raw) {
@@ -18,7 +17,6 @@ function getActualWingForRoom(room) {
       }
     }
   } catch {}
-  // Hardcoded fallback (matches SeatMap.jsx)
   const map = {
     "Alabang Function Room": "Main Wing",
     "Business Center":       "Main Wing",
@@ -108,23 +106,14 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-// ─── FIX: Only 3 legend states exposed to the client ─────────────────────────
-// The SeatMap component may export more STATUS_COLORS, but we only show
-// available / pending / reserved in the legend.
 const LEGEND_STATUSES = ["available", "pending", "reserved"];
 
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
-// ─── FIX: normalise any raw API status string into one of the canonical statuses
-//   "approved" / "reserved" → "reserved"  (seat taken, shown RED)
-//   "rejected"              → "rejected"   (seat rejected, shown RED)
-//   "pending"               → "pending"   (awaiting admin, shown GOLD)
-//   anything else           → "available"
 function normaliseApiStatus(raw) {
   const s = (raw || "available").toLowerCase();
   if (s === "approved" || s === "reserved") return "reserved";
-  // FIX: rejected means the reservation was denied -> seat is free but should be marked as "rejected" for proper color
   if (s === "rejected") return "rejected";
   if (s === "pending")  return "pending";
   return "available";
@@ -899,13 +888,14 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
 
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
-              {isStandaloneSeat ? "Type" : "Table"}
+          {/* ── FIX: hide Table chip entirely for standalone seats ── */}
+          {!isStandaloneSeat && (
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+              <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
+              {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
             </div>
-            <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {!isStandaloneSeat && seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
-          </div>
+          )}
 
           <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
@@ -981,7 +971,7 @@ export default function AlabangReserve() {
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
   const echoRef        = useRef(null);
-  const pollingRef     = useRef(null);  // FIX: polling fallback ref
+  const pollingRef     = useRef(null);
 
   const startHoldTimer = useCallback(() => {
     if (!holdStartedRef.current) { holdStartedRef.current = true; setHoldSecondsLeft(24 * 60); }
@@ -1022,7 +1012,6 @@ export default function AlabangReserve() {
     };
   }, []);
 
-  // ── FIX: centralised fetchAndMerge — also used by polling fallback ──────────
   const fetchAndMerge = useCallback(async () => {
     try {
       const res = await fetch(
@@ -1044,7 +1033,6 @@ export default function AlabangReserve() {
     }
   }, []);
 
-  // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
@@ -1057,31 +1045,22 @@ export default function AlabangReserve() {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── FIX: Pusher/Echo with polling fallback when WebSocket unavailable ────────
   useEffect(() => {
     const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
 
     let wsConnected = false;
 
-    // Start 10-second polling as the baseline fallback
     const startPolling = () => {
-      if (pollingRef.current) return; // already running
-      console.log("[AlabangReserve] Starting polling fallback (10s interval)");
-      pollingRef.current = setInterval(() => {
-        fetchAndMerge();
-      }, 10_000);
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(() => { fetchAndMerge(); }, 10_000);
     };
 
     const stopPolling = () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     };
 
     if (!pusherKey || pusherKey === "your_key") {
-      // No Pusher configured — rely entirely on polling
       startPolling();
       return () => stopPolling();
     }
@@ -1089,7 +1068,6 @@ export default function AlabangReserve() {
     try {
       echoRef.current = new Echo({ broadcaster: "pusher", key: pusherKey, cluster: pusherCluster });
     } catch (err) {
-      console.warn("[AlabangReserve] Echo init failed, falling back to polling:", err);
       startPolling();
       return () => stopPolling();
     }
@@ -1098,28 +1076,16 @@ export default function AlabangReserve() {
 
     try {
       const channel = echo.channel("reservations");
-      const events = [
-        "ReservationCreated",
-        "ReservationUpdated",
-        "ReservationDeleted",
-        "ReservationApproved",
-        "ReservationRejected",
-        "SeatReserved",
-        "TableReserved",
-      ];
+      const events = ["ReservationCreated","ReservationUpdated","ReservationDeleted","ReservationApproved","ReservationRejected","SeatReserved","TableReserved"];
 
       events.forEach(ev => channel.listen(ev, () => {
         wsConnected = true;
-        stopPolling(); // WebSocket is working — no need to poll
+        stopPolling();
         fetchAndMerge();
       }));
 
-      // Give WebSocket 8 seconds to prove itself, then fall back to polling
       const fallbackTimer = setTimeout(() => {
-        if (!wsConnected) {
-          console.log("[AlabangReserve] WebSocket not active after 8s, starting polling fallback");
-          startPolling();
-        }
+        if (!wsConnected) startPolling();
       }, 8_000);
 
       return () => {
@@ -1128,19 +1094,14 @@ export default function AlabangReserve() {
         try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
     } catch (err) {
-      console.warn("[AlabangReserve] Channel subscription failed, falling back to polling:", err);
       startPolling();
       return () => stopPolling();
     }
   }, [fetchAndMerge]);
 
-  // ── Cleanup polling on unmount ────────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     };
   }, []);
 
@@ -1182,7 +1143,6 @@ export default function AlabangReserve() {
       const isStandalone = isStandaloneSelected();
       const activeTable  = isStandalone ? null : getActiveTable();
 
-      // FIX: standalone seat_number uses the seat's own num/label/id
       const seatNum = isStandalone
         ? String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "")
         : mode === "individual"
@@ -1195,8 +1155,6 @@ export default function AlabangReserve() {
         phone: formData.phone,
         venue_id: 1,
         room: selectedRoom,
-        // FIX: standalone uses "STANDALONE" as table_number so the backend
-        //      knows which seat to mark and the dashboard shows the right label
         table_number: isStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
         seat_number: seatNum,
         guests_count: isStandalone ? 1 : guests,
@@ -1205,15 +1163,10 @@ export default function AlabangReserve() {
         special_requests: formData.specialRequests || "",
         type: isStandalone ? "standalone" : mode,
         is_standalone: isStandalone ? 1 : 0,
-        // FIX: send seat_id so the backend can directly target the standalone seat row
         seat_id: isStandalone ? (selectedSeat?.id ?? null) : null,
       };
 
-      console.log("[AlabangReserve] Submitting reservation payload:", payload);
-
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
-
-      console.log("[AlabangReserve] Reservation response:", response);
 
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
@@ -1228,7 +1181,6 @@ export default function AlabangReserve() {
         try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {}
       }
 
-      // FIX: Optimistic update — new reservation always starts as "pending"
       setTableData(prev => {
         if (!prev) return prev;
 
@@ -1267,7 +1219,6 @@ export default function AlabangReserve() {
       setModal("success");
       resetHoldTimer();
     } catch (err) {
-      console.error("[AlabangReserve] handleSubmit error:", err);
       alert(`Error: ${err.message}`);
     }
     finally { setSubmitting(false); }
@@ -1277,7 +1228,6 @@ export default function AlabangReserve() {
     setModal(null); setSelectedSeat(null); setSelectedTable(null);
     setRefCode(null); setFormData(null); setGuests(2);
     setRebookFrom(null); setLastBookingDetails(null); resetHoldTimer();
-    // Re-fetch after closing success modal to get authoritative server statuses
     fetchAndMerge();
   };
 
@@ -1300,7 +1250,6 @@ export default function AlabangReserve() {
 
   const modalTableData = isStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
 
-  // FIX: filter STATUS_COLORS to only 3 states for the legend
   const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
 
   return (
@@ -1400,7 +1349,6 @@ export default function AlabangReserve() {
                       room={ROOM}
                     />
                   </div>
-                  {/* FIX: legend limited to 3 states */}
                   <div style={{
                     position: "absolute", bottom: 10, left: 10,
                     background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
@@ -1544,7 +1492,6 @@ export default function AlabangReserve() {
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
 
-                    {/* FIX: legend limited to 3 states */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
@@ -1564,8 +1511,10 @@ export default function AlabangReserve() {
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
+
+                        {/* ── FIX: hide Table row entirely when a standalone seat is selected ── */}
                         {[
-                          [isStandalone ? "Type" : "Table", displayTable, false, (!isStandalone && seatRatio) ? seatRatio : null],
+                          ...(!isStandalone ? [["Table", displayTable, false, seatRatio ?? null]] : []),
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (

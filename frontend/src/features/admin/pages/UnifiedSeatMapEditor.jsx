@@ -201,51 +201,6 @@ export default function UnifiedSeatMapEditor() {
               {config.title}
             </span>
 
-            {/* Venue switcher pills — quick-access for common rooms */}
-            <div style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
-              {Object.entries(VENUE_CONFIGS).map(([slug, cfg]) => {
-                const active = venueType === slug;
-                // Shorten labels for the pill bar
-                const short = {
-                  "business-center": cfg.title,
-                  "20-20-a": cfg.title,
-                  "20-20-b": cfg.title,
-                  "20-20-c": cfg.title,
-                }[slug] ?? cfg.title;
-                return (
-                  <button
-                    key={slug}
-                    onClick={() => {
-                      // Navigate to the correct URL slug for the chosen venue.
-                      // The SeatMap component's internal sidebar will also update
-                      // because it reads activeWing/activeRoom from its own state
-                      // (initialised from the wing/room props we pass here).
-                      if (slug === "business-center") navigate("/admin/seat-map");
-                      else navigate(`/admin/seat-map/${slug}`);
-                    }}
-                    style={{
-                      padding: "5px 11px",
-                      background: active ? C.gold : "transparent",
-                      border: `1px solid ${active ? C.gold : C.borderDefault}`,
-                      borderRadius: 6,
-                      fontFamily: F.label || F.body,
-                      fontSize: 9,
-                      fontWeight: 700,
-                      letterSpacing: "0.10em",
-                      textTransform: "uppercase",
-                      color: active ? (config.theme === "dark" ? "#0A0908" : "#FFFFFF") : C.textSecondary,
-                      cursor: active ? "default" : "pointer",
-                      transition: "all 0.15s",
-                      whiteSpace: "nowrap",
-                    }}
-                    onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; } }}
-                    onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
-                  >
-                    {short}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/*
