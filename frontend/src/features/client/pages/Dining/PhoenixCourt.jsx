@@ -74,12 +74,16 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-// ─── Status normalisation (ported from Tower 1) ───────────────────────────────
+const LEGEND_STATUSES = ["available", "pending", "reserved"];
+
+// ─── Status normalisation ─────────────────────────────────────────────────────
+// "approved" and "reserved" both map to "reserved" so the seat turns red.
+// This is the same logic as AlabangReserve — do NOT change it.
 function normaliseApiStatus(raw) {
-  const s = (raw || "available").toLowerCase();
+  const s = (raw || "available").toLowerCase().trim();
   if (s === "approved" || s === "reserved") return "reserved";
-  if (s === "pending") return "pending";
-  if (s === "rejected" || s === "cancelled") return "available";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
   return "available";
 }
 
@@ -97,19 +101,63 @@ function loadLayoutForClient(wing, room) {
   } catch { return null; }
 }
 
+// ─── Merge API statuses into local layout ─────────────────────────────────────
+// API status ALWAYS wins — this is what makes approved seats turn red.
+// mergeApiStatusIntoLayout is called on every fetchAndMerge tick and after
+// submission, so the optimistic "pending" gets overwritten as soon as the
+// server confirms the real status.
+function mergeApiStatusIntoLayout(localLayout, apiData) {
+  if (!localLayout || !apiData) return localLayout;
+  const apiStatusMap = {};
+  const apiTables = apiData.tables || (Array.isArray(apiData) ? apiData : []);
+
+  apiTables.forEach(t => {
+    if (Array.isArray(t?.seats)) {
+      (t.seats || []).forEach(s => {
+        apiStatusMap[s.id] = normaliseApiStatus(s.status);
+      });
+      return;
+    }
+    const tableKey = String(t.table ?? t.table_number ?? t.tableNo ?? t.tableId ?? t.table_id ?? "").trim();
+    const seatKey  = String(t.seat  ?? t.seat_number  ?? t.seatNo  ?? t.seat_id  ?? t.seatId  ?? "").trim();
+    const compositeKey = `${tableKey}|${seatKey}`;
+    if (tableKey || seatKey) {
+      apiStatusMap[compositeKey] = normaliseApiStatus(t.status);
+    }
+  });
+
+  const mergedTables = (localLayout.tables || []).map(t => ({
+    ...t,
+    seats: (t.seats || []).map(s => {
+      const apiStatus =
+        apiStatusMap[s.id] ??
+        apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+      if (apiStatus !== undefined) return { ...s, status: apiStatus };
+      return s;
+    }),
+  }));
+
+  const mergedStandaloneSeats = (localLayout.standaloneSeats || []).map(s => {
+    const apiStatus =
+      apiStatusMap[s.id] ??
+      apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
+    if (apiStatus !== undefined) return { ...s, status: apiStatus };
+    return s;
+  });
+
+  return { ...localLayout, tables: mergedTables, standaloneSeats: mergedStandaloneSeats };
+}
+
+// ─── Offline reservation helpers ──────────────────────────────────────────────
 const loadStoredReservations = () => {
   try {
     const raw = localStorage.getItem("bellevue_reservations");
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 };
 
 const saveStoredReservations = (reservations) => {
-  try {
-    localStorage.setItem("bellevue_reservations", JSON.stringify(reservations));
-  } catch {}
+  try { localStorage.setItem("bellevue_reservations", JSON.stringify(reservations)); } catch {}
 };
 
 const makeOfflineReservation = (payload) => ({
@@ -133,9 +181,10 @@ const apiCall = async (endpoint, options = {}) => {
     const text = await response.text();
     const data = text ? JSON.parse(text) : {};
     if (!response.ok) {
-      let msg = data?.message || `HTTP ${response.status}`;
-      if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
-      throw new Error(msg);
+      const errorLines = data?.errors ? Object.values(data.errors).flat() : [];
+      const baseMsg = data?.message || `HTTP ${response.status}`;
+      const uniqueLines = [...new Set([baseMsg, ...errorLines])];
+      throw new Error(uniqueLines.join("\n"));
     }
     return data;
   } catch (error) {
@@ -156,11 +205,15 @@ const apiCall = async (endpoint, options = {}) => {
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
-    const bookable = tableData.seats.filter(s => s.status === "available").slice(0, guests).map(s => s.num ?? s.id);
+    const bookable = tableData.seats
+      .filter(s => s.status === "available")
+      .slice(0, guests)
+      .map(s => s.num ?? s.id);
     if (bookable.length > 0) return `Seat ${bookable.join(", ")}`;
   }
   return `Seat ${Array.from({ length: guests }, (_, i) => i + 1).join(", ")}`;
 };
+
 const getSeatRatio = (table) => {
   if (!table?.seats?.length) return null;
   const available = table.seats.filter(s => s.status === "available").length;
@@ -320,7 +373,19 @@ function StepIndicator({ step, C }) {
 function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, rows }) {
   const [focused, setFocused] = useState(false);
   const isTextarea = type === "textarea";
-  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 14px", border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`, borderRadius: 8, background: C.surfaceInput, fontFamily: F.body, fontSize: 13, color: C.textPrimary, outline: "none", transition: "border-color 0.18s, box-shadow 0.18s", boxShadow: focused ? C.inputFocusShadow : "none", colorScheme: isDark ? "dark" : "light", resize: isTextarea ? "vertical" : undefined, minHeight: isTextarea ? 72 : undefined };
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", padding: "11px 14px",
+    borderTop: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderBottom: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderLeft: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderRight: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderRadius: 8, background: C.surfaceInput, fontFamily: F.body, fontSize: 13,
+    color: C.textPrimary, outline: "none", transition: "border-color 0.18s, box-shadow 0.18s",
+    boxShadow: focused ? C.inputFocusShadow : "none",
+    colorScheme: isDark ? "dark" : "light",
+    resize: isTextarea ? "vertical" : undefined,
+    minHeight: isTextarea ? 72 : undefined,
+  };
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: "block", fontFamily: F.label, fontSize: 9, letterSpacing: "0.18em", color: focused ? C.gold : C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 7, transition: "color 0.18s" }}>
@@ -328,7 +393,16 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
       </label>
       {isTextarea
         ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows || 3} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={inputStyle} />
-        : <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} min={min} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={inputStyle} />
+        : <input
+            type={type === "email" ? "text" : type}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            min={min}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={inputStyle}
+          />
       }
     </div>
   );
@@ -371,11 +445,9 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
 
   const dec = () => { const n = Math.max(1, guests - 1); setGuests(n); setInputVal(String(n)); };
   const inc = () => { if (guests >= capacity) return; const n = guests + 1; setGuests(n); setInputVal(String(n)); };
-
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
 
-  // ── Standalone seat — no table data shown ──
   if (isStandalone) {
     return (
       <ModalShell onClose={onCancel} C={C}>
@@ -430,7 +502,17 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 10 }}>
                 <button onClick={dec} disabled={atMin}
-                  style={{ width: 44, height: 52, border: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`, borderRight: "none", borderRadius: "8px 0 0 8px", background: C.surfaceInput, color: atMin ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMin ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMin ? 0.4 : 1 }}
+                  style={{
+                    width: 44, height: 52,
+                    borderTop: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`,
+                    borderBottom: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`,
+                    borderLeft: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`,
+                    borderRight: "none",
+                    borderRadius: "8px 0 0 8px", background: C.surfaceInput,
+                    color: atMin ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700,
+                    cursor: atMin ? "not-allowed" : "pointer", transition: "all 0.15s",
+                    display: "flex", alignItems: "center", justifyContent: "center", opacity: atMin ? 0.4 : 1,
+                  }}
                   onMouseEnter={e => { if (!atMin) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >−</button>
@@ -442,11 +524,32 @@ function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, 
                   value={inputVal}
                   onChange={handleInputChange}
                   onBlur={handleInputBlur}
-                  style={{ width: 80, height: 52, border: `1.5px solid ${C.borderAccent}`, borderLeft: "none", borderRight: "none", background: C.surfaceInput, textAlign: "center", fontFamily: F.display, fontSize: 28, fontWeight: 700, color: C.textPrimary, outline: "none", colorScheme: isDark ? "dark" : "light", MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box" }}
+                  style={{
+                    width: 80, height: 52,
+                    borderTop: `1.5px solid ${C.borderAccent}`,
+                    borderBottom: `1.5px solid ${C.borderAccent}`,
+                    borderLeft: "none",
+                    borderRight: "none",
+                    background: C.surfaceInput, textAlign: "center",
+                    fontFamily: F.display, fontSize: 28, fontWeight: 700,
+                    color: C.textPrimary, outline: "none",
+                    colorScheme: isDark ? "dark" : "light",
+                    MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box",
+                  }}
                 />
 
                 <button onClick={inc} disabled={atMax}
-                  style={{ width: 44, height: 52, border: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`, borderLeft: "none", borderRadius: "0 8px 8px 0", background: C.surfaceInput, color: atMax ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMax ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMax ? 0.4 : 1 }}
+                  style={{
+                    width: 44, height: 52,
+                    borderTop: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`,
+                    borderBottom: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`,
+                    borderRight: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`,
+                    borderLeft: "none",
+                    borderRadius: "0 8px 8px 0", background: C.surfaceInput,
+                    color: atMax ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700,
+                    cursor: atMax ? "not-allowed" : "pointer", transition: "all 0.15s",
+                    display: "flex", alignItems: "center", justifyContent: "center", opacity: atMax ? 0.4 : 1,
+                  }}
                   onMouseEnter={e => { if (!atMax) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >+</button>
@@ -490,12 +593,15 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
   });
 
   useEffect(() => {
-    if (prefill) setForm({ firstName: prefill.firstName || "", lastName: prefill.lastName || "", email: prefill.email || "", phone: prefill.phone || "+63", eventDate: prefill.eventDate || today, eventTime: prefill.eventTime || "19:00", specialRequests: prefill.specialRequests || "" });
+    if (prefill) setForm({
+      firstName: prefill.firstName || "", lastName: prefill.lastName || "",
+      email: prefill.email || "", phone: prefill.phone || "+63",
+      eventDate: prefill.eventDate || today, eventTime: prefill.eventTime || "19:00",
+      specialRequests: prefill.specialRequests || "",
+    });
   }, [prefill]);
 
-  useEffect(() => {
-    if (secondsLeft <= 0) onTimerExpired();
-  }, [secondsLeft]);
+  useEffect(() => { if (secondsLeft <= 0) onTimerExpired(); }, [secondsLeft]);
 
   const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const secs = String(secondsLeft % 60).padStart(2, "0");
@@ -508,10 +614,11 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
     } else setForm(f => ({ ...f, [k]: v }));
   };
 
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
   const allFilled =
     form.firstName.trim() !== "" &&
     form.lastName.trim()  !== "" &&
-    form.email.trim()     !== "" &&
+    emailValid &&
     form.phone.trim()     !== "" && form.phone !== "+63" &&
     form.eventDate.trim() !== "";
 
@@ -521,7 +628,6 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
       ? getWholeSeatLabel(guests, tableData)
       : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
 
-  // Summary columns: omit Table for standalone seats
   const summaryColumns = [
     ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "—"}`]]),
     ["Seat", seatDisplay],
@@ -537,7 +643,6 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
         onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />}
       />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
-        {/* Timer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
             <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isUrgent ? C.red : C.textSecondary, marginBottom: 2 }}>Seat Hold Timer</div>
@@ -546,7 +651,6 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
           <div style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
 
-        {/* Booking summary strip */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
           {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
@@ -578,12 +682,10 @@ function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onRevie
             width: "100%", padding: "13px", marginTop: 6,
             background: allFilled ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"),
             border: allFilled ? "none" : `1px solid ${C.borderDefault}`,
-            borderRadius: 8,
-            fontFamily: F.label, fontSize: 10, fontWeight: 700,
+            borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700,
             letterSpacing: "0.18em", textTransform: "uppercase",
             color: allFilled ? C.textOnAccent : C.textTertiary,
-            cursor: allFilled ? "pointer" : "not-allowed",
-            transition: "all 0.20s",
+            cursor: allFilled ? "pointer" : "not-allowed", transition: "all 0.20s",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}
           onMouseEnter={e => { if (allFilled) e.currentTarget.style.background = C.goldLight; }}
@@ -806,75 +908,43 @@ function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio,
     : mode === "whole"
       ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
       : (activeTable ? `Table ${activeTable.id}` : "—");
-  const displaySeat  = mode === "individual"
+  const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
-
   const canGo = mode === "whole" ? true : canProceed;
 
   return (
-    <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
-      background: C.bottomSheet,
-      borderTop: `1px solid ${C.borderAccent}`,
-      borderRadius: "20px 20px 0 0",
-      boxShadow: "0 -8px 32px rgba(0,0,0,0.28)",
-      padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0",
-      animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)",
-    }}>
-      {/* Gold accent bar */}
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: C.bottomSheet, borderTop: `1px solid ${C.borderAccent}`, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(0,0,0,0.28)", padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0", animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)" }}>
       <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}80 30%, ${C.gold}80 70%, transparent)`, borderRadius: "20px 20px 0 0" }} />
-      {/* Drag handle */}
       <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, paddingBottom: 4 }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderStrong }} />
       </div>
-
       <div style={{ padding: "10px 16px 14px" }}>
-        {/* Selection row */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {/* Table chip */}
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{isStandalone ? "Type" : "Table"}</div>
-            <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && !isStandalone && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
-          </div>
-
-          {/* Seat chip */}
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
-              {mode === "whole" ? "Seats" : "Seat"}
+          {!isStandalone && (
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+              <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
+              {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
             </div>
+          )}
+          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
           </div>
-
-          {/* Room chip */}
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
             <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Phoenix Court</div>
           </div>
         </div>
-
-        {/* CTA button */}
         <button
           onClick={canGo ? onReserve : undefined}
           disabled={!canGo}
-          style={{
-            width: "100%", padding: "15px",
-            background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"),
-            border: "none", borderRadius: 12,
-            fontFamily: F.label, fontSize: 11, fontWeight: 700,
-            letterSpacing: "0.16em", textTransform: "uppercase",
-            color: canGo ? C.textOnAccent : C.textTertiary,
-            cursor: canGo ? "pointer" : "not-allowed",
-            transition: "all 0.18s",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}
+          style={{ width: "100%", padding: "15px", background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"), border: "none", borderRadius: 12, fontFamily: F.label, fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: canGo ? C.textOnAccent : C.textTertiary, cursor: canGo ? "pointer" : "not-allowed", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           {mode === "whole"
             ? (rebookFrom ? "Move to This Table" : activeTable ? "Reserve This Table" : "Tap a Table to Reserve")
-            : selectedSeat
-              ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat")
-              : "Select a Seat First"
+            : selectedSeat ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat") : "Select a Seat First"
           }
         </button>
       </div>
@@ -911,7 +981,8 @@ export default function PhoenixCourt() {
   const [submitting,         setSubmitting]         = useState(false);
   const [rebookFrom,         setRebookFrom]         = useState(null);
   const [lastBookingDetails, setLastBookingDetails] = useState(null);
-  const [tableData,          setTableData]          = useState(() => loadLayoutForClient(WING, ROOM));
+
+  const [tableData, setTableData] = useState(() => loadLayoutForClient(WING, ROOM));
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
@@ -933,18 +1004,15 @@ export default function PhoenixCourt() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
-  // ── Cross-tab and same-tab layout sync ────────────────────────────────────
+  // ─── Storage listener ─────────────────────────────────────────────────────
   useEffect(() => {
-    const KEY = layoutKey(WING, ROOM);
-
     const onStorage = e => {
-      if (e.key !== KEY) return;
+      if (e.key !== layoutKey(WING, ROOM)) return;
       try {
         const parsed = e.newValue ? JSON.parse(e.newValue) : null;
         if (parsed?.v === 2) setTableData(parsed);
       } catch {}
     };
-
     const onSeatMapSaved = e => {
       if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
       try {
@@ -952,7 +1020,6 @@ export default function PhoenixCourt() {
         if (parsed?.v === 2) setTableData(parsed);
       } catch {}
     };
-
     window.addEventListener("storage", onStorage);
     window.addEventListener("seatmap:saved", onSeatMapSaved);
     return () => {
@@ -961,91 +1028,55 @@ export default function PhoenixCourt() {
     };
   }, []);
 
-  // ── fetchAndMerge: reads /reservations and overlays statuses (Tower 1 pattern) ──
+  // ─── fetchAndMerge ────────────────────────────────────────────────────────
+  // API status ALWAYS wins over optimistic local state.
+  // Called: on mount, every poll tick, after submit, on tab-visible, on handleBack.
   const fetchAndMerge = useCallback(async () => {
     try {
-      const apiUrl = `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=1`;
-      const res = await fetch(apiUrl, { headers: { Accept: "application/json" } });
+      const res = await fetch(
+        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+        { headers: { Accept: "application/json" } }
+      );
       if (!res.ok) return;
       const data = await res.json();
-      const reservations = Array.isArray(data) ? data : (data.data || []);
-
-      // Build a status map from all reservations
-      const seatStatusMap = {};
-      reservations.forEach(r => {
-        const rawStatus = normaliseApiStatus(r.status);
-        const tableKey  = String(r.table_number ?? "").trim();
-        const seatNums  = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
-        const seatId    = r.seat_id ? String(r.seat_id).trim() : null;
-        const isStandaloneRow =
-          tableKey === "" || tableKey === "STANDALONE" ||
-          r.type === "standalone" || r.is_standalone;
-
-        seatNums.forEach(seatNum => {
-          if (tableKey && !isStandaloneRow) seatStatusMap[`${tableKey}|${seatNum}`] = rawStatus;
-          seatStatusMap[seatNum] = rawStatus;
-          if (isStandaloneRow) seatStatusMap[`STANDALONE|${seatNum}`] = rawStatus;
-        });
-        if (seatId) seatStatusMap[`ID|${seatId}`] = rawStatus;
-      });
-
+      if (!data?.data) return;
       setTableData(prev => {
         const base = prev || loadLayoutForClient(WING, ROOM);
-        if (!base) return prev;
-
-        const resolveTableSeat = (t, s) => {
-          const tid  = String(t.id ?? t.label ?? "").trim();
-          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
-          const dbId = s.db_id ? String(s.db_id).trim() : null;
-          return (
-            seatStatusMap[`${tid}|${snum}`] ??
-            seatStatusMap[snum] ??
-            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
-            s.status
-          );
-        };
-
-        const resolveStandaloneSeat = s => {
-          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
-          const dbId = s.db_id ? String(s.db_id).trim() : null;
-          return (
-            seatStatusMap[`STANDALONE|${snum}`] ??
-            seatStatusMap[snum] ??
-            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
-            s.status
-          );
-        };
-
-        const merged = {
-          ...base,
-          tables:          (base.tables          || []).map(t => ({ ...t, seats: (t.seats || []).map(s => ({ ...s, status: resolveTableSeat(t, s) })) })),
-          standaloneSeats: (base.standaloneSeats  || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })),
-          ...(base.seats ? { seats: (base.seats || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })) } : {}),
-        };
-
+        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
         try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
         return merged;
       });
     } catch (err) {
-      console.error("[PhoenixCourt] fetchAndMerge error:", err);
+      console.error("[PhoenixCourt] Failed to fetch seat status:", err);
     }
   }, []);
 
-  // ── Initial load ──────────────────────────────────────────────────────────
+  // ─── On mount: load local layout then fetch API statuses ─────────────────
   useEffect(() => {
-    const local = loadLayoutForClient(WING, ROOM);
-    if (local) setTableData(local);
+    const localLayout = loadLayoutForClient(WING, ROOM);
+    if (localLayout) setTableData(localLayout);
     fetchAndMerge();
   }, [fetchAndMerge]);
 
-  // ── Window resize ─────────────────────────────────────────────────────────
+  // ─── Resize listener ──────────────────────────────────────────────────────
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── WebSocket + polling fallback (Tower 1 pattern) ────────────────────────
+  // ─── Re-fetch when tab becomes visible ────────────────────────────────────
+  // Ensures seat colors update immediately when the user switches back from
+  // the admin dashboard after approving a reservation.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchAndMerge();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchAndMerge]);
+
+  // ─── WebSocket / polling ──────────────────────────────────────────────────
   useEffect(() => {
     const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
@@ -1053,7 +1084,7 @@ export default function PhoenixCourt() {
 
     const startPolling = () => {
       if (pollingRef.current) return;
-      pollingRef.current = setInterval(fetchAndMerge, 5_000);
+      pollingRef.current = setInterval(() => { fetchAndMerge(); }, 5_000);
     };
     const stopPolling = () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -1068,53 +1099,64 @@ export default function PhoenixCourt() {
     try {
       const channel = echo.channel("reservations");
       const events  = [
-        "ReservationCreated", "ReservationUpdated", "ReservationDeleted",
-        "ReservationApproved", "ReservationRejected", "ReservationStatusUpdated",
-        "SeatReserved", "TableReserved", "SeatStatusChanged",
-        "reservation.approved", "reservation.updated", "reservation.status.updated",
+        "ReservationCreated","ReservationUpdated","ReservationDeleted",
+        "ReservationApproved","ReservationRejected","SeatReserved","TableReserved",
       ];
-      events.forEach(ev => channel.listen(ev, () => { wsConnected = true; stopPolling(); fetchAndMerge(); }));
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMerge();
+      }));
       const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
       return () => {
-        clearTimeout(fallbackTimer); stopPolling();
+        clearTimeout(fallbackTimer);
+        stopPolling();
         try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
     } catch { startPolling(); return () => stopPolling(); }
   }, [fetchAndMerge]);
 
-  // Cleanup polling on unmount
-  useEffect(() => () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } }, []);
+  useEffect(() => () => {
+    if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+  }, []);
 
-  // ── Derived helpers ───────────────────────────────────────────────────────
-  const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const getStandaloneSeats  = () => tableData?.standaloneSeats || tableData?.seats || [];
+  // ─── Table/seat helpers ───────────────────────────────────────────────────
+  const getTables          = useCallback(() => {
+    if (!tableData) return [];
+    if (tableData.tables) return tableData.tables;
+    if (Array.isArray(tableData)) return tableData;
+    return [tableData];
+  }, [tableData]);
+
+  const getStandaloneSeats = useCallback(() => tableData?.standaloneSeats || [], [tableData]);
 
   const isSeatStandalone = useCallback(seat => {
     if (!seat) return false;
     const inTable = getTables().some(t => (t.seats || []).some(s => s.id === seat.id));
     if (inTable) return false;
     return getStandaloneSeats().some(s => s.id === seat.id);
-  }, [tableData]);
+  }, [getTables, getStandaloneSeats]);
 
-  const resolveTableForSeat = seat => {
+  const resolveTableForSeat = useCallback(seat => {
     if (!seat) return null;
-    const tables = getTables();
-    return tables.find(t => t.seats?.some(s => s.id === seat.id)) || null;
-  };
-  const getActiveTable = () => selectedTable || getTables()[0] || null;
+    return getTables().find(t => t.seats?.some(s => s.id === seat.id)) || null;
+  }, [getTables]);
 
-  // ── Event handlers ────────────────────────────────────────────────────────
+  const getActiveTable = useCallback(() => selectedTable || getTables()[0] || null, [selectedTable, getTables]);
+
+  // ─── Interaction handlers ─────────────────────────────────────────────────
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
+    if (seat.status === "pending")  { alert("This seat is pending approval and cannot be booked."); return; }
     setSelectedSeat(seat);
-    const parentTable = resolveTableForSeat(seat);
-    setSelectedTable(parentTable);
+    setSelectedTable(resolveTableForSeat(seat));
   };
   const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
   const handleEditDetails   = ()   => { setModal("details"); };
 
+  // ─── Submit reservation ───────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!formData || submitting) return;
     setSubmitting(true);
@@ -1122,11 +1164,19 @@ export default function PhoenixCourt() {
       const seatIsStandalone = isSeatStandalone(selectedSeat);
       const activeTable      = seatIsStandalone ? null : getActiveTable();
 
-      const seatNum = seatIsStandalone
-        ? String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "")
-        : mode === "individual"
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
+      let seatNumStr;
+      if (seatIsStandalone) {
+        seatNumStr = String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "");
+      } else if (mode === "individual") {
+        seatNumStr = String(selectedSeat?.num ?? selectedSeat?.id ?? "");
+      } else {
+        const availSeats = (activeTable?.seats || [])
+          .filter(s => s.status === "available")
+          .slice(0, guests);
+        seatNumStr = availSeats.length > 0
+          ? availSeats.map(s => s.num ?? s.id).join(",")
           : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+      }
 
       const payload = {
         name:             `${formData.firstName} ${formData.lastName}`,
@@ -1136,7 +1186,7 @@ export default function PhoenixCourt() {
         wing:             WING,
         room:             selectedRoom,
         table_number:     seatIsStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
-        seat_number:      seatNum,
+        seat_number:      seatNumStr,
         guests_count:     seatIsStandalone ? 1 : (mode === "individual" ? 1 : guests),
         event_date:       formData.eventDate,
         event_time:       formData.eventTime ? formData.eventTime.substring(0, 5) : null,
@@ -1160,28 +1210,40 @@ export default function PhoenixCourt() {
         try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {}
       }
 
-      // Optimistic update
+      // ── Optimistic UI: mark seats as pending locally ───────────────────
+      // This is intentionally overwritten on the next fetchAndMerge call
+      // once the API confirms the real status (pending → approved → reserved).
       setTableData(prev => {
         if (!prev) return prev;
+
+        const markSeats = (seats, predicate) =>
+          (seats || []).map(s => predicate(s) ? { ...s, status: "pending" } : s);
 
         if (seatIsStandalone && selectedSeat) {
           const updated = {
             ...prev,
-            standaloneSeats: (prev.standaloneSeats || []).map(s => s.id === selectedSeat.id ? { ...s, status: "pending" } : s),
-            ...(prev.seats ? { seats: (prev.seats || []).map(s => s.id === selectedSeat.id ? { ...s, status: "pending" } : s) } : {}),
+            standaloneSeats: markSeats(prev.standaloneSeats, s => s.id === selectedSeat.id),
           };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
         }
 
         if (activeTable) {
+          const seatIds = new Set(
+            seatNumStr.split(",").map(n => n.trim()).filter(Boolean)
+          );
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
             if (mode === "individual") {
-              return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+              return { ...t, seats: markSeats(t.seats, s => s.id === selectedSeat?.id) };
             }
-            let marked = 0;
-            return { ...t, seats: t.seats.map(s => (marked < guests && s.status === "available") ? (marked++, { ...s, status: "pending" }) : s) };
+            return {
+              ...t,
+              seats: (t.seats || []).map(s => {
+                const snum = String(s.num ?? s.id ?? "").trim();
+                return seatIds.has(snum) ? { ...s, status: "pending" } : s;
+              }),
+            };
           });
           const updated = { ...prev, tables };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
@@ -1191,8 +1253,12 @@ export default function PhoenixCourt() {
         return prev;
       });
 
-      // Re-fetch to get accurate server state
-      await fetchAndMerge();
+      // ── KEY FIX: immediately re-fetch so the API status overwrites the ──
+      // optimistic "pending" state. If the admin has already approved this
+      // seat, this call will flip it to "reserved" (red) right away instead
+      // of waiting for the next poll tick.
+      fetchAndMerge();
+
       setModal("success");
       resetHoldTimer();
     } catch (err) { alert(`Error: ${err.message}`); }
@@ -1206,11 +1272,13 @@ export default function PhoenixCourt() {
     fetchAndMerge();
   };
 
-  const isMobile   = windowSize.width < 640;
-  const isTablet   = windowSize.width < 1024;
+  // ─── Derived state ────────────────────────────────────────────────────────
+  const isMobile         = windowSize.width < 640;
+  const isTablet         = windowSize.width < 1024;
   const activeTable      = getActiveTable();
   const seatIsStandalone = isSeatStandalone(selectedSeat);
-  const canProceed       = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
+  const canProceed       = mode === "individual" && selectedSeat &&
+    selectedSeat.status !== "reserved" && selectedSeat.status !== "pending";
   const seatRatio        = activeTable ? getSeatRatio(activeTable) : null;
 
   const displayTable = seatIsStandalone
@@ -1219,19 +1287,36 @@ export default function PhoenixCourt() {
       ? (activeTable ? `Table ${activeTable.id}` : "—")
       : (selectedTable ? `Table ${selectedTable.id}` : "—");
 
-  const displaySeat  = mode === "individual"
+  const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
     : getWholeSeatLabel(guests, activeTable);
 
-  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
-  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
+  const rebookPrefill = rebookFrom ? {
+    firstName: (rebookFrom.name || "").split(/\s+/)[0] || "",
+    lastName:  (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "",
+    email:     rebookFrom.email || "",
+    phone:     rebookFrom.phone || "",
+    eventDate: rebookFrom.event_date || "",
+    eventTime: rebookFrom.event_time || "19:00",
+    specialRequests: rebookFrom.special_requests || "",
+  } : null;
 
-  // tableData to pass to modals — null for standalone seats so no table info shown
-  const modalTableData = seatIsStandalone ? null : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
+  const detailsPrefill = formData ? {
+    firstName: formData.firstName || "", lastName: formData.lastName || "",
+    email: formData.email || "", phone: formData.phone || "+63",
+    eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00",
+    specialRequests: formData.specialRequests || "",
+  } : rebookPrefill;
 
-  const BOTTOM_SHEET_H = 180;
-  const NAV_H = 64;
+  const modalTableData = seatIsStandalone
+    ? null
+    : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
+
+  const BOTTOM_SHEET_H  = 180;
+  const NAV_H           = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
+
+  const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
@@ -1249,7 +1334,6 @@ export default function PhoenixCourt() {
 
       <div style={{ minHeight: "100vh", fontFamily: F.body, background: C.pageBg, transition: "background 0.30s", position: "relative" }}>
 
-        {/* Background */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
           <div style={{ position: "absolute", inset: 0, backgroundImage: "url('/src/assets/bg-login.jpeg')", backgroundSize: "cover", backgroundPosition: "center", filter: isDark ? "blur(6px) brightness(0.35)" : "blur(6px) brightness(0.45) saturate(0.4)", transform: "scale(1.05)", transition: "filter 0.40s" }} />
           <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(12,11,10,0.75)" : "rgba(237,233,224,0.65)", transition: "background 0.40s" }} />
@@ -1260,54 +1344,27 @@ export default function PhoenixCourt() {
         {/* ═══════════════ MOBILE LAYOUT ═══════════════ */}
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
-
-            {/* Mobile top bar */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "12px 16px 8px",
-              background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)",
-              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-              borderBottom: `1px solid ${C.borderAccent}`,
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px", background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderAccent}` }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
               </button>
-
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
                 <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Phoenix Court Restaurant</div>
               </div>
-
               <ThemeToggle />
             </div>
 
-            {/* Mode toggle */}
-            <div style={{
-              display: "flex", gap: 0,
-              padding: "10px 16px",
-              background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)",
-              backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-              borderBottom: `1px solid ${C.borderDefault}`,
-            }}>
+            <div style={{ display: "flex", gap: 0, padding: "10px 16px", background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: `1px solid ${C.borderDefault}` }}>
               {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label], i) => (
                 <button key={val}
                   onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
-                  style={{
-                    flex: 1, padding: "9px 0",
-                    background: mode === val ? C.gold : "transparent",
-                    border: `1px solid ${mode === val ? C.gold : C.borderDefault}`,
-                    borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0",
-                    color: mode === val ? C.textOnAccent : C.textSecondary,
-                    fontFamily: F.label, fontSize: 9, fontWeight: 700,
-                    letterSpacing: "0.12em", textTransform: "uppercase",
-                    cursor: "pointer", transition: "all 0.18s",
-                  }}
+                  style={{ flex: 1, padding: "9px 0", background: mode === val ? C.gold : "transparent", border: `1px solid ${mode === val ? C.gold : C.borderDefault}`, borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0", color: mode === val ? C.textOnAccent : C.textSecondary, fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.18s" }}
                 >{label}</button>
               ))}
             </div>
 
-            {/* Rebooking notice */}
             {rebookFrom && (
               <div style={{ margin: "8px 16px 0", padding: "10px 14px", borderRadius: 8, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 14 }}>🔄</span>
@@ -1321,45 +1378,24 @@ export default function PhoenixCourt() {
               </div>
             )}
 
-            {/* Map */}
-            <div style={{
-              width: "100%",
-              height: mobileMapHeight,
-              position: "relative",
-              overflow: "hidden",
-              background: C.surfaceBase,
-            }}>
+            <div style={{ width: "100%", height: mobileMapHeight, position: "relative", overflow: "hidden", background: C.surfaceBase }}>
               {tableData ? (
                 <>
                   <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch" }}>
                     <SeatMap
-                      tableData={tableData}
-                      editMode={false}
-                      mode={mode}
+                      tableData={tableData} editMode={false} mode={mode}
                       selectedSeat={selectedSeat}
                       onSeatClick={handleSeatClick}
                       onTableClick={handleTableClick}
-                      windowWidth={windowSize.width}
-                      wing={WING}
-                      room={ROOM}
-                      isDark={isDark}
+                      windowWidth={windowSize.width} wing={WING} room={ROOM} isDark={isDark}
                     />
                   </div>
-
-                  {/* Legend */}
-                  <div style={{
-                    position: "absolute", bottom: 10, left: 10,
-                    background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
-                    border: `1px solid ${C.borderDefault}`,
-                    borderRadius: 10, padding: "8px 10px",
-                    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-                    zIndex: 2, display: "flex", flexDirection: "column", gap: 3,
-                  }}>
-                    {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                  <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3 }}>
+                    {legendEntries.map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
                         <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>
-                          {key === "reserved" ? "Approved / Reserved" : key}
+                          {key === "reserved" ? "Approved / Reserved" : key.charAt(0).toUpperCase() + key.slice(1)}
                         </span>
                       </div>
                     ))}
@@ -1378,28 +1414,19 @@ export default function PhoenixCourt() {
               )}
             </div>
 
-            {/* Fixed bottom sheet */}
             <MobileBottomSheet
-              mode={mode}
-              selectedSeat={selectedSeat}
-              activeTable={activeTable}
-              guests={guests}
-              seatRatio={seatRatio}
-              canProceed={canProceed}
-              rebookFrom={rebookFrom}
-              onReserve={() => setModal("guestCount")}
-              C={C}
-              isDark={isDark}
-              isStandalone={seatIsStandalone}
+              mode={mode} selectedSeat={selectedSeat} activeTable={activeTable}
+              guests={guests} seatRatio={seatRatio} canProceed={canProceed}
+              rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")}
+              C={C} isDark={isDark} isStandalone={seatIsStandalone}
             />
           </div>
-        ) : (
 
-        /* ═══════════════ TABLET / DESKTOP LAYOUT ═══════════════ */
+        ) : (
+          /* ═══════════════ TABLET / DESKTOP LAYOUT ═══════════════ */
           <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto", padding: isTablet ? "28px 24px" : "36px 48px" }}>
 
-              {/* Back + breadcrumb */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28, animation: "fadeUp 0.28s ease" }}>
                 <button onClick={() => navigate("/venues")} title="Back to venues"
                   style={{ width: 36, height: 36, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.18s", padding: 0, flexShrink: 0 }}
@@ -1411,7 +1438,6 @@ export default function PhoenixCourt() {
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>All Venues</span>
               </div>
 
-              {/* Page heading */}
               <div style={{ marginBottom: 28, animation: "fadeUp 0.32s ease" }}>
                 {rebookFrom && (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 8, marginBottom: 16, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}` }}>
@@ -1435,7 +1461,6 @@ export default function PhoenixCourt() {
                 </p>
               </div>
 
-              {/* Mode toggle */}
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28, flexWrap: "wrap", animation: "fadeUp 0.34s ease" }}>
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>Reserve a:</span>
                 <div style={{ display: "flex", alignItems: "center", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: 3, gap: 3, border: `1px solid ${C.borderDefault}` }}>
@@ -1446,28 +1471,25 @@ export default function PhoenixCourt() {
                     >{label}</button>
                   ))}
                 </div>
+                <div style={{ marginLeft: "auto" }}>
+                  <ThemeToggle />
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexDirection: isTablet ? "column" : "row", animation: "fadeUp 0.36s ease" }}>
 
-                {/* Map card */}
+                {/* Map panel */}
                 <div style={{ flex: "1 1 0", width: isTablet ? "100%" : undefined, minWidth: 0, minHeight: 520, background: C.surfaceBase, borderRadius: 14, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 8px 40px rgba(0,0,0,0.40)" : "0 4px 24px rgba(0,0,0,0.08)", position: "relative", display: "flex", flexDirection: "column" }}>
                   <div style={{ height: "2px", flexShrink: 0, background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 30%, ${C.gold}60 70%, transparent 100%)` }} />
-
                   {tableData ? (
                     <>
                       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
                         <SeatMap
-                          tableData={tableData}
-                          editMode={false}
-                          mode={mode}
+                          tableData={tableData} editMode={false} mode={mode}
                           selectedSeat={selectedSeat}
                           onSeatClick={handleSeatClick}
                           onTableClick={handleTableClick}
-                          windowWidth={windowSize.width}
-                          wing={WING}
-                          room={ROOM}
-                          isDark={isDark}
+                          windowWidth={windowSize.width} wing={WING} room={ROOM} isDark={isDark}
                         />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
@@ -1498,13 +1520,13 @@ export default function PhoenixCourt() {
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
 
-                    {/* Legend */}
+                    {/* Status Legend */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                          {legendEntries.map(([key, color]) => (
                             <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
                               <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
                               <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
@@ -1516,13 +1538,13 @@ export default function PhoenixCourt() {
                       </div>
                     </div>
 
-                    {/* Selection card */}
+                    {/* Your Selection */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
                         {[
-                          [seatIsStandalone ? "Type" : "Table", displayTable, false, (!seatIsStandalone && seatRatio) ? seatRatio : null],
+                          ...(!seatIsStandalone ? [["Table", displayTable, false, seatRatio ?? null]] : []),
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (
@@ -1538,7 +1560,6 @@ export default function PhoenixCourt() {
                     </div>
                   </div>
 
-                  {/* Reserve button */}
                   <button
                     onClick={mode === "whole" ? () => setModal("guestCount") : (canProceed ? () => setModal("guestCount") : undefined)}
                     disabled={mode === "individual" && !canProceed}
@@ -1558,61 +1579,39 @@ export default function PhoenixCourt() {
         )}
       </div>
 
-      {/* Modals */}
+      {/* ─── Modals ─────────────────────────────────────────────────────────── */}
       {modal === "guestCount" && (
         <ModalGuestCount
           seatData={mode === "individual" ? selectedSeat : null}
-          tableData={modalTableData}
-          mode={mode}
-          isStandalone={seatIsStandalone}
-          onContinue={handleGuestContinue}
-          onCancel={() => setModal(null)}
-          C={C}
-          isDark={isDark}
+          tableData={modalTableData} mode={mode} isStandalone={seatIsStandalone}
+          onContinue={handleGuestContinue} onCancel={() => setModal(null)}
+          C={C} isDark={isDark}
         />
       )}
       {modal === "details" && (
         <ModalDetails
-          tableData={modalTableData}
-          seatData={selectedSeat}
-          mode={mode}
-          isStandalone={seatIsStandalone}
-          guests={guests}
+          tableData={modalTableData} seatData={selectedSeat} mode={mode}
+          isStandalone={seatIsStandalone} guests={guests}
           onReview={handleReview}
           onCancel={() => { setModal(null); resetHoldTimer(); }}
-          prefill={detailsPrefill}
-          C={C}
-          isDark={isDark}
-          secondsLeft={holdSecondsLeft}
-          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+          prefill={detailsPrefill} C={C} isDark={isDark}
+          secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
         />
       )}
       {modal === "review" && formData && (
         <ModalReview
-          form={formData}
-          guests={guests}
-          mode={mode}
-          tableData={modalTableData}
-          seatData={selectedSeat}
+          form={formData} guests={guests} mode={mode}
+          tableData={modalTableData} seatData={selectedSeat}
           isStandalone={seatIsStandalone}
-          onSubmit={handleSubmit}
-          onEdit={handleEditDetails}
-          submitting={submitting}
-          isRebook={!!rebookFrom}
-          rebookFrom={rebookFrom}
-          C={C}
+          onSubmit={handleSubmit} onEdit={handleEditDetails}
+          submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
         />
       )}
       {modal === "success" && (
         <ModalSuccess
-          refCode={refCode}
-          onBack={handleBack}
-          mode={mode}
-          guests={guests}
-          isRebook={!!rebookFrom}
-          bookingDetails={lastBookingDetails}
-          C={C}
-          isDark={isDark}
+          refCode={refCode} onBack={handleBack} mode={mode}
+          guests={guests} isRebook={!!rebookFrom}
+          bookingDetails={lastBookingDetails} C={C} isDark={isDark}
         />
       )}
     </ThemeContext.Provider>

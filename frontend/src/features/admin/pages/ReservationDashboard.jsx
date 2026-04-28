@@ -2,6 +2,11 @@
 // KEY FIX: optimisticSeatUpdate now resolves wing+room from the reservation
 // itself instead of using hardcoded "Alabang Function Room", so approving/
 // rejecting a Business Center reservation correctly updates the BC seatmap.
+//
+// KEY FIX 2: optimisticSeatUpdate now dispatches BOTH a StorageEvent AND a
+// CustomEvent("seatmap:saved") so the client page (TowerBallroom1 etc.) picks
+// up the change in the same browser session and re-fetches from the API,
+// ensuring approved seats show RED immediately instead of staying orange.
 import { useState, useEffect, useCallback, useRef } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
@@ -10,8 +15,6 @@ import { fetchReservations, approveReservation, rejectReservation, getReservatio
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 // ─── Room constants ───────────────────────────────────────────────────────────
-// FIX: we no longer hard-code a single WING/ROOM here.
-// optimisticSeatUpdate now derives wing+room from the reservation record.
 const DEFAULT_WING = "Main Wing";
 
 function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
@@ -135,6 +138,10 @@ function getSeatStatusWeight(status) {
   return ["approved", "reserved", "rejected", "cancelled", "pending"].includes(s) ? 700 : 400;
 }
 
+// ─── FIX: dispatch both StorageEvent AND seatmap:saved CustomEvent ────────────
+// StorageEvent fires in OTHER tabs; CustomEvent("seatmap:saved") fires in the
+// SAME tab so the client page (TowerBallroom1 etc.) receives it immediately and
+// calls fetchAndMerge() to get the authoritative status from the API.
 function optimisticSeatUpdate(reservation, newSeatStatus) {
   try {
     const wing = String(reservation.wing ?? DEFAULT_WING).trim();
@@ -165,6 +172,20 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
     const guestsCount = parseInt(reservation.guests_count ?? reservation.guests ?? 0, 10);
     const reservationType = String(reservation.type ?? "").toLowerCase();
 
+    // Helper to persist + broadcast to all tabs and same tab
+    const persist = (updated) => {
+      const payload = JSON.stringify(updated);
+      localStorage.setItem(key, payload);
+      // Other tabs
+      window.dispatchEvent(new StorageEvent("storage", {
+        key, newValue: payload, storageArea: localStorage,
+      }));
+      // Same tab — TowerBallroom1 listens for this and calls fetchAndMerge()
+      window.dispatchEvent(new CustomEvent("seatmap:saved", {
+        detail: { wing, room, payload },
+      }));
+    };
+
     if (isStandalone) {
       const updatedStandaloneSeats = (layout.standaloneSeats || []).map(s => {
         const num = String(s.num ?? s.label ?? s.id ?? "").trim();
@@ -173,18 +194,13 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
         }
         return s;
       });
-      const updated = { ...layout, standaloneSeats: updatedStandaloneSeats };
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new StorageEvent("storage", {
-        key, newValue: JSON.stringify(updated), storageArea: localStorage,
-      }));
+      persist({ ...layout, standaloneSeats: updatedStandaloneSeats });
       return;
     }
 
     const tableId = String(reservation.table_number ?? "").trim();
 
     const updatedTables = (layout.tables || []).map(t => {
-      // Match table by id OR by label (e.g. "T13" vs "13")
       const tId = String(t.id ?? "").trim();
       const tLabel = String(t.label ?? "").trim();
       const normalizedTableId = tableId.replace(/^T/i, "");
@@ -203,7 +219,6 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
 
       if (isWholeTable) {
         if (seatNums.size > 0) {
-          // Match by explicit seat nums from the reservation
           return {
             ...t,
             seats: t.seats.map(s => {
@@ -212,7 +227,6 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
             }),
           };
         } else {
-          // Fallback: mark first guestsCount available/pending seats
           let marked = 0;
           return {
             ...t,
@@ -237,11 +251,7 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
       };
     });
 
-    const updated = { ...layout, tables: updatedTables };
-    localStorage.setItem(key, JSON.stringify(updated));
-    window.dispatchEvent(new StorageEvent("storage", {
-      key, newValue: JSON.stringify(updated), storageArea: localStorage,
-    }));
+    persist({ ...layout, tables: updatedTables });
   } catch (err) {
     console.warn("[Dashboard] optimisticSeatUpdate error:", err);
   }
@@ -947,7 +957,6 @@ export default function ReservationDashboard() {
 
       if (successIds.size > 0) {
         setReservations(prev => prev.filter(r => !successIds.has(r.id)));
-        // FIX: each deleted reservation frees its seat in the correct room
         toDelete
           .filter(r => successIds.has(r.id))
           .forEach(r => optimisticSeatUpdate(r, "available"));
@@ -965,7 +974,7 @@ export default function ReservationDashboard() {
     }
   };
 
-  // FIX: approve → seat becomes "reserved" (RED) in the correct room's seatmap
+  // approve → seat becomes "reserved" (RED)
   const handleApprove = async (reservation) => {
     try {
       const result = await approveReservation(reservation.db_id);
@@ -983,7 +992,7 @@ export default function ReservationDashboard() {
     }
   };
 
-  // FIX: reject → seat freed ("available") in the correct room's seatmap
+  // reject → seat freed ("available")
   const handleReject = async (reservation, reason) => {
     try {
       const result = await rejectReservation(reservation.db_id, reason);

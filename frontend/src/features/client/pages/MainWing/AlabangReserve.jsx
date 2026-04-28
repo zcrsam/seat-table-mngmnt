@@ -1013,25 +1013,24 @@ export default function AlabangReserve() {
   }, []);
 
   const fetchAndMerge = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
-        { headers: { Accept: "application/json" } }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data?.data) return;
-
-      setTableData(prev => {
-        const base = prev || loadLayoutForClient(WING, ROOM);
-        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
-        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
-        return merged;
-      });
-    } catch (err) {
-      console.error("[AlabangReserve] Failed to fetch seat status:", err);
-    }
-  }, []);
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data?.data) return;
+    setTableData(prev => {
+      const base = prev || loadLayoutForClient(WING, ROOM);
+      const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
+      try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
+      return merged;
+    });
+  } catch (err) {
+    console.error("[Tower2] Failed to fetch seat status:", err);
+  }
+}, []);
 
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
