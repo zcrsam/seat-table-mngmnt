@@ -81,7 +81,7 @@ export default function AppRoutes() {
             </RequireAdminAuth>
           }
         />
-        <Route
+                <Route
           path="/admin/cancelled"
           element={
             <RequireAdminAuth>
