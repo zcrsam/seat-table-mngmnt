@@ -65,12 +65,13 @@ function AdminNavbar({ onLogout, pendingCount: pendingProp }) {
             justifyContent: "center",
             position: "relative",
             transition: "background 0.15s",
-            color: isNotifActive ? "#C9A84C" : "#6B7280",
-            // Use outline instead of border so it doesn't shift layout
+            // FIX: use a darker, more visible gray (#374151) instead of #6B7280
+            color: isNotifActive ? "#C9A84C" : "#374151",
             outline: isNotifActive ? "1.5px solid rgba(201,168,76,0.35)" : "none",
+            // FIX: prevent button baseline from collapsing the icon
+            lineHeight: 0,
           }}
           onMouseEnter={e => {
-            // Use currentTarget (the button) not target (could be the SVG)
             e.currentTarget.style.background = isNotifActive
               ? "rgba(201,168,76,0.16)"
               : "rgba(107,114,128,0.08)";
@@ -81,11 +82,13 @@ function AdminNavbar({ onLogout, pendingCount: pendingProp }) {
               : "transparent";
           }}
         >
+          {/* FIX: explicit stroke color as fallback in case currentColor isn't inherited */}
           <svg
             width="20" height="20" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor"
+            fill="none"
+            stroke={isNotifActive ? "#C9A84C" : "#374151"}
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{ pointerEvents: "none" }}  // ← prevents SVG from stealing mouse events
+            style={{ pointerEvents: "none", display: "block", flexShrink: 0 }}
           >
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />

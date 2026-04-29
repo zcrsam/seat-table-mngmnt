@@ -891,18 +891,11 @@ function NotificationDashboard() {
         <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:9000,height:64,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 clamp(20px,5vw,64px)",background:C.navBg,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.navBorder}`,boxSizing:"border-box" }}>
           <div style={{ display:"flex",alignItems:"center",gap:20 }}>
             <img src={bellevueLogo} alt="The Bellevue Manila" style={{ height:26,width:"auto",display:"block",flexShrink:0,filter:"brightness(0) saturate(100%)" }}/>
-            <div style={{ width:1,height:18,background:C.borderDefault }}/>
-            <span style={{ fontFamily:F.label,fontSize:9,letterSpacing:"0.22em",color:C.textSecondary,fontWeight:700,textTransform:"uppercase" }}>Notification Monitor</span>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
             <div style={{ width:36,height:36,borderRadius:"50%",background:popup?C.goldFaint:C.surfaceInput,border:`1px solid ${popup?C.borderAccent:C.borderDefault}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",position:"relative",animation:popup?"bellRing 0.6s ease infinite":"none" }}>
               {popup?<BellDot size={15} color={C.gold}/>:<Bell size={15} color={C.textSecondary}/>}
               {popup&&<div style={{ position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:C.red,border:`1.5px solid ${C.surfaceBase}`,animation:"dotPulse 1.2s ease infinite" }}/>}
-            </div>
-            <div style={{ width:1,height:18,background:C.borderDefault }}/>
-            <div style={{ textAlign:"right",flexShrink:0 }}>
-              <div style={{ fontFamily:F.mono,fontWeight:700,fontSize:15,color:C.textPrimary,lineHeight:1.15,letterSpacing:"0.04em" }}>{clock}</div>
-              <div style={{ fontFamily:F.label,fontSize:9,fontWeight:700,color:C.textTertiary,letterSpacing:"0.08em",textTransform:"uppercase",marginTop:2 }}>{date}</div>
             </div>
           </div>
         </nav>
@@ -918,9 +911,12 @@ function NotificationDashboard() {
           {!loading&&(
             <div style={{ flex:1,display:"flex",flexDirection:"column",padding:"clamp(32px,5vh,52px) clamp(20px,5vw,64px) clamp(24px,4vh,40px)",gap:20,animation:"fadeUp 0.32s ease" }}>
               <div>
-                <h1 style={{ fontFamily:F.display,fontSize:"clamp(24px,4vw,40px)",fontWeight:700,color:C.textPrimary,lineHeight:1.12,margin:"0 0 14px",letterSpacing:"0.01em" }}>
+                <h1 style={{ fontFamily:F.display,fontSize:"clamp(24px,4vw,40px)",fontWeight:700,color:C.textPrimary,lineHeight:1.12,margin:"0 0 8px",letterSpacing:"0.01em" }}>
                   Notification Monitor
                 </h1>
+                <div style={{ fontFamily:F.label,fontSize:11,fontWeight:500,color:C.textSecondary,letterSpacing:"0.02em",textTransform:"uppercase" }}>
+                  {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })} • {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                </div>
               </div>
 
               <div style={{ display:"grid",gridTemplateColumns:"minmax(0,3fr) minmax(0,1.4fr)",gap:14,flex:1,minHeight:0 }} className="nd-grid">

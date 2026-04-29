@@ -21,17 +21,23 @@ const C = {
   textSecondary: "#7A7060",
   textTertiary: "rgba(24,20,14,0.35)",
   textOnAccent: "#FFFFFF",
-  red: "#A03838",
-  redFaint: "rgba(160,56,56,0.07)",
-  redBorder: "rgba(160,56,56,0.18)",
+
+  // ── Cancelled accent: muted slate/taupe instead of red ──
+  accent: "#6B7280",           // slate-500
+  accentLight: "#9CA3AF",      // slate-400
+  accentFaint: "rgba(107,114,128,0.08)",
+  accentFaintest: "rgba(107,114,128,0.04)",
+  accentBorder: "rgba(107,114,128,0.22)",
+  accentBorderStrong: "rgba(107,114,128,0.35)",
+
   green: "#2E7A5A",
   greenFaint: "rgba(46,122,90,0.07)",
   greenBorder: "rgba(46,122,90,0.18)",
-  badgeCancelled: { bg: "rgba(160,56,56,0.09)", color: "#A03838", dot: "#A03838" },
+  badgeCancelled: { bg: "rgba(107,114,128,0.10)", color: "#6B7280", dot: "#6B7280" },
   navBg: "rgba(247,244,238,0.97)",
   navBorder: "rgba(140,107,42,0.14)",
   divider: "rgba(0,0,0,0.05)",
-  inputFocusShadow: "0 0 0 3px rgba(140,107,42,0.10)",
+  inputFocusShadow: "0 0 0 3px rgba(107,114,128,0.12)",
   modalOverlay: "rgba(0,0,0,0.42)",
   headerGradient: "linear-gradient(160deg,#FAF8F4 0%,#F2EFE8 100%)",
   spinnerBorder: "rgba(0,0,0,0.12)",
@@ -154,7 +160,7 @@ function DetailModal({ reservation, onClose }) {
         overflow: "hidden",
         display: "flex", flexDirection: "column",
       }}>
-        <div style={{ height: 2, background: `linear-gradient(90deg,transparent 0%,${C.red}90 30%,${C.red}90 70%,transparent 100%)`, flexShrink: 0 }} />
+        <div style={{ height: 2, background: `linear-gradient(90deg,transparent 0%,${C.accent}80 30%,${C.accent}80 70%,transparent 100%)`, flexShrink: 0 }} />
 
         {/* Header */}
         <div style={{
@@ -165,7 +171,7 @@ function DetailModal({ reservation, onClose }) {
           flexShrink: 0,
         }}>
           <div style={{ flex: 1, paddingRight: 14 }}>
-            <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.red, fontWeight: 700, textTransform: "uppercase", marginBottom: 5, opacity: 0.85 }}>
+            <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.22em", color: C.accent, fontWeight: 700, textTransform: "uppercase", marginBottom: 5, opacity: 0.85 }}>
               Cancelled Reservation
             </div>
             <div style={{ fontFamily: F.display, fontSize: 19, fontWeight: 600, color: C.textPrimary, lineHeight: 1.2, marginBottom: 8 }}>
@@ -196,23 +202,21 @@ function DetailModal({ reservation, onClose }) {
           {/* Cancellation reason */}
           <div style={{
             padding: "14px 16px", borderRadius: 10, marginBottom: 20,
-            background: C.redFaint,
-            border: `1px solid ${C.redBorder}`,
+            background: C.accentFaint,
+            border: `1px solid ${C.accentBorder}`,
           }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 7, marginBottom: 8,
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
               <div style={{
                 width: 22, height: 22, borderRadius: 5,
-                background: `${C.red}15`,
-                border: `1px solid ${C.redBorder}`,
+                background: `${C.accent}15`,
+                border: `1px solid ${C.accentBorder}`,
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
               </div>
-              <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: C.red, fontWeight: 700 }}>
+              <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: C.accent, fontWeight: 700 }}>
                 Guest's Reason for Cancellation
               </div>
             </div>
@@ -222,7 +226,7 @@ function DetailModal({ reservation, onClose }) {
             {reservation.cancelled_at && (
               <div style={{
                 marginTop: 10, paddingTop: 10,
-                borderTop: `1px solid ${C.redBorder}`,
+                borderTop: `1px solid ${C.accentBorder}`,
                 fontFamily: F.label, fontSize: 9, letterSpacing: "0.10em",
                 textTransform: "uppercase", color: C.textTertiary, fontWeight: 700,
               }}>
@@ -257,8 +261,8 @@ function DetailModal({ reservation, onClose }) {
 
           <div style={{
             marginTop: 18, padding: "10px 14px", borderRadius: 8,
-            background: C.redFaint,
-            border: `1px solid ${C.redBorder}`,
+            background: C.accentFaint,
+            border: `1px solid ${C.accentBorder}`,
             fontFamily: F.body, fontSize: 12, color: C.textSecondary, lineHeight: 1.6,
           }}>
             This reservation was <strong style={{ color: C.textPrimary }}>cancelled by the guest</strong> and cannot be modified from here. Contact the guest directly if you need to reinstate this booking.
@@ -279,14 +283,14 @@ function Toast({ message, type, onClose }) {
       display: "flex", alignItems: "center", gap: 10,
       padding: "12px 18px",
       background: C.surfaceBase,
-      border: `1px solid ${isSuccess ? C.greenBorder : C.redBorder}`,
+      border: `1px solid ${isSuccess ? C.greenBorder : C.accentBorder}`,
       borderRadius: 10,
       boxShadow: "0 8px 28px rgba(0,0,0,0.12)",
       fontFamily: F.body, fontSize: 13,
       animation: "fadeUp 0.22s ease",
       maxWidth: 400,
     }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: isSuccess ? C.green : C.red, flexShrink: 0 }} />
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: isSuccess ? C.green : C.accent, flexShrink: 0 }} />
       <span style={{ color: C.textPrimary, flex: 1, lineHeight: 1.5 }}>{message}</span>
       <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, color: C.textSecondary }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -310,7 +314,6 @@ export default function CancelledDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchFocused, setSearchFocused] = useState(false);
   const [stats, setStats] = useState({ total: 0, today: 0, thisWeek: 0 });
-  const [syncMode, setSyncMode] = useState("connecting");
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
@@ -334,7 +337,6 @@ export default function CancelledDashboard() {
         Array.isArray(data.data) ? data.data :
         Array.isArray(data.reservations) ? data.reservations : [];
 
-      // Include explicit cancelled statuses and guest-cancelled records saved as rejected
       const cancelled = list.filter((r) => {
         const status = (r.status || "").toLowerCase();
         const hasCancellationMeta = Boolean(r.cancelled_at || r.cancellation_reason);
@@ -363,7 +365,7 @@ export default function CancelledDashboard() {
 
   useEffect(() => { loadReservations(); }, []);
 
-  // WebSocket with polling fallback for cancelled reservations
+  // WebSocket with polling fallback
   useEffect(() => {
     const wsHost = import.meta.env.VITE_WS_HOST || "localhost";
     const wsPort = import.meta.env.VITE_WS_PORT || "6001";
@@ -380,7 +382,6 @@ export default function CancelledDashboard() {
     const startPolling = () => {
       if (isPolling) return;
       isPolling = true;
-      setSyncMode("polling");
       pollingInterval = setInterval(async () => {
         try {
           const resp = await fetch(`${API_BASE_URL}/admin/reservations/cancelled`);
@@ -390,95 +391,51 @@ export default function CancelledDashboard() {
               data.forEach(updated => {
                 setReservations(prev => {
                   const idx = prev.findIndex(r => r.id === updated.id);
-                  if (idx >= 0) {
-                    const arr = [...prev];
-                    arr[idx] = updated;
-                    return arr;
-                  }
+                  if (idx >= 0) { const arr = [...prev]; arr[idx] = updated; return arr; }
                   return [...prev, updated];
                 });
               });
             }
           }
-        } catch (err) {
-          console.error("[CancelledDashboard] Polling error:", err);
-        }
-      }, 1000);
+        } catch (err) { console.error("[CancelledDashboard] Polling error:", err); }
+      }, 5000);
     };
 
     const stopPolling = () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
-        isPolling = false;
-      }
+      if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; isPolling = false; }
     };
 
     const connect = () => {
       try {
         ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-          setSyncMode("websocket");
-          retryCount = 0;
-          stopPolling();
-        };
-
+        ws.onopen = () => { retryCount = 0; stopPolling(); };
         ws.onclose = () => {
-          setSyncMode("connecting");
-          if (retryCount < maxRetries) {
-            retryCount++;
-            setTimeout(connect, retryDelay * Math.pow(2, retryCount - 1));
-          } else {
-            startPolling();
-          }
+          if (retryCount < maxRetries) { retryCount++; setTimeout(connect, retryDelay * Math.pow(2, retryCount - 1)); }
+          else startPolling();
         };
-
         ws.onerror = () => {
-          if (retryCount < maxRetries) {
-            retryCount++;
-            setTimeout(connect, retryDelay * Math.pow(2, retryCount - 1));
-          } else {
-            startPolling();
-          }
+          if (retryCount >= maxRetries) startPolling();
         };
-
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === "reservation_cancelled") {
               setReservations(prev => {
                 const idx = prev.findIndex(r => r.id === msg.data.id);
-                if (idx >= 0) {
-                  const arr = [...prev];
-                  arr[idx] = msg.data;
-                  return arr;
-                }
+                if (idx >= 0) { const arr = [...prev]; arr[idx] = msg.data; return arr; }
                 return [...prev, msg.data];
               });
             }
-          } catch (err) {
-            console.error("[CancelledDashboard] WebSocket message error:", err);
-          }
+          } catch (err) { console.error("[CancelledDashboard] WS message error:", err); }
         };
-      } catch (err) {
-        console.error("[CancelledDashboard] WebSocket init failed:", err);
-        startPolling();
-      }
+      } catch (err) { console.error("[CancelledDashboard] WS init failed:", err); startPolling(); }
     };
 
     connect();
-
-    return () => {
-      stopPolling();
-      if (ws) {
-        ws.close();
-        ws = null;
-      }
-    };
+    return () => { stopPolling(); if (ws) { ws.close(); ws = null; } };
   }, []);
 
-  // Filter ────────────────────────────────────────────────────────────────
+  // Filter
   useEffect(() => {
     let filtered = reservations;
     if (search.trim()) {
@@ -532,9 +489,9 @@ export default function CancelledDashboard() {
   );
 
   const statCards = [
-    { label: "Total Cancelled", count: stats.total,    icon: "total" },
-    { label: "Cancelled Today", count: stats.today,    icon: "today" },
-    { label: "This Week",       count: stats.thisWeek, icon: "week"  },
+    { label: "Total Cancelled", count: stats.total },
+    { label: "Cancelled Today", count: stats.today },
+    { label: "This Week",       count: stats.thisWeek },
   ];
 
   return (
@@ -555,11 +512,7 @@ export default function CancelledDashboard() {
         <AdminNavbar />
 
         <div style={{ display: "flex", minHeight: "100vh" }}>
-          <Sidebar
-            isOpen={sidebarOpen}
-            onToggle={() => setSidebarOpen(!sidebarOpen)}
-            activeNav="cancelled"
-          />
+          <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} activeNav="cancelled" />
 
           <div style={{ flex: 1, minWidth: 0, height: "calc(100vh - 60px)", background: C.pageBg, overflow: "auto" }}>
 
@@ -576,12 +529,11 @@ export default function CancelledDashboard() {
               gap: 10, flexWrap: isMobile ? "wrap" : "nowrap",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.red, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>
+                <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>
                 <span style={{ color: C.textTertiary, fontSize: 11 }}>·</span>
                 <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.14em", color: C.textSecondary, fontWeight: 600, textTransform: "uppercase" }}>Cancelled Reservations</span>
               </div>
 
-              {/* Right side: refresh button + search */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   onClick={loadReservations}
@@ -593,8 +545,7 @@ export default function CancelledDashboard() {
                     border: `1px solid ${C.borderDefault}`,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: loading ? "not-allowed" : "pointer",
-                    transition: "border-color 0.18s",
-                    flexShrink: 0,
+                    transition: "border-color 0.18s", flexShrink: 0,
                   }}
                   onMouseEnter={(e) => { if (!loading) e.currentTarget.style.borderColor = C.borderAccent; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; }}
@@ -613,19 +564,19 @@ export default function CancelledDashboard() {
                 <div style={{ position: "relative" }}>
                   <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
                     width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke={searchFocused ? C.red : C.textTertiary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    stroke={searchFocused ? C.accent : C.textTertiary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
                   <input
                     style={{
                       padding: "7px 12px 7px 28px",
                       background: C.surfaceInput,
-                      border: `1.5px solid ${searchFocused ? C.redBorder : C.borderDefault}`,
+                      border: `1.5px solid ${searchFocused ? C.accentBorder : C.borderDefault}`,
                       borderRadius: 8, color: C.textPrimary,
                       fontFamily: F.body, fontSize: 12,
                       width: isMobile ? "100%" : 240, outline: "none",
                       transition: "border-color 0.18s,box-shadow 0.18s",
-                      boxShadow: searchFocused ? `0 0 0 3px rgba(160,56,56,0.09)` : "none",
+                      boxShadow: searchFocused ? C.inputFocusShadow : "none",
                     }}
                     placeholder="Search name, email, ref, reason…"
                     value={search}
@@ -638,16 +589,13 @@ export default function CancelledDashboard() {
             </div>
 
             {/* Content */}
-            <div style={{
-              padding: isMobile ? "20px 16px" : isTablet ? "24px 20px" : "28px 32px",
-              animation: "fadeUp 0.28s ease",
-            }}>
+            <div style={{ padding: isMobile ? "20px 16px" : isTablet ? "24px 20px" : "28px 32px", animation: "fadeUp 0.28s ease" }}>
 
               {/* Heading */}
               <div style={{ marginBottom: isMobile ? 18 : 22 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <span style={{ display: "inline-block", width: 22, height: "1px", background: C.red, opacity: 0.5 }} />
-                  <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.red, fontWeight: 700, textTransform: "uppercase" }}>Dashboard</span>
+                  <span style={{ display: "inline-block", width: 22, height: "1px", background: C.gold, opacity: 0.5 }} />
+                  <span style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.26em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Dashboard</span>
                 </div>
                 <h1 style={{ fontFamily: F.display, fontSize: isMobile ? 22 : isTablet ? 28 : 34, fontWeight: 700, color: C.textPrimary, lineHeight: 1.15, margin: "0 0 6px" }}>
                   Cancelled Reservations
@@ -675,12 +623,13 @@ export default function CancelledDashboard() {
                   }}>
                     <div style={{
                       position: "absolute", top: 0, left: 0, right: 0, height: 2,
-                      background: `linear-gradient(90deg, transparent 0%, ${C.red}60 50%, transparent 100%)`,
+                      background: `linear-gradient(90deg, transparent 0%, ${C.accent}50 50%, transparent 100%)`,
                     }} />
                     <div style={{
                       fontFamily: F.display,
                       fontSize: isMobile ? 28 : 36,
-                      fontWeight: 700, color: C.red,
+                      fontWeight: 700,
+                      color: C.textPrimary,
                       lineHeight: 1, marginBottom: isMobile ? 6 : 8,
                       letterSpacing: "-0.02em",
                     }}>
@@ -707,14 +656,14 @@ export default function CancelledDashboard() {
                   background: C.headerGradient,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.red, fontWeight: 700, textTransform: "uppercase" }}>Cancelled</div>
+                    <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.textSecondary, fontWeight: 700, textTransform: "uppercase" }}>Cancelled</div>
                     <span style={{
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       padding: "2px 8px",
-                      background: C.redFaint,
-                      border: `1px solid ${C.redBorder}`,
+                      background: C.accentFaint,
+                      border: `1px solid ${C.accentBorder}`,
                       borderRadius: 20,
-                      fontFamily: F.label, fontSize: 9, fontWeight: 700, color: C.red, letterSpacing: "0.10em",
+                      fontFamily: F.label, fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: "0.10em",
                     }}>
                       {loading ? "—" : filteredReservations.length}
                     </span>
@@ -723,19 +672,19 @@ export default function CancelledDashboard() {
                   {pagination.lastPage > 1 && (
                     <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
                       <button onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={pagination.currentPage <= 1}
-                        style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.borderDefault}`, borderRadius: 6, background: "transparent", color: pagination.currentPage <= 1 ? C.textTertiary : C.textSecondary, cursor: pagination.currentPage <= 1 ? "not-allowed" : "pointer", fontSize: 14, transition: "all 0.15s", fontFamily: F.body }}
+                        style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.borderDefault}`, borderRadius: 6, background: "transparent", color: pagination.currentPage <= 1 ? C.textTertiary : C.textSecondary, cursor: pagination.currentPage <= 1 ? "not-allowed" : "pointer", fontSize: 14, transition: "all 0.15s" }}
                       >‹</button>
                       {getPageNumbers().map((p, idx) =>
                         p === "..." ? (
                           <span key={`e-${idx}`} style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: C.textTertiary }}>…</span>
                         ) : (
                           <button key={p} onClick={() => handlePageChange(p)}
-                            style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", border: pagination.currentPage === p ? `1px solid ${C.red}` : `1px solid ${C.borderDefault}`, borderRadius: 6, background: pagination.currentPage === p ? C.red : "transparent", color: pagination.currentPage === p ? "#fff" : C.textSecondary, cursor: "pointer", fontSize: 11, fontWeight: pagination.currentPage === p ? 700 : 400, fontFamily: F.label, transition: "all 0.15s" }}
+                            style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", border: pagination.currentPage === p ? `1px solid ${C.accent}` : `1px solid ${C.borderDefault}`, borderRadius: 6, background: pagination.currentPage === p ? C.accent : "transparent", color: pagination.currentPage === p ? "#fff" : C.textSecondary, cursor: "pointer", fontSize: 11, fontWeight: pagination.currentPage === p ? 700 : 400, fontFamily: F.label, transition: "all 0.15s" }}
                           >{p}</button>
                         )
                       )}
                       <button onClick={() => handlePageChange(pagination.currentPage + 1)} disabled={pagination.currentPage >= pagination.lastPage}
-                        style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.borderDefault}`, borderRadius: 6, background: "transparent", color: pagination.currentPage >= pagination.lastPage ? C.textTertiary : C.textSecondary, cursor: pagination.currentPage >= pagination.lastPage ? "not-allowed" : "pointer", fontSize: 14, transition: "all 0.15s", fontFamily: F.body }}
+                        style={{ width: 29, height: 29, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.borderDefault}`, borderRadius: 6, background: "transparent", color: pagination.currentPage >= pagination.lastPage ? C.textTertiary : C.textSecondary, cursor: pagination.currentPage >= pagination.lastPage ? "not-allowed" : "pointer", fontSize: 14, transition: "all 0.15s" }}
                       >›</button>
                     </div>
                   )}
@@ -751,11 +700,11 @@ export default function CancelledDashboard() {
                     <div style={{ padding: "60px 24px", textAlign: "center" }}>
                       <div style={{
                         width: 48, height: 48, borderRadius: 12,
-                        background: C.redFaint, border: `1px solid ${C.redBorder}`,
+                        background: C.accentFaint, border: `1px solid ${C.accentBorder}`,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         margin: "0 auto 14px",
                       }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
                       </div>
@@ -782,10 +731,11 @@ export default function CancelledDashboard() {
                           animationDelay: `${idx * 0.025}s`,
                           position: "relative", overflow: "hidden",
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.redBorder; e.currentTarget.style.boxShadow = `0 3px 12px rgba(160,56,56,0.09)`; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentBorder; e.currentTarget.style.boxShadow = `0 3px 12px rgba(107,114,128,0.10)`; e.currentTarget.style.transform = "translateY(-1px)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}
                       >
-                        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 3, background: C.red, opacity: 0.35, borderRadius: "0 2px 2px 0" }} />
+                        {/* Left accent strip */}
+                        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 3, background: C.accent, opacity: 0.25, borderRadius: "0 2px 2px 0" }} />
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
                           <div style={{ flex: 1, minWidth: 0, paddingLeft: 10 }}>
@@ -807,14 +757,14 @@ export default function CancelledDashboard() {
                               <div style={{
                                 display: "flex", alignItems: "flex-start", gap: 6,
                                 padding: "7px 10px", borderRadius: 6,
-                                background: C.redFaint, border: `1px solid ${C.redBorder}`,
+                                background: C.accentFaint, border: `1px solid ${C.accentBorder}`,
                                 marginBottom: 6,
                               }}>
-                                <svg style={{ flexShrink: 0, marginTop: 1 }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <svg style={{ flexShrink: 0, marginTop: 1 }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                                 </svg>
                                 <span style={{
-                                  fontFamily: F.body, fontSize: 11.5, color: C.red,
+                                  fontFamily: F.body, fontSize: 11.5, color: C.textSecondary,
                                   lineHeight: 1.5,
                                   display: "-webkit-box", WebkitLineClamp: 2,
                                   WebkitBoxOrient: "vertical", overflow: "hidden",
@@ -831,7 +781,7 @@ export default function CancelledDashboard() {
                                 </span>
                               )}
                               {reservation.cancelled_at && (
-                                <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.red, opacity: 0.7, padding: "2px 6px", background: C.redFaint, border: `1px solid ${C.redBorder}`, borderRadius: 4 }}>
+                                <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: C.accent, opacity: 0.8, padding: "2px 6px", background: C.accentFaint, border: `1px solid ${C.accentBorder}`, borderRadius: 4 }}>
                                   Cancelled: {fmtDateTime(reservation.cancelled_at)}
                                 </span>
                               )}
@@ -859,7 +809,7 @@ export default function CancelledDashboard() {
                     </div>
                     {search && (
                       <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textTertiary }}>
-                        Search: <span style={{ color: C.red }}>{search}</span>
+                        Search: <span style={{ color: C.accent }}>{search}</span>
                       </div>
                     )}
                   </div>

@@ -1,6 +1,6 @@
 // src/features/admin/pages/ReservationDashboard.jsx
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import { fetchReservations, approveReservation, rejectReservation, getReservationStats } from "../../../utils/api";
@@ -153,7 +153,6 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
       reservation.is_standalone === 1 ||
       reservation.is_standalone === true;
 
-    // Parse comma-separated seat numbers
     const rawSeatField = String(reservation.seat ?? reservation.seat_number ?? "").trim();
     const seatNums = new Set(
       rawSeatField.split(",").map(s => s.trim()).filter(Boolean)
@@ -161,15 +160,12 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
     const guestsCount = parseInt(reservation.guests_count ?? reservation.guests ?? 0, 10);
     const reservationType = String(reservation.type ?? "").toLowerCase();
 
-    // Helper to persist + broadcast to all tabs and same tab
     const persist = (updated) => {
       const payload = JSON.stringify(updated);
       localStorage.setItem(key, payload);
-      // Other tabs
       window.dispatchEvent(new StorageEvent("storage", {
         key, newValue: payload, storageArea: localStorage,
       }));
-      // Same tab — TowerBallroom1 listens for this and calls fetchAndMerge()
       window.dispatchEvent(new CustomEvent("seatmap:saved", {
         detail: { wing, room, payload },
       }));
@@ -230,7 +226,6 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
         }
       }
 
-      // Individual seat
       return {
         ...t,
         seats: t.seats.map(s => {
@@ -244,6 +239,182 @@ function optimisticSeatUpdate(reservation, newSeatStatus) {
   } catch (err) {
     console.warn("[Dashboard] optimisticSeatUpdate error:", err);
   }
+}
+
+// ─── Room Filter Dropdown ─────────────────────────────────────────────────────
+function RoomFilterDropdown({ rooms, selectedRoom, onSelect, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const label = selectedRoom === "ALL" ? "All Rooms" : selectedRoom;
+  const hasFilter = selectedRoom !== "ALL";
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "7px 11px",
+          background: hasFilter ? C.goldFaint : C.surfaceBase,
+          border: `1.5px solid ${open || focused ? C.borderAccent : hasFilter ? C.gold + "55" : C.borderDefault}`,
+          borderRadius: 8,
+          fontFamily: F.label,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.10em",
+          textTransform: "uppercase",
+          color: hasFilter ? C.gold : C.textSecondary,
+          cursor: "pointer",
+          transition: "all 0.18s",
+          whiteSpace: "nowrap",
+          boxShadow: open ? C.inputFocusShadow : "none",
+          minWidth: isMobile ? 120 : 148,
+        }}
+        onMouseEnter={(e) => {
+          if (!open) {
+            e.currentTarget.style.borderColor = C.borderAccent;
+            e.currentTarget.style.color = C.gold;
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!open && !focused) {
+            e.currentTarget.style.borderColor = hasFilter ? C.gold + "55" : C.borderDefault;
+            e.currentTarget.style.color = hasFilter ? C.gold : C.textSecondary;
+          }
+        }}
+      >
+        {/* Room icon */}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <span style={{ flex: 1, textAlign: "left", maxWidth: isMobile ? 80 : 100, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {label}
+        </span>
+        {/* Chevron */}
+        <svg
+          width="9" height="9" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: "transform 0.18s", transform: open ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
+        >
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          zIndex: 500,
+          background: C.surfaceBase,
+          border: `1px solid ${C.borderDefault}`,
+          borderRadius: 10,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          minWidth: 200,
+          maxWidth: 280,
+          maxHeight: 320,
+          overflowY: "auto",
+          animation: "dropdownIn 0.16s cubic-bezier(0.16,1,0.3,1)",
+          padding: "6px 0",
+        }}>
+          {/* All Rooms option */}
+          <button
+            onClick={() => { onSelect("ALL"); setOpen(false); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "8px 14px",
+              background: selectedRoom === "ALL" ? C.goldFaint : "transparent",
+              border: "none",
+              textAlign: "left",
+              fontFamily: F.label,
+              fontSize: 10,
+              fontWeight: selectedRoom === "ALL" ? 700 : 600,
+              letterSpacing: "0.10em",
+              textTransform: "uppercase",
+              color: selectedRoom === "ALL" ? C.gold : C.textSecondary,
+              cursor: "pointer",
+              transition: "background 0.12s",
+            }}
+            onMouseEnter={(e) => { if (selectedRoom !== "ALL") e.currentTarget.style.background = "rgba(0,0,0,0.03)"; }}
+            onMouseLeave={(e) => { if (selectedRoom !== "ALL") e.currentTarget.style.background = "transparent"; }}
+          >
+            {selectedRoom === "ALL" && (
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            )}
+            {selectedRoom !== "ALL" && <span style={{ width: 9 }} />}
+            All Rooms
+          </button>
+
+          {rooms.length > 0 && (
+            <div style={{ height: 1, background: C.divider, margin: "4px 10px" }} />
+          )}
+
+          {rooms.map((room) => (
+            <button
+              key={room}
+              onClick={() => { onSelect(room); setOpen(false); }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                padding: "8px 14px",
+                background: selectedRoom === room ? C.goldFaint : "transparent",
+                border: "none",
+                textAlign: "left",
+                fontFamily: F.body,
+                fontSize: 12,
+                fontWeight: selectedRoom === room ? 600 : 400,
+                color: selectedRoom === room ? C.gold : C.textPrimary,
+                cursor: "pointer",
+                transition: "background 0.12s",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+              onMouseEnter={(e) => { if (selectedRoom !== room) e.currentTarget.style.background = "rgba(0,0,0,0.03)"; }}
+              onMouseLeave={(e) => { if (selectedRoom !== room) e.currentTarget.style.background = "transparent"; }}
+            >
+              {selectedRoom === room ? (
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              ) : (
+                <span style={{ width: 9 }} />
+              )}
+              {room}
+            </button>
+          ))}
+
+          {rooms.length === 0 && (
+            <div style={{ padding: "10px 14px", fontFamily: F.body, fontSize: 12, color: C.textTertiary }}>
+              No rooms found
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Reject Reason Modal ──────────────────────────────────────────────────────
@@ -734,6 +905,7 @@ export default function ReservationDashboard() {
   const [reservations,setReservations]=useState([]);
   const [filteredReservations,setFilteredReservations]=useState([]);
   const [filterStatus,setFilterStatus]=useState("ALL");
+  const [filterRoom,setFilterRoom]=useState("ALL");           // ← NEW
   const [search,setSearch]=useState("");
   const [selectedReservation,setSelectedReservation]=useState(null);
   const [showModal,setShowModal]=useState(false);
@@ -756,6 +928,41 @@ export default function ReservationDashboard() {
 
   const isMobile=windowWidth<640;
   const isTablet=windowWidth<960;
+
+  // ─── Master room list + any extra rooms found in reservations ───────────────
+  const roomOptions = useMemo(() => {
+    const PINNED = ["Alabang Function Room"];
+    const REST = [
+      "Grand Ballroom A",
+      "Grand Ballroom B",
+      "Grand Ballroom C",
+      "Laguna Ballroom 1",
+      "Laguna Ballroom 2",
+      "Tower Ballroom 1",
+      "Tower Ballroom 2",
+      "Tower Ballroom 3",
+      "Tower 1",
+      "Tower 2",
+      "Tower 3",
+      "20/20 Function Room A",
+      "20/20 Function Room B",
+      "20/20 Function Room C",
+      "Business Center",
+      "Qsina",
+      "Hanakazu",
+      "Phoenix Court",
+    ];
+    const fromReservations = reservations
+      .map(r => r.room?.trim())
+      .filter(Boolean);
+    const pinnedSet = new Set(PINNED);
+    const masterSet = new Set([...PINNED, ...REST]);
+    // Only add rooms from DB that aren't already in the master list
+    const extras = Array.from(new Set(fromReservations))
+      .filter(r => !masterSet.has(r))
+      .sort((a, b) => a.localeCompare(b));
+    return [...PINNED, ...REST, ...extras];
+  }, [reservations]);
 
   const refreshDashboardData = useCallback(async (silent = true) => {
     if (!silent) setLoading(true);
@@ -862,14 +1069,16 @@ export default function ReservationDashboard() {
     };
   }, [refreshDashboardData]);
 
-  useEffect(() => {
+  useEffect(()=>{
     return () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     };
   }, []);
 
+  // ─── Filter logic (now includes room filter) ─────────────────────────────────
   useEffect(()=>{
     let filtered=reservations;
+
     if(filterStatus!=="ALL"){
       filtered=filtered.filter((r)=>{
         const status=r.status?.toLowerCase();
@@ -879,6 +1088,14 @@ export default function ReservationDashboard() {
         return status===filterStatus.toLowerCase();
       });
     }
+
+    // ← NEW: room filter
+    if(filterRoom!=="ALL"){
+      filtered=filtered.filter((r)=>
+        (r.room||"").trim()===filterRoom
+      );
+    }
+
     if(search.trim()){
       const q=search.toLowerCase();
       filtered=filtered.filter((r)=>
@@ -888,6 +1105,7 @@ export default function ReservationDashboard() {
         (q==="standalone"&&(String(r.table_number||"").toUpperCase()==="STANDALONE"||r.type==="standalone"))
       );
     }
+
     setFilteredReservations(filtered);
     setPagination((p)=>({
       ...p,
@@ -895,7 +1113,7 @@ export default function ReservationDashboard() {
       totalItems: filtered.length,
       currentPage: 1,
     }));
-  },[reservations,filterStatus,search]);
+  },[reservations,filterStatus,filterRoom,search]);
 
   useEffect(()=>{
     const total    = reservations.length;
@@ -963,7 +1181,6 @@ export default function ReservationDashboard() {
     }
   };
 
-  // approve → seat becomes "reserved" (RED)
   const handleApprove = async (reservation) => {
     try {
       const result = await approveReservation(reservation.db_id);
@@ -981,7 +1198,6 @@ export default function ReservationDashboard() {
     }
   };
 
-  // reject → seat freed ("available")
   const handleReject = async (reservation, reason) => {
     try {
       const result = await rejectReservation(reservation.db_id, reason);
@@ -1011,18 +1227,22 @@ export default function ReservationDashboard() {
     pagination.currentPage*pagination.rowsPerPage
   );
 
+  // Whether any filter is active (for "clear all" affordance)
+  const hasActiveFilters = filterStatus !== "ALL" || filterRoom !== "ALL" || search.trim() !== "";
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        @keyframes spin    {to{transform:rotate(360deg);}}
-        @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
-        @keyframes modalIn {from{opacity:0;transform:scale(0.96) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
-        @keyframes shimmer {0%{background-position:-200% 0}100%{background-position:200% 0}}
-        *{box-sizing:border-box;}
-        ::-webkit-scrollbar{width:4px;}
-        ::-webkit-scrollbar-track{background:transparent;}
-        ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12);border-radius:4px;}
+        @keyframes spin       { to { transform: rotate(360deg); } }
+        @keyframes fadeUp     { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes modalIn    { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        @keyframes shimmer    { 0% { background-position:-200% 0 } 100% { background-position:200% 0 } }
+        @keyframes dropdownIn { from { opacity:0; transform:translateY(-6px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+        * { box-sizing:border-box; }
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.12); border-radius:4px; }
       `}</style>
 
       <div style={{minHeight:"100vh",fontFamily:F.body,background:C.pageBg,color:C.textPrimary}}>
@@ -1037,6 +1257,7 @@ export default function ReservationDashboard() {
 
           <div style={{flex:1,minWidth:0,height:"calc(100vh - 60px)",background:C.pageBg,overflow:"auto"}}>
 
+            {/* ── Top navbar bar ── */}
             <div style={{
               position:"sticky",top:0,zIndex:100,
               background:C.navBg,
@@ -1053,29 +1274,42 @@ export default function ReservationDashboard() {
                 <span style={{color:C.textTertiary,fontSize:11}}>·</span>
                 <span style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.14em",color:C.textSecondary,fontWeight:600,textTransform:"uppercase"}}>Reservation Management</span>
               </div>
-              <div style={{position:"relative"}}>
-                <svg style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}
-                  width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke={searchFocused?C.gold:C.textTertiary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input
-                  style={{
-                    padding:"7px 12px 7px 28px",
-                    background:C.surfaceInput,
-                    border:`1.5px solid ${searchFocused?C.borderAccent:C.borderDefault}`,
-                    borderRadius:8,color:C.textPrimary,
-                    fontFamily:F.body,fontSize:12,
-                    width:isMobile?"100%":220,outline:"none",
-                    transition:"border-color 0.18s,box-shadow 0.18s",
-                    boxShadow:searchFocused?C.inputFocusShadow:"none",
-                  }}
-                  placeholder="Search name, email, ref or standalone…"
-                  value={search}
-                  onChange={(e)=>setSearch(e.target.value)}
-                  onFocus={()=>setSearchFocused(true)}
-                  onBlur={()=>setSearchFocused(false)}
+
+              {/* ── Search + Room filter in navbar ── */}
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:isMobile?"wrap":"nowrap"}}>
+                {/* Room filter dropdown */}
+                <RoomFilterDropdown
+                  rooms={roomOptions}
+                  selectedRoom={filterRoom}
+                  onSelect={(room) => setFilterRoom(room)}
+                  isMobile={isMobile}
                 />
+
+                {/* Search */}
+                <div style={{position:"relative"}}>
+                  <svg style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}
+                    width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke={searchFocused?C.gold:C.textTertiary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input
+                    style={{
+                      padding:"7px 12px 7px 28px",
+                      background:C.surfaceInput,
+                      border:`1.5px solid ${searchFocused?C.borderAccent:C.borderDefault}`,
+                      borderRadius:8,color:C.textPrimary,
+                      fontFamily:F.body,fontSize:12,
+                      width:isMobile?"100%":220,outline:"none",
+                      transition:"border-color 0.18s,box-shadow 0.18s",
+                      boxShadow:searchFocused?C.inputFocusShadow:"none",
+                    }}
+                    placeholder="Search name, email, ref or standalone…"
+                    value={search}
+                    onChange={(e)=>setSearch(e.target.value)}
+                    onFocus={()=>setSearchFocused(true)}
+                    onBlur={()=>setSearchFocused(false)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1094,6 +1328,7 @@ export default function ReservationDashboard() {
                 </p>
               </div>
 
+              {/* ── Stat cards ── */}
               <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:12,marginBottom:isMobile?18:22}}>
                 {statCards.map(({label,count,filter,color,bg,border})=>{
                   const active=filterStatus===filter;
@@ -1129,8 +1364,10 @@ export default function ReservationDashboard() {
                 })}
               </div>
 
+              {/* ── Table card ── */}
               <div style={{background:C.cardBg,borderRadius:12,border:`1px solid ${C.cardBorder}`,overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
 
+                {/* Table toolbar */}
                 <div style={{
                   padding:isMobile?"12px 14px":"14px 22px",
                   borderBottom:`1px solid ${C.divider}`,
@@ -1140,11 +1377,42 @@ export default function ReservationDashboard() {
                   gap:10,
                   background:C.headerGradient,
                 }}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.26em",color:C.gold,fontWeight:700,textTransform:"uppercase"}}>Dashboard</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <div style={{fontFamily:F.label,fontSize:9,letterSpacing:"0.26em",color:C.gold,fontWeight:700,textTransform:"uppercase"}}>Reservations</div>
                     <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"2px 8px",background:C.goldFaint,border:`1px solid ${C.borderAccent}`,borderRadius:20,fontFamily:F.label,fontSize:9,fontWeight:700,color:C.gold,letterSpacing:"0.10em"}}>
                       {loading?"--":filteredReservations.length}
                     </span>
+
+                    {/* Active room filter pill */}
+                    {filterRoom !== "ALL" && (
+                      <span style={{
+                        display:"inline-flex",alignItems:"center",gap:5,
+                        padding:"2px 8px 2px 8px",
+                        background:"rgba(140,107,42,0.06)",
+                        border:`1px solid ${C.gold}44`,
+                        borderRadius:20,
+                        fontFamily:F.label,fontSize:9,fontWeight:700,
+                        letterSpacing:"0.08em",
+                        color:C.gold,
+                        maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                      }}>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                          <polyline points="9 22 9 12 15 12 15 22"/>
+                        </svg>
+                        {filterRoom}
+                        <button
+                          onClick={() => setFilterRoom("ALL")}
+                          style={{background:"none",border:"none",padding:0,cursor:"pointer",display:"inline-flex",alignItems:"center",color:C.gold,opacity:0.7,marginLeft:1}}
+                          title="Clear room filter"
+                        >
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </span>
+                    )}
+
                     {selectedReservations.size > 0 && (
                       <button
                         onClick={handleDeleteSelected}
@@ -1155,6 +1423,7 @@ export default function ReservationDashboard() {
                         Delete ({selectedReservations.size})
                       </button>
                     )}
+
                     {filterStatus!=="ALL"&&(
                       <button onClick={()=>setFilterStatus("ALL")}
                         style={{background:"transparent",border:`1px solid ${C.borderDefault}`,borderRadius:6,padding:"3px 9px",fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.10em",textTransform:"uppercase",color:C.textSecondary,cursor:"pointer",transition:"all 0.15s",display:"flex",alignItems:"center",gap:5}}
@@ -1164,10 +1433,11 @@ export default function ReservationDashboard() {
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
-                        Clear
+                        Clear status
                       </button>
                     )}
                   </div>
+
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <input
                       type="checkbox"
@@ -1182,6 +1452,7 @@ export default function ReservationDashboard() {
                   </div>
                 </div>
 
+                {/* Reservation rows */}
                 <div style={{padding:isMobile?"10px":"12px 18px",display:"flex",flexDirection:"column",gap:8}}>
                   {loading?(
                     Array.from({length:5}).map((_,i)=>(
@@ -1190,7 +1461,26 @@ export default function ReservationDashboard() {
                   ):pagedReservations.length===0?(
                     <div style={{padding:"44px 24px",textAlign:"center"}}>
                       <div style={{fontFamily:F.label,fontSize:11,fontWeight:700,letterSpacing:"0.16em",color:C.textSecondary,textTransform:"uppercase"}}>No Reservations Found</div>
-                      <div style={{fontFamily:F.body,fontSize:12,color:C.textTertiary,marginTop:6}}>{search?"Try adjusting your search":"No reservations match the current filter"}</div>
+                      <div style={{fontFamily:F.body,fontSize:12,color:C.textTertiary,marginTop:6}}>
+                        {filterRoom !== "ALL"
+                          ? `No reservations found in "${filterRoom}"${filterStatus !== "ALL" ? ` with status "${filterStatus.toLowerCase()}"` : ""}`
+                          : search ? "Try adjusting your search" : "No reservations match the current filter"}
+                      </div>
+                      {hasActiveFilters && (
+                        <button
+                          onClick={() => { setFilterStatus("ALL"); setFilterRoom("ALL"); setSearch(""); }}
+                          style={{
+                            marginTop:12,padding:"7px 14px",background:"transparent",
+                            border:`1px solid ${C.borderAccent}`,borderRadius:7,
+                            fontFamily:F.label,fontSize:9,fontWeight:700,letterSpacing:"0.12em",
+                            textTransform:"uppercase",color:C.gold,cursor:"pointer",transition:"all 0.15s",
+                          }}
+                          onMouseEnter={(e)=>{e.currentTarget.style.background=C.goldFaint;}}
+                          onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}}
+                        >
+                          Clear All Filters
+                        </button>
+                      )}
                     </div>
                   ):(
                     pagedReservations.map((reservation,idx)=>{
