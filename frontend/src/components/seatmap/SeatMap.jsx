@@ -289,14 +289,14 @@ function DraggableLabel({ item, onDragStart, isDragging }) {
       onMouseDown={e => { e.stopPropagation(); onDragStart(e, item.id); }}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
     >
-      <span style={{ display: "flex", flexDirection: "column", gap: 2, opacity: 0.4 }}>
-        {[0,1,2].map(i => (
-          <span key={i} style={{ display: "flex", gap: 2 }}>
-            <span style={{ width:2, height:2, borderRadius:"50%", background:"currentColor", display:"block" }} />
-            <span style={{ width:2, height:2, borderRadius:"50%", background:"currentColor", display:"block" }} />
-          </span>
-        ))}
-      </span>
+      <span style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+      {[0,1,2].map(i => (
+        <span key={i} style={{ display: "flex", gap: 3 }}>
+          <span style={{ width:4, height:4, borderRadius:"50%", background: isScreen ? "#fff" : C.gold, display:"block", flexShrink: 0, opacity: 1 }} />
+          <span style={{ width:4, height:4, borderRadius:"50%", background: isScreen ? "#fff" : C.gold, display:"block", flexShrink: 0, opacity: 1 }} />
+        </span>
+      ))}
+    </span>
       {item.label}
     </div>
   );
@@ -823,14 +823,20 @@ function WingRoomSidebar({ activeWing, activeRoom, onSelect, venueStructure, onO
   );
 }
 
+// ─── INSPECTOR PANEL ──────────────────────────────────────────────────────────
 function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStandaloneSeatObj, tables, setTables, addSeat, deleteSeat, deleteTable, deleteStandaloneSeat, updateTable, handleSeatLabelEdit, handleSeatStatus, onRequestDelete, handleStandaloneSeatStatus }) {
-  const iLabel = t => <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", color: C.gold, textTransform: "uppercase", marginBottom: 5, marginTop: 13 }}>{t}</div>;
+  const iLabel = t => (
+    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", color: C.gold, textTransform: "uppercase", marginBottom: 5, marginTop: 13 }}>{t}</div>
+  );
   const iInput = props => (
-    <input style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.borderDefault}`, borderRadius: 6, fontFamily: F, fontSize: 12, color: C.textPrimary, background: C.surfaceInput, boxSizing: "border-box", outline: "none", transition: "border-color 0.15s, box-shadow 0.15s" }}
+    <input
+      style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.borderDefault}`, borderRadius: 6, fontFamily: F, fontSize: 12, color: C.textPrimary, background: C.surfaceInput, boxSizing: "border-box", outline: "none", transition: "border-color 0.15s, box-shadow 0.15s" }}
       onFocus={e => { e.target.style.borderColor = C.borderAccent; e.target.style.boxShadow = C.inputFocus; }}
       onBlur={e => { e.target.style.borderColor = C.borderDefault; e.target.style.boxShadow = "none"; }}
-      {...props} />
+      {...props}
+    />
   );
+
   const StatusRow = ({ current, onSet }) => (
     <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
       {SEAT_STATUS_CYCLE.map((s, index) => (
@@ -840,59 +846,157 @@ function InspectorPanel({ selected, selectedTable, selectedSeatObj, selectedStan
       ))}
     </div>
   );
+
   const DeleteBtn = ({ label, deleteKey }) => (
-    <button onClick={() => onRequestDelete(deleteKey)} style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 6, fontFamily: F, fontWeight: 600, fontSize: 10, cursor: "pointer", transition: "background 0.14s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+    <button
+      onClick={() => onRequestDelete(deleteKey)}
+      style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 6, fontFamily: F, fontWeight: 600, fontSize: 10, cursor: "pointer", transition: "background 0.14s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
       onMouseEnter={e => e.currentTarget.style.background = C.redFaint}
       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
       {label}
     </button>
   );
+
+  // ── Reusable "Add Seat" button wired to a specific tableId ──────────────────
+  const AddSeatBtn = ({ tableId }) => (
+    <button
+      onClick={() => addSeat(tableId)}
+      style={{ flex: 1, padding: "6px 0", background: "transparent", color: C.green, border: `1px solid ${C.greenBorder}`, borderRadius: 5, fontFamily: F, fontWeight: 600, fontSize: 10, cursor: "pointer", transition: "background 0.14s", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+      onMouseEnter={e => e.currentTarget.style.background = C.greenFaint}
+      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      Add Seat
+    </button>
+  );
+
+  // ── Reusable "Remove Last" button ────────────────────────────────────────────
+  const RemoveLastBtn = () => (
+    <button
+      onClick={deleteSeat}
+      style={{ flex: 1, padding: "6px 0", background: "transparent", color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 5, fontFamily: F, fontWeight: 600, fontSize: 10, cursor: "pointer", transition: "background 0.14s" }}
+      onMouseEnter={e => e.currentTarget.style.background = C.redFaint}
+      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+      − Remove Last
+    </button>
+  );
+
   return (
     <div style={{ fontFamily: F }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", color: C.gold, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Inspector</div>
-      {!selected && <div style={{ color: C.textTertiary, fontSize: 11, lineHeight: 1.65 }}>Select a table or seat to edit its properties.</div>}
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", color: C.gold, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>
+        Inspector
+      </div>
+
+      {/* ── Nothing selected ── */}
+      {!selected && (
+        <div style={{ color: C.textTertiary, fontSize: 11, lineHeight: 1.65 }}>
+          Select a table or seat to edit its properties.
+        </div>
+      )}
+
+      {/* ── Table selected ── */}
       {selected?.type === "table" && (
         <>
           {selectedTable && (
             <>
               {iLabel("Table Label")}
               {iInput({ value: selectedTable.label || selectedTable.id, onChange: e => updateTable("label", e.target.value) })}
+
               {iLabel(`Seats · ${selectedTable.seats?.length || 0}`)}
               <div style={{ display: "flex", gap: 5, marginTop: 4 }}>
-                <button onClick={addSeat} style={{ flex: 1, padding: "6px 0", background: "transparent", color: C.green, border: `1px solid ${C.greenBorder}`, borderRadius: 5, fontFamily: F, fontWeight: 600, fontSize: 10, cursor: "pointer", transition: "background 0.14s" }} onMouseEnter={e => e.currentTarget.style.background = C.greenFaint} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>+ Add Seat</button>
-                <button onClick={deleteSeat} style={{ flex: 1, padding: "6px 0", background: "transparent", color: C.red, border: `1px solid ${C.redBorder}`, borderRadius: 5, fontFamily: F, fontWeight: 600, fontSize: 10, cursor: "pointer", transition: "background 0.14s" }} onMouseEnter={e => e.currentTarget.style.background = C.redFaint} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>− Remove Last</button>
+                <AddSeatBtn tableId={selectedTable.id} />
+                <RemoveLastBtn />
               </div>
-              <div style={{ marginTop: 8, padding: "7px 10px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 5, fontSize: 10, color: C.textSecondary }}>Drag table to move, double-click to rename</div>
+
+              <div style={{ marginTop: 8, padding: "7px 10px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 5, fontSize: 10, color: C.textSecondary }}>
+                Drag table to move · double-click to rename
+              </div>
             </>
           )}
           <DeleteBtn label="Delete Table" deleteKey="table" />
         </>
       )}
+
+      {/* ── Individual seat selected ── */}
       {selected?.type === "seat" && selectedSeatObj && (
         <>
           {iLabel("Seat Label")}
-          {iInput({ value: selectedSeatObj.label || selectedSeatObj.num, onChange: e => handleSeatLabelEdit(e.target.value) })}
+          {iInput({
+            value: selectedSeatObj.label || selectedSeatObj.num,
+            onChange: e => handleSeatLabelEdit(e.target.value),
+          })}
+
           {iLabel("Seat Number")}
-          {iInput({ type: "number", value: selectedSeatObj.num, onChange: e => setTables(p => p.map(t => t.id !== selected.tableId ? t : { ...t, seats: (t.seats || []).map(s => s.id === selected.seatId ? { ...s, num: Number(e.target.value) } : s) })) })}
+          {iInput({
+            type: "number",
+            value: selectedSeatObj.num,
+            onChange: e => setTables(p => p.map(t =>
+              t.id !== selected.tableId ? t : {
+                ...t,
+                seats: (t.seats || []).map(s =>
+                  s.id === selected.seatId ? { ...s, num: Number(e.target.value) } : s
+                ),
+              }
+            )),
+          })}
+
           {iLabel("Status")}
           <StatusRow current={selectedSeatObj.status} onSet={handleSeatStatus} />
-          <DeleteBtn label="Delete Seat" deleteKey="seat" />
-          <div style={{ margin: "12px 0 0", borderTop: `1px solid ${C.divider}` }} />
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", color: C.textTertiary, textTransform: "uppercase", margin: "10px 0 4px" }}>Parent Table</div>
+
+          <DeleteBtn label="Delete This Seat" deleteKey="seat" />
+
+          {/* ── Parent table seat management ── */}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.divider}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", color: C.textTertiary, textTransform: "uppercase" }}>
+                Parent Table
+              </div>
+              {/* Live seat count badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 7px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10 }}>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2.5" strokeLinecap="round">
+                  <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+                <span style={{ fontSize: 9, fontWeight: 700, color: C.gold, fontFamily: F }}>
+                  {tables.find(t => t.id === selected.tableId)?.seats?.length || 0} seats
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 5 }}>
+              <AddSeatBtn tableId={selected.tableId} />
+              <RemoveLastBtn />
+            </div>
+
+            <div style={{ marginTop: 8, padding: "6px 9px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 5, fontSize: 10, color: C.textSecondary }}>
+              Adds / removes seats on the parent table
+            </div>
+          </div>
+
+          <div style={{ marginTop: 10, borderTop: `1px solid ${C.divider}` }} />
           <DeleteBtn label="Delete Entire Table" deleteKey="table" />
         </>
       )}
+
+      {/* ── Standalone seat selected ── */}
       {selected?.type === "standaloneSeat" && (
         <>
           {iLabel("Standalone Seat")}
           {selectedStandaloneSeatObj && (
             <>
               {iLabel("Status")}
-              <StatusRow current={selectedStandaloneSeatObj.status} onSet={status => handleStandaloneSeatStatus?.(selected.standaloneSeatId, status)} />
+              <StatusRow
+                current={selectedStandaloneSeatObj.status}
+                onSet={status => handleStandaloneSeatStatus?.(selected.standaloneSeatId, status)}
+              />
             </>
           )}
-          <div style={{ marginTop: 8, padding: "7px 10px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 5, fontSize: 10, color: C.textSecondary }}>Drag to reposition this seat on the canvas.</div>
+          <div style={{ marginTop: 8, padding: "7px 10px", background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 5, fontSize: 10, color: C.textSecondary }}>
+            Drag to reposition this seat on the canvas.
+          </div>
           <DeleteBtn label="Delete Seat" deleteKey="standaloneSeat" />
         </>
       )}
@@ -1127,14 +1231,25 @@ export default function SeatMap({
     setSelected(null);
   };
 
-  const addSeat = () => {
-    if (!selected?.tableId) return;
+  // ── UPDATED: accepts optional tableId so it works from any inspector context ─
+  const addSeat = useCallback((tableId) => {
+    const tid = tableId || selected?.tableId;
+    if (!tid) return;
     setTables(p => p.map(t => {
-      if (t.id !== selected.tableId) return t;
-      const num = (t.seats || []).length + 1;
-      return { ...t, seats: [...(t.seats || []), { id: `${t.id}-S${num}`, num, label: `S${num}`, status: "available" }] };
+      if (t.id !== tid) return t;
+      const existingNums = (t.seats || []).map(s => s.num);
+      // Find the next available number to avoid collisions
+      let num = (t.seats || []).length + 1;
+      while (existingNums.includes(num)) num++;
+      return {
+        ...t,
+        seats: [
+          ...(t.seats || []),
+          { id: `${t.id}-S${num}-${Date.now()}`, num, label: `S${num}`, status: "available" },
+        ],
+      };
     }));
-  };
+  }, [selected]);
 
   const deleteSeat = async () => {
     if (!selected?.tableId) return;
@@ -1205,9 +1320,9 @@ export default function SeatMap({
   const isMultiSelectMode = tool === "multiSelect";
   const toolHint = {
     addTable: "Click on canvas to place a table",
-    addSeat: "Click on canvas to place a seat",
+    addSeat: "Click on canvas to place a standalone seat",
     deleteSeat: "Click on any standalone seat to delete it",
-    multiSelect: "Click standalone seats to select multiple seats for bulk deletion",
+    multiSelect: "Click standalone seats to select multiple for bulk deletion",
   }[tool] || "";
 
   return (
@@ -1309,7 +1424,7 @@ export default function SeatMap({
                   onDragStart={startTableDrag} onResizeStart={startTableResize}
                   onSeatClick={handleSeatClick} onLabelEdit={handleLabelEdit}
                   isDragging={activeDragId === t.id} onSeatMove={handleSeatMove}
-                  T={T}  // FIX: Pass T instead of null so edit-mode seats use correct theme tokens
+                  T={T}
                   wing={activeWing} room={activeRoom} />
               ))}
               {tables.length === 0 && standaloneSeats.length === 0 && (

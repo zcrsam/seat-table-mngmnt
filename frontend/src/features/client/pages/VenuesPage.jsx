@@ -1,7 +1,6 @@
 // src/features/client/pages/VenuesPage.jsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Ellipsis } from 'lucide-react';
 import SharedNavbar from "../../../components/SharedNavbar.jsx";
 
 import alabangImg        from "../../../assets/afc.jpeg";
@@ -332,104 +331,10 @@ function RoomDropdown({ rooms, onRoomClick, C }) {
   );
 }
 
-// ── VENUE MODAL ───────────────────────────────────────────────────────────────
-function VenueModal({ venue, onClose, onReserve, C, isDark }) {
-  const isMobile = useIsMobile();
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  const getVenueForReservation = () => {
-    if (venue.rooms && venue.rooms.length > 0) {
-      const allVenues = Object.values(STATIC_VENUES).flat();
-      return allVenues.find(v => v.id === venue.id);
-    }
-    return venue;
-  };
-
-  const reservationVenue = getVenueForReservation();
-  const live    = aggregateCounts(reservationVenue);
-  const dSeats  = live?.seats  ?? reservationVenue.seats;
-  const dTables = live?.tables ?? reservationVenue.tables;
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 10000, background: C.overlayBg, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: isMobile ? "16px" : "32px" }}>
-      <style>{`@keyframes bvFadeIn{from{opacity:0}to{opacity:1}}@keyframes bvSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div onClick={e => e.stopPropagation()}
-        style={{ background: C.modalBg, border: `1px solid ${C.goldBorder}`, width: "100%", maxWidth: 680, maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: isDark ? "0 32px 80px rgba(0,0,0,0.72)" : "0 32px 80px rgba(80,60,10,0.24)", animation: "bvSlideUp 0.30s cubic-bezier(0.25,0.46,0.45,0.94)" }}>
-        <div style={{ height: isMobile ? 200 : 260, position: "relative", flexShrink: 0, overflow: "hidden" }}>
-          <img src={venue.img} alt={venue.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,rgba(0,0,0,0.10)0%,rgba(0,0,0,0.72)100%)" }} />
-          <button onClick={onClose}
-            style={{ position: "absolute", top: 16, right: 16, width: 36, height: 36, borderRadius: "50%", background: "rgba(0,0,0,0.44)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, transition: "background 0.18s" }}
-            onMouseEnter={e => e.currentTarget.style.background = "rgba(0,0,0,0.72)"}
-            onMouseLeave={e => e.currentTarget.style.background = "rgba(0,0,0,0.44)"}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-          <div style={{ position: "absolute", bottom: 20, left: 24, right: 60 }}>
-            <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.20em", textTransform: "uppercase", margin: "0 0 6px" }}>Venue Details</p>
-            <h2 style={{ fontFamily: FONT, fontSize: isMobile ? 20 : 26, fontWeight: 700, color: "#FFFFFF", margin: 0, lineHeight: 1.15, letterSpacing: "-0.3px" }}>{venue.name}</h2>
-          </div>
-        </div>
-        <div style={{ overflowY: "auto", padding: isMobile ? "22px 20px 28px" : "28px 32px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ display: "flex", gap: 0, border: `1px solid ${C.divider}`, overflow: "hidden" }}>
-            {[
-              { label: "Capacity", value: `${dSeats > 0 ? dSeats : venue.seats} guests` },
-              { label: "Tables",   value: `${dTables > 0 ? dTables : venue.tables} tables` },
-              { label: "Sub-rooms", value: venue.rooms.length > 0 ? `${venue.rooms.length} available` : "Open hall" },
-            ].map((stat, i) => (
-              <div key={stat.label} style={{ flex: 1, padding: "14px 16px", borderLeft: i === 0 ? "none" : `1px solid ${C.divider}`, background: C.surfaceEl }}>
-                <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.textMuted, letterSpacing: "0.16em", textTransform: "uppercase", margin: "0 0 4px" }}>{stat.label}</p>
-                <p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
-          {venue._stats && (venue._stats.reserved > 0 || venue._stats.pending > 0) && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {venue._stats.reserved > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(184,92,92,0.10)", border: "1px solid rgba(184,92,92,0.25)", fontFamily: FONT, fontSize: 11, fontWeight: 600, color: "#C07070" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#C07070" }}/>{venue._stats.reserved} seats reserved</span>}
-              {venue._stats.pending  > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", background: C.tagBg, border: `1px solid ${C.goldBorder}`, fontFamily: FONT, fontSize: 11, fontWeight: 600, color: C.gold }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold }}/>{venue._stats.pending} pending approval</span>}
-            </div>
-          )}
-          <div>
-            <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.18em", textTransform: "uppercase", margin: "0 0 10px" }}>About this space</p>
-            <p style={{ fontFamily: FONT, fontSize: 14, color: C.textSub, lineHeight: 1.82, margin: 0 }}>{venue.description}</p>
-          </div>
-          {venue.rooms && venue.rooms.length > 0 && (
-            <div>
-              <p style={{ fontFamily: FONT, fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: "0.18em", textTransform: "uppercase", margin: "0 0 12px" }}>Available Sub-rooms</p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {venue.rooms.map(r => (
-                  <span key={r} style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${C.goldBorder}`, fontFamily: FONT, fontSize: 12, fontWeight: 500, color: C.textMuted }}>{r}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          <div style={{ height: 1, background: C.divider }} />
-          <button type="button" onClick={() => { onClose(); onReserve(reservationVenue.id); }}
-            style={{ width: "100%", padding: "14px 20px", background: C.gold, color: "#FFFFFF", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12, fontFamily: FONT, letterSpacing: "0.14em", textTransform: "uppercase", transition: "background 0.18s,transform 0.18s" }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.01)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = C.gold; e.currentTarget.style.transform = "scale(1)"; }}>
-            Reserve Venue
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── VENUE CARD ────────────────────────────────────────────────────────────────
-function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer }) {
-  const [hov,      setHov]      = useState(false);
-  const [dotsHov,  setDotsHov]  = useState(false);
+function VenueCard({ venue, onClick, C, isDark, hideSpacer }) {
+  const [hov, setHov] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const hasSubRooms    = venue.rooms?.length > 0;
   const reserveEnabled = !hasSubRooms || selectedRoom !== null;
@@ -443,11 +348,10 @@ function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer }) {
         style={{ background: C.cardBg, border: `1px solid ${hov ? C.borderHov : C.border}`, boxShadow: hov ? C.shadowHov : C.shadow, transition: "box-shadow 0.32s,border-color 0.32s,transform 0.32s", transform: hov ? "translateY(-5px)" : "translateY(0)", display: "flex", flexDirection: "column", overflow: "visible" }}>
 
         {/* Image */}
-        <div onClick={() => onDetails(venue)} style={{ height: 220, position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}>
+        <div onClick={() => onClick(venue.id, selectedRoom ? { subRoom: selectedRoom } : {})} style={{ height: 220, position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}>
           <img src={venue.img} alt={venue.name}
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94)", transform: hov ? "scale(1.06)" : "scale(1)" }} />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,rgba(0,0,0,0)35%,rgba(0,0,0,0.72)100%)" }} />
-          
           <div style={{ position: "absolute", bottom: 14, left: 16, right: 16 }}>
             <p style={{ fontFamily: FONT, fontSize: 17, fontWeight: 600, color: "#FFFFFF", margin: 0, lineHeight: 1.25, letterSpacing: "-0.2px" }}>{venue.name}</p>
           </div>
@@ -491,37 +395,13 @@ function VenueCard({ venue, onClick, onDetails, C, isDark, hideSpacer }) {
 
           {/* CTA */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button type="button" onClick={(e) => { e.stopPropagation(); if (reserveEnabled) onClick(venue.id, selectedRoom ? { subRoom: selectedRoom } : {}); }} disabled={!reserveEnabled}
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); if (reserveEnabled) onClick(venue.id, selectedRoom ? { subRoom: selectedRoom } : {}); }}
+              disabled={!reserveEnabled}
               style={{ flex: 1, padding: "10px 14px", background: reserveEnabled ? C.gold : C.goldDim, color: "#FFFFFF", border: "none", cursor: reserveEnabled ? "pointer" : "not-allowed", fontWeight: 600, fontSize: 12, fontFamily: FONT, letterSpacing: "0.10em", textTransform: "uppercase", transition: "background 0.18s,transform 0.18s", opacity: reserveEnabled ? 1 : 0.55 }}
               onMouseEnter={e => { if (reserveEnabled) { e.currentTarget.style.background = C.goldLight; e.currentTarget.style.transform = "scale(1.02)"; } }}
               onMouseLeave={e => { e.currentTarget.style.background = reserveEnabled ? C.gold : C.goldDim; e.currentTarget.style.transform = "scale(1)"; }}>
-              View & Reserve
-            </button>
-
-            {/* ── DOTS BUTTON — using Lucide React Ellipsis ── */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onDetails(venue); }}
-              onMouseEnter={() => setDotsHov(true)}
-              onMouseLeave={() => setDotsHov(false)}
-              style={{
-                width: 40,
-                height: 40,
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: dotsHov ? C.goldFaint : C.surfaceEl,
-                border: `1px solid ${dotsHov ? C.gold : C.goldBorder}`,
-                cursor: "pointer",
-                transition: "all 0.20s",
-              }}
-            >
-              <Ellipsis 
-                size={18} 
-                color={dotsHov ? C.gold : C.textSub}
-                strokeWidth={2}
-              />
+              View &amp; Reserve
             </button>
           </div>
         </div>
@@ -552,7 +432,6 @@ export default function VenuesPage() {
   const { isDark, toggle } = useThemeMode();
   const C = getTokens(isDark);
 
-  const [modalVenue,    setModalVenue]    = useState(null);
   const [subcategories, setSubcategories] = useState(STATIC_VENUES);
 
   const [scrolled, setScrolled] = useState(false);
@@ -562,7 +441,6 @@ export default function VenuesPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // GSAP reveal refs
   const headerRef = useGsapScroll({ y: 30, opacity: 0, duration: 0.85, selector: ".page-anim", stagger: 0.09 });
   const sec1Ref   = useGsapScroll({ y: 40, opacity: 0, duration: 0.85, selector: ".card-anim", stagger: 0.07 });
   const sec2Ref   = useGsapScroll({ y: 40, opacity: 0, duration: 0.85, selector: ".card-anim", stagger: 0.07 });
@@ -703,15 +581,11 @@ export default function VenuesPage() {
           height={NAV_H}
         />
 
-        {modalVenue && (
-          <VenueModal venue={modalVenue} isDark={isDark} C={C} onClose={() => setModalVenue(null)} onReserve={handleVenueClick} />
-        )}
         <div style={{ paddingTop: NAV_H, marginTop: -1, background: C.pageBg }}></div>
 
         {/* PAGE HEADER */}
         <div ref={headerRef} style={{ padding: isMobile ? "36px 20px 28px" : `52px clamp(32px,5vw,72px) 36px`, maxWidth: 1280, margin: "0 auto", display: "flex", flexDirection: "column", gap: 28 }}>
 
-          {/* Back + breadcrumb */}
           <div className="page-anim" style={{ display: "flex", alignItems: "center", gap: 16, opacity: 0 }}>
             <button onClick={() => navigate("/", { state: { scrollTo: "event" } })}
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = C.goldFaint; }}
@@ -726,7 +600,6 @@ export default function VenuesPage() {
             </div>
           </div>
 
-          {/* Title block */}
           <div className="page-anim" style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "flex-end", justifyContent: "space-between", gap: 16, opacity: 0 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
@@ -756,37 +629,34 @@ export default function VenuesPage() {
         {/* SECTIONS */}
         <div style={{ padding: isMobile ? "8px 20px 80px" : `8px clamp(32px,5vw,72px) 100px`, maxWidth: 1280, margin: "0 auto" }}>
 
-          {/* MAIN WING */}
           <div ref={sec1Ref} id={SECTION_IDS["Main Wing"]} style={{ paddingTop: 52, marginBottom: 72, scrollMarginTop: 80 }}>
             <SectionHeader C={C} index={1} title="Main Wing" subtitle="Function rooms and ballrooms suitable for conferences and weddings." />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 20, alignItems: "start" }}>
               {subcategories["Main Wing"].map(v => (
                 <div key={v.id} className="card-anim" style={{ opacity: 0 }}>
-                  <VenueCard venue={v} onClick={handleVenueClick} onDetails={setModalVenue} C={C} isDark={isDark} />
+                  <VenueCard venue={v} onClick={handleVenueClick} C={C} isDark={isDark} />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* TOWER WING */}
           <div ref={sec2Ref} id={SECTION_IDS["Tower Wing"]} style={{ paddingTop: 52, marginBottom: 72, scrollMarginTop: 80 }}>
             <SectionHeader C={C} index={2} title="Tower Wing" subtitle="Larger ballrooms and divisible halls — perfect for galas and large events." />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 20, alignItems: "start" }}>
               {subcategories["Tower Wing"].map(v => (
                 <div key={v.id} className="card-anim" style={{ opacity: 0 }}>
-                  <VenueCard venue={v} onClick={handleVenueClick} onDetails={setModalVenue} C={C} isDark={isDark} />
+                  <VenueCard venue={v} onClick={handleVenueClick} C={C} isDark={isDark} />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* DINING */}
           <div ref={sec3Ref} id={SECTION_IDS["Dining"]} style={{ paddingTop: 52, marginBottom: 32, scrollMarginTop: 80 }}>
             <SectionHeader C={C} index={3} title="Dining" subtitle="Restaurants and dining spaces — select a venue to reserve a table." />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))", gap: 20, alignItems: "start" }}>
               {subcategories["Dining"].map(v => (
                 <div key={v.id} className="card-anim" style={{ opacity: 0 }}>
-                  <VenueCard venue={v} onClick={handleVenueClick} onDetails={setModalVenue} C={C} isDark={isDark} hideSpacer />
+                  <VenueCard venue={v} onClick={handleVenueClick} C={C} isDark={isDark} hideSpacer />
                 </div>
               ))}
             </div>

@@ -5,7 +5,6 @@ import SharedNavbar from "../../../../components/SharedNavbar.jsx";
 
 import SeatMap, { STATUS_COLORS } from "../../../../components/seatmap/SeatMap.jsx";
 import Echo from "../../../../utils/websocket.js";
-import bellevueLogo from "../../../../assets/bellevue-logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Dining";
@@ -77,8 +76,6 @@ const F = {
 const LEGEND_STATUSES = ["available", "pending", "reserved"];
 
 // ─── Status normalisation ─────────────────────────────────────────────────────
-// "approved" and "reserved" both map to "reserved" so the seat turns red.
-// This is the same logic as AlabangReserve — do NOT change it.
 function normaliseApiStatus(raw) {
   const s = (raw || "available").toLowerCase().trim();
   if (s === "approved" || s === "reserved") return "reserved";
@@ -95,17 +92,17 @@ function loadLayoutForClient(wing, room) {
     const raw = localStorage.getItem(layoutKey(wing, room));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    // Accept v2 layouts OR any object with a tables array
     if (parsed?.v === 2) return parsed;
+    if (parsed?.tables) return parsed;
     if (Array.isArray(parsed)) return { tables: parsed, labels: null, venueZones: [], standaloneSeats: [] };
     return null;
   } catch { return null; }
 }
 
 // ─── Merge API statuses into local layout ─────────────────────────────────────
-// API status ALWAYS wins — this is what makes approved seats turn red.
-// mergeApiStatusIntoLayout is called on every fetchAndMerge tick and after
-// submission, so the optimistic "pending" gets overwritten as soon as the
-// server confirms the real status.
+// FIX: Added no-downgrade guard — never overwrite "reserved" with "pending"
+// to prevent race conditions when the API response lags behind optimistic updates.
 function mergeApiStatusIntoLayout(localLayout, apiData) {
   if (!localLayout || !apiData) return localLayout;
   const apiStatusMap = {};
@@ -132,7 +129,11 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
       const apiStatus =
         apiStatusMap[s.id] ??
         apiStatusMap[`${String(t.id ?? t.label ?? "").trim()}|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
-      if (apiStatus !== undefined) return { ...s, status: apiStatus };
+      if (apiStatus !== undefined) {
+        // FIX: Never downgrade reserved → pending (API race condition guard)
+        if (s.status === "reserved" && apiStatus === "pending") return s;
+        return { ...s, status: apiStatus };
+      }
       return s;
     }),
   }));
@@ -141,7 +142,11 @@ function mergeApiStatusIntoLayout(localLayout, apiData) {
     const apiStatus =
       apiStatusMap[s.id] ??
       apiStatusMap[`STANDALONE|${String(s.num ?? s.label ?? s.id ?? "").trim()}`];
-    if (apiStatus !== undefined) return { ...s, status: apiStatus };
+    if (apiStatus !== undefined) {
+      // FIX: Never downgrade reserved → pending
+      if (s.status === "reserved" && apiStatus === "pending") return s;
+      return { ...s, status: apiStatus };
+    }
     return s;
   });
 
@@ -308,36 +313,6 @@ function GhostBtn({ children, onClick, disabled = false, C, style = {} }) {
       onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = C.borderAccent; e.currentTarget.style.color = C.gold; } }}
       onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSecondary; } }}
     >{children}</button>
-  );
-}
-
-// ─── Theme Toggle ─────────────────────────────────────────────────────────────
-function ThemeToggle() {
-  const { isDark, toggle } = useTheme();
-  const C = getTokens(isDark);
-  const [hov, setHov] = useState(false);
-  return (
-    <button type="button" onClick={toggle} title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 13px 6px 10px", background: "transparent", border: `1px solid ${hov ? C.borderAccent : C.borderDefault}`, borderRadius: 20, cursor: "pointer", flexShrink: 0, transition: "border-color 0.22s" }}
-    >
-      {isDark ? (
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-      ) : (
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-          <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-        </svg>
-      )}
-      <span style={{ position: "relative", width: 28, height: 16, borderRadius: 8, background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.10)", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.28s" }}>
-        <span style={{ position: "absolute", left: isDark ? 2 : "calc(100% - 14px)", width: 12, height: 12, borderRadius: "50%", background: isDark ? "#C4A35A" : "#8C6B2A", transition: "left 0.24s cubic-bezier(.4,0,.2,1)" }} />
-      </span>
-      <span style={{ fontFamily: F.label, fontSize: 11, fontWeight: 500, letterSpacing: "0.03em", color: C.textSecondary }}>{isDark ? "Dark" : "Light"}</span>
-    </button>
   );
 }
 
@@ -958,15 +933,19 @@ export default function PhoenixCourt() {
   const location = useLocation();
   const selectedRoom = location.state?.selectedSubRoom || ROOM;
 
+  // ─── Theme ────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => {
     try { const s = localStorage.getItem("bellevue-theme"); if (s !== null) return s === "dark"; } catch {}
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
-  const toggleTheme = () => setIsDark(p => {
-    const n = !p;
-    try { localStorage.setItem("bellevue-theme", n ? "dark" : "light"); } catch {}
-    return n;
-  });
+
+  useEffect(() => {
+    const onStorage = e => {
+      if (e.key === "bellevue-theme") setIsDark(e.newValue === "dark");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const C = getTokens(isDark);
 
@@ -1004,54 +983,130 @@ export default function PhoenixCourt() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
-  // ─── Storage listener ─────────────────────────────────────────────────────
+  // ─── fetchAndMerge ────────────────────────────────────────────────────────
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      // CRITICAL FIX: Use /reservations endpoint to get actual reservation statuses
+      // NOT /seatmap endpoint which only returns layout structure
+      const res = await fetch(
+        `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=1`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      // ── DEBUG: Log what we're getting from the API ───────────────────────
+      console.log("[PhoenixCourt] Reservations API response:", data);
+      
+      const reservations = Array.isArray(data) ? data : (data.data || []);
+      console.log("[PhoenixCourt] Processing reservations:", reservations.length, "for room:", ROOM, "wing:", WING);
+      
+      // Build status map from actual reservations
+      const seatStatusMap = {};
+      reservations.forEach(r => {
+        const normStatus = normaliseApiStatus(r.status);
+        console.log("[PhoenixCourt] Reservation:", {
+          table: r.table_number,
+          seat: r.seat_number,
+          status: r.status,
+          normalized: normStatus
+        });
+        
+        if (normStatus === "available") return; // Skip available entries
+        
+        const tableKey = String(r.table_number ?? "").trim().toUpperCase();
+        const seatNums = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+        
+        seatNums.forEach(seatNum => {
+          if (tableKey) {
+            seatStatusMap[`${tableKey}|${seatNum}`] = normStatus;
+          }
+          if (r.type === "standalone" || r.is_standalone) {
+            seatStatusMap[`STANDALONE|${seatNum}`] = normStatus;
+          }
+        });
+      });
+      
+      console.log("[PhoenixCourt] Final seat status map:", seatStatusMap);
+      
+      // Apply statuses to current layout
+      setTableData(prev => {
+        if (!prev) return prev;
+        
+        const updated = {
+          ...prev,
+          tables: (prev.tables || []).map(t => ({
+            ...t,
+            seats: (t.seats || []).map(s => {
+              const status = seatStatusMap[`${String(t.id ?? "").trim()}|${String(s.num ?? "").trim()}`] || "available";
+              return { ...s, status };
+            }),
+          })),
+          standaloneSeats: (prev.standaloneSeats || []).map(s => {
+            const status = seatStatusMap[`STANDALONE|${String(s.num ?? "").trim()}`] || "available";
+            return { ...s, status };
+          }),
+        };
+        
+        console.log("[PhoenixCourt] Updated layout with real statuses");
+        return updated;
+      });
+    } catch (err) {
+      console.error("[PhoenixCourt] Failed to fetch reservations:", err);
+    }
+  }, []);
+
+  // ─── Storage + seatmap:saved listener (cross-tab) ─────────────────────────
   useEffect(() => {
     const onStorage = e => {
+      if (e.key === "bellevue-theme") {
+        setIsDark(e.newValue === "dark");
+        return;
+      }
       if (e.key !== layoutKey(WING, ROOM)) return;
       try {
         const parsed = e.newValue ? JSON.parse(e.newValue) : null;
-        if (parsed?.v === 2) setTableData(parsed);
+        if (parsed?.tables) {
+          console.log("[PhoenixCourt] Storage event detected - fetching fresh API data");
+          // CRITICAL FIX: Don't overwrite with stale localStorage data
+          // Instead, fetch fresh reservation data from API
+          fetchAndMerge();
+        }
       } catch {}
     };
+
+    // Same-tab event (fired by dashboard's optimisticSeatUpdate)
     const onSeatMapSaved = e => {
       if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
       try {
         const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
-        if (parsed?.v === 2) setTableData(parsed);
+        if (parsed?.tables) {
+          console.log("[PhoenixCourt] SeatMap saved event - fetching fresh API data");
+          // CRITICAL FIX: Don't overwrite with stale layout data
+          // Fetch fresh reservation data to get correct statuses
+          fetchAndMerge();
+        }
       } catch {}
     };
+
     window.addEventListener("storage", onStorage);
     window.addEventListener("seatmap:saved", onSeatMapSaved);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("seatmap:saved", onSeatMapSaved);
     };
+  }, [fetchAndMerge]);
+
+  // ─── FIXED: Removed problematic localStorage polling ───────────────────────
+  // The polling was overwriting API reservation data with stale localStorage data
+  // every 2 seconds, causing approved seats to revert from red back to gold/orange.
+  // Storage events and WebSocket now handle all necessary updates.
+  useEffect(() => {
+    // No polling needed - API data is authoritative
+    // Storage events and WebSocket handle real-time updates
   }, []);
 
-  // ─── fetchAndMerge ────────────────────────────────────────────────────────
-  // API status ALWAYS wins over optimistic local state.
-  // Called: on mount, every poll tick, after submit, on tab-visible, on handleBack.
-  const fetchAndMerge = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/seatmap/${encodeURIComponent(WING)}/${encodeURIComponent(ROOM)}`,
-        { headers: { Accept: "application/json" } }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data?.data) return;
-      setTableData(prev => {
-        const base = prev || loadLayoutForClient(WING, ROOM);
-        const merged = base ? mergeApiStatusIntoLayout(base, data.data) : data.data;
-        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
-        return merged;
-      });
-    } catch (err) {
-      console.error("[PhoenixCourt] Failed to fetch seat status:", err);
-    }
-  }, []);
-
-  // ─── On mount: load local layout then fetch API statuses ─────────────────
+  // ─── On mount ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const localLayout = loadLayoutForClient(WING, ROOM);
     if (localLayout) setTableData(localLayout);
@@ -1066,8 +1121,6 @@ export default function PhoenixCourt() {
   }, []);
 
   // ─── Re-fetch when tab becomes visible ────────────────────────────────────
-  // Ensures seat colors update immediately when the user switches back from
-  // the admin dashboard after approving a reservation.
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible") fetchAndMerge();
@@ -1121,7 +1174,7 @@ export default function PhoenixCourt() {
   }, []);
 
   // ─── Table/seat helpers ───────────────────────────────────────────────────
-  const getTables          = useCallback(() => {
+  const getTables = useCallback(() => {
     if (!tableData) return [];
     if (tableData.tables) return tableData.tables;
     if (Array.isArray(tableData)) return tableData;
@@ -1170,12 +1223,7 @@ export default function PhoenixCourt() {
       } else if (mode === "individual") {
         seatNumStr = String(selectedSeat?.num ?? selectedSeat?.id ?? "");
       } else {
-        const availSeats = (activeTable?.seats || [])
-          .filter(s => s.status === "available")
-          .slice(0, guests);
-        seatNumStr = availSeats.length > 0
-          ? availSeats.map(s => s.num ?? s.id).join(",")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(",");
+        seatNumStr = Array.from({ length: guests }, (_, i) => i + 1).join(",");
       }
 
       const payload = {
@@ -1211,37 +1259,32 @@ export default function PhoenixCourt() {
       }
 
       // ── Optimistic UI: mark seats as pending locally ───────────────────
-      // This is intentionally overwritten on the next fetchAndMerge call
-      // once the API confirms the real status (pending → approved → reserved).
       setTableData(prev => {
         if (!prev) return prev;
-
-        const markSeats = (seats, predicate) =>
-          (seats || []).map(s => predicate(s) ? { ...s, status: "pending" } : s);
 
         if (seatIsStandalone && selectedSeat) {
           const updated = {
             ...prev,
-            standaloneSeats: markSeats(prev.standaloneSeats, s => s.id === selectedSeat.id),
+            standaloneSeats: (prev.standaloneSeats || []).map(s =>
+              s.id === selectedSeat.id ? { ...s, status: "pending" } : s
+            ),
           };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
         }
 
         if (activeTable) {
-          const seatIds = new Set(
-            seatNumStr.split(",").map(n => n.trim()).filter(Boolean)
-          );
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
             if (mode === "individual") {
-              return { ...t, seats: markSeats(t.seats, s => s.id === selectedSeat?.id) };
+              return { ...t, seats: (t.seats || []).map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
             }
+            let marked = 0;
             return {
               ...t,
               seats: (t.seats || []).map(s => {
-                const snum = String(s.num ?? s.id ?? "").trim();
-                return seatIds.has(snum) ? { ...s, status: "pending" } : s;
+                if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
+                return s;
               }),
             };
           });
@@ -1253,11 +1296,9 @@ export default function PhoenixCourt() {
         return prev;
       });
 
-      // ── KEY FIX: immediately re-fetch so the API status overwrites the ──
-      // optimistic "pending" state. If the admin has already approved this
-      // seat, this call will flip it to "reserved" (red) right away instead
-      // of waiting for the next poll tick.
-      fetchAndMerge();
+      // NOTE: No fetchAndMerge() here — the 2s localStorage poll and the
+      // WebSocket/polling interval will sync the API state naturally without
+      // risking overwriting the optimistic pending status too quickly.
 
       setModal("success");
       resetHoldTimer();
@@ -1319,7 +1360,7 @@ export default function PhoenixCourt() {
   const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
+    <ThemeContext.Provider value={{ isDark, toggle: () => {} }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');
         @keyframes spin    { to { transform: rotate(360deg) } }
@@ -1353,7 +1394,6 @@ export default function PhoenixCourt() {
                 <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
                 <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Phoenix Court Restaurant</div>
               </div>
-              <ThemeToggle />
             </div>
 
             <div style={{ display: "flex", gap: 0, padding: "10px 16px", background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: `1px solid ${C.borderDefault}` }}>
@@ -1470,9 +1510,6 @@ export default function PhoenixCourt() {
                       style={{ padding: "8px 18px", border: "none", background: mode === val ? C.gold : "transparent", color: mode === val ? C.textOnAccent : C.textSecondary, cursor: "pointer", fontSize: 10, letterSpacing: "0.12em", fontWeight: 700, fontFamily: F.label, borderRadius: 6, transition: "all 0.18s", outline: "none", textTransform: "uppercase" }}
                     >{label}</button>
                   ))}
-                </div>
-                <div style={{ marginLeft: "auto" }}>
-                  <ThemeToggle />
                 </div>
               </div>
 

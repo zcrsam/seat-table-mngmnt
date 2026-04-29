@@ -5,7 +5,6 @@ import SharedNavbar from "../../../../components/SharedNavbar.jsx";
 
 import SeatMap, { STATUS_COLORS } from "../../../../components/seatmap/SeatMap.jsx";
 import Echo from "../../../../utils/websocket.js";
-import bellevueLogo from "../../../../assets/bellevue-logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const WING = "Dining";
@@ -74,17 +73,19 @@ const F = {
   label:   "'Inter','Helvetica Neue',Arial,sans-serif",
 };
 
-// ─── Persistence helpers ──────────────────────────────────────────────────────
-function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
+const LEGEND_STATUSES = ["available", "pending", "reserved"];
 
-// ─── Status normalisation (ported from TowerBallroom1) ────────────────────────
+// ─── Status normalisation ─────────────────────────────────────────────────────
 function normaliseApiStatus(raw) {
-  const s = (raw || "available").toLowerCase();
+  const s = (raw || "available").toLowerCase().trim();
   if (s === "approved" || s === "reserved") return "reserved";
-  if (s === "pending") return "pending";
-  if (s === "rejected" || s === "cancelled") return "available";
+  if (s === "rejected") return "rejected";
+  if (s === "pending")  return "pending";
   return "available";
 }
+
+// ─── Persistence helpers ──────────────────────────────────────────────────────
+function layoutKey(wing, room) { return `seatmap_layout:${wing}:${room}`; }
 
 function loadLayoutForClient(wing, room) {
   try {
@@ -92,24 +93,22 @@ function loadLayoutForClient(wing, room) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.v === 2) return parsed;
+    if (parsed?.tables) return parsed;
     if (Array.isArray(parsed)) return { tables: parsed, labels: null, venueZones: [], standaloneSeats: [] };
     return null;
   } catch { return null; }
 }
 
+// ─── Offline reservation helpers ──────────────────────────────────────────────
 const loadStoredReservations = () => {
   try {
     const raw = localStorage.getItem("bellevue_reservations");
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 };
 
 const saveStoredReservations = (reservations) => {
-  try {
-    localStorage.setItem("bellevue_reservations", JSON.stringify(reservations));
-  } catch {}
+  try { localStorage.setItem("bellevue_reservations", JSON.stringify(reservations)); } catch {}
 };
 
 const makeOfflineReservation = (payload) => ({
@@ -133,9 +132,10 @@ const apiCall = async (endpoint, options = {}) => {
     const text = await response.text();
     const data = text ? JSON.parse(text) : {};
     if (!response.ok) {
-      let msg = data?.message || `HTTP ${response.status}`;
-      if (data?.errors) msg += "\n" + Object.values(data.errors).flat().join("\n");
-      throw new Error(msg);
+      const errorLines = data?.errors ? Object.values(data.errors).flat() : [];
+      const baseMsg = data?.message || `HTTP ${response.status}`;
+      const uniqueLines = [...new Set([baseMsg, ...errorLines])];
+      throw new Error(uniqueLines.join("\n"));
     }
     return data;
   } catch (error) {
@@ -148,7 +148,6 @@ const apiCall = async (endpoint, options = {}) => {
       saveStoredReservations(reservations);
       return offlineReservation;
     }
-
     throw error;
   }
 };
@@ -157,11 +156,15 @@ const apiCall = async (endpoint, options = {}) => {
 const getWholeSeatLabel = (guests, tableData = null) => {
   if (!guests || guests < 1) return "Seat 1";
   if (tableData?.seats?.length) {
-    const bookable = tableData.seats.filter(s => s.status === "available").slice(0, guests).map(s => s.num ?? s.id);
+    const bookable = tableData.seats
+      .filter(s => s.status === "available")
+      .slice(0, guests)
+      .map(s => s.num ?? s.id);
     if (bookable.length > 0) return `Seat ${bookable.join(", ")}`;
   }
   return `Seat ${Array.from({ length: guests }, (_, i) => i + 1).join(", ")}`;
 };
+
 const getSeatRatio = (table) => {
   if (!table?.seats?.length) return null;
   const available = table.seats.filter(s => s.status === "available").length;
@@ -259,36 +262,6 @@ function GhostBtn({ children, onClick, disabled = false, C, style = {} }) {
   );
 }
 
-// ─── Theme Toggle ─────────────────────────────────────────────────────────────
-function ThemeToggle() {
-  const { isDark, toggle } = useTheme();
-  const C = getTokens(isDark);
-  const [hov, setHov] = useState(false);
-  return (
-    <button type="button" onClick={toggle} title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 13px 6px 10px", background: "transparent", border: `1px solid ${hov ? C.borderAccent : C.borderDefault}`, borderRadius: 20, cursor: "pointer", flexShrink: 0, transition: "border-color 0.22s" }}
-    >
-      {isDark ? (
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-      ) : (
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-          <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-        </svg>
-      )}
-      <span style={{ position: "relative", width: 28, height: 16, borderRadius: 8, background: isDark ? "rgba(196,163,90,0.22)" : "rgba(0,0,0,0.10)", display: "inline-flex", alignItems: "center", flexShrink: 0, transition: "background 0.28s" }}>
-        <span style={{ position: "absolute", left: isDark ? 2 : "calc(100% - 14px)", width: 12, height: 12, borderRadius: "50%", background: isDark ? "#C4A35A" : "#8C6B2A", transition: "left 0.24s cubic-bezier(.4,0,.2,1)" }} />
-      </span>
-      <span style={{ fontFamily: F.label, fontSize: 11, fontWeight: 500, letterSpacing: "0.03em", color: C.textSecondary }}>{isDark ? "Dark" : "Light"}</span>
-    </button>
-  );
-}
-
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step, C }) {
   const steps = ["Guest Count", "Details", "Confirm"];
@@ -321,7 +294,19 @@ function StepIndicator({ step, C }) {
 function Field({ label, value, onChange, type = "text", placeholder = "", C, isDark, required = false, min, rows }) {
   const [focused, setFocused] = useState(false);
   const isTextarea = type === "textarea";
-  const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 14px", border: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`, borderRadius: 8, background: C.surfaceInput, fontFamily: F.body, fontSize: 13, color: C.textPrimary, outline: "none", transition: "border-color 0.18s, box-shadow 0.18s", boxShadow: focused ? C.inputFocusShadow : "none", colorScheme: isDark ? "dark" : "light", resize: isTextarea ? "vertical" : undefined, minHeight: isTextarea ? 72 : undefined };
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", padding: "11px 14px",
+    borderTop: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderBottom: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderLeft: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderRight: `1.5px solid ${focused ? C.borderAccent : C.borderDefault}`,
+    borderRadius: 8, background: C.surfaceInput, fontFamily: F.body, fontSize: 13,
+    color: C.textPrimary, outline: "none", transition: "border-color 0.18s, box-shadow 0.18s",
+    boxShadow: focused ? C.inputFocusShadow : "none",
+    colorScheme: isDark ? "dark" : "light",
+    resize: isTextarea ? "vertical" : undefined,
+    minHeight: isTextarea ? 72 : undefined,
+  };
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: "block", fontFamily: F.label, fontSize: 9, letterSpacing: "0.18em", color: focused ? C.gold : C.textSecondary, fontWeight: 700, textTransform: "uppercase", marginBottom: 7, transition: "color 0.18s" }}>
@@ -329,17 +314,26 @@ function Field({ label, value, onChange, type = "text", placeholder = "", C, isD
       </label>
       {isTextarea
         ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows || 3} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={inputStyle} />
-        : <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} min={min} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={inputStyle} />
+        : <input
+            type={type === "email" ? "text" : type}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            min={min}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={inputStyle}
+          />
       }
     </div>
   );
 }
 
 // ─── MODAL 1: Guest Count ─────────────────────────────────────────────────────
-function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, isDark }) {
+function ModalGuestCount({ seatData, tableData, mode, isStandalone, onContinue, onCancel, C, isDark }) {
   const bookableSeats = (tableData?.seats || []).filter(s => s.status === "available");
   const pendingSeats  = (tableData?.seats || []).filter(s => s.status === "pending");
-  const capacity = bookableSeats.length || tableData?.capacity || 8;
+  const capacity = isStandalone ? 1 : (bookableSeats.length || tableData?.capacity || 8);
 
   const [guests,   setGuests]   = useState(() => Math.min(2, capacity));
   const [inputVal, setInputVal] = useState(String(Math.min(2, capacity)));
@@ -372,9 +366,32 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
 
   const dec = () => { const n = Math.max(1, guests - 1); setGuests(n); setInputVal(String(n)); };
   const inc = () => { if (guests >= capacity) return; const n = guests + 1; setGuests(n); setInputVal(String(n)); };
-
   const atMax = guests >= capacity;
   const atMin = guests <= 1;
+
+  if (isStandalone) {
+    return (
+      <ModalShell onClose={onCancel} C={C}>
+        <ModalHeader eyebrow="Seat Reservation" title="Reserve This Seat" onClose={onCancel} C={C} meta={<StepIndicator step={1} C={C} />} />
+        <div style={{ padding: "22px 24px 26px" }}>
+          <div style={{ background: C.goldFaintest, border: `1px solid ${C.borderAccent}`, borderRadius: 10, overflow: "hidden", marginBottom: 22 }}>
+            {[
+              ["Room",         ROOM],
+              ["Seat Number",  `Seat ${seatData?.num ?? seatData?.id ?? "—"}`],
+              ["Availability", seatData?.status === "available" ? "Available" : "Unavailable"],
+            ].map(([key, val], i, arr) => (
+              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.divider}` : "none" }}>
+                <span style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textTertiary }}>{key}</span>
+                <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{val}</span>
+              </div>
+            ))}
+          </div>
+          <PrimaryBtn onClick={() => onContinue(1)} C={C}>Continue</PrimaryBtn>
+          <GhostBtn onClick={onCancel} C={C}>Cancel</GhostBtn>
+        </div>
+      </ModalShell>
+    );
+  }
 
   const infoRows = [
     ["Room",         ROOM,                                                            null],
@@ -406,7 +423,17 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 10 }}>
                 <button onClick={dec} disabled={atMin}
-                  style={{ width: 44, height: 52, border: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`, borderRight: "none", borderRadius: "8px 0 0 8px", background: C.surfaceInput, color: atMin ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMin ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMin ? 0.4 : 1 }}
+                  style={{
+                    width: 44, height: 52,
+                    borderTop: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`,
+                    borderBottom: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`,
+                    borderLeft: `1.5px solid ${atMin ? C.borderFaint : C.borderDefault}`,
+                    borderRight: "none",
+                    borderRadius: "8px 0 0 8px", background: C.surfaceInput,
+                    color: atMin ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700,
+                    cursor: atMin ? "not-allowed" : "pointer", transition: "all 0.15s",
+                    display: "flex", alignItems: "center", justifyContent: "center", opacity: atMin ? 0.4 : 1,
+                  }}
                   onMouseEnter={e => { if (!atMin) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >−</button>
@@ -418,11 +445,32 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
                   value={inputVal}
                   onChange={handleInputChange}
                   onBlur={handleInputBlur}
-                  style={{ width: 80, height: 52, border: `1.5px solid ${C.borderAccent}`, borderLeft: "none", borderRight: "none", background: C.surfaceInput, textAlign: "center", fontFamily: F.display, fontSize: 28, fontWeight: 700, color: C.textPrimary, outline: "none", colorScheme: isDark ? "dark" : "light", MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box" }}
+                  style={{
+                    width: 80, height: 52,
+                    borderTop: `1.5px solid ${C.borderAccent}`,
+                    borderBottom: `1.5px solid ${C.borderAccent}`,
+                    borderLeft: "none",
+                    borderRight: "none",
+                    background: C.surfaceInput, textAlign: "center",
+                    fontFamily: F.display, fontSize: 28, fontWeight: 700,
+                    color: C.textPrimary, outline: "none",
+                    colorScheme: isDark ? "dark" : "light",
+                    MozAppearance: "textfield", WebkitAppearance: "none", boxSizing: "border-box",
+                  }}
                 />
 
                 <button onClick={inc} disabled={atMax}
-                  style={{ width: 44, height: 52, border: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`, borderLeft: "none", borderRadius: "0 8px 8px 0", background: C.surfaceInput, color: atMax ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700, cursor: atMax ? "not-allowed" : "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", opacity: atMax ? 0.4 : 1 }}
+                  style={{
+                    width: 44, height: 52,
+                    borderTop: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`,
+                    borderBottom: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`,
+                    borderRight: `1.5px solid ${atMax ? C.borderFaint : C.borderDefault}`,
+                    borderLeft: "none",
+                    borderRadius: "0 8px 8px 0", background: C.surfaceInput,
+                    color: atMax ? C.textTertiary : C.gold, fontSize: 20, fontWeight: 700,
+                    cursor: atMax ? "not-allowed" : "pointer", transition: "all 0.15s",
+                    display: "flex", alignItems: "center", justifyContent: "center", opacity: atMax ? 0.4 : 1,
+                  }}
                   onMouseEnter={e => { if (!atMax) e.currentTarget.style.background = C.goldFaint; }}
                   onMouseLeave={e => { e.currentTarget.style.background = C.surfaceInput; }}
                 >+</button>
@@ -456,7 +504,7 @@ function ModalGuestCount({ seatData, tableData, mode, onContinue, onCancel, C, i
 }
 
 // ─── MODAL 2: Details ─────────────────────────────────────────────────────────
-function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
+function ModalDetails({ tableData, seatData, mode, isStandalone, guests, onReview, onCancel, prefill, C, isDark, secondsLeft, onTimerExpired }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
     firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
@@ -466,12 +514,15 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
   });
 
   useEffect(() => {
-    if (prefill) setForm({ firstName: prefill.firstName || "", lastName: prefill.lastName || "", email: prefill.email || "", phone: prefill.phone || "+63", eventDate: prefill.eventDate || today, eventTime: prefill.eventTime || "19:00", specialRequests: prefill.specialRequests || "" });
+    if (prefill) setForm({
+      firstName: prefill.firstName || "", lastName: prefill.lastName || "",
+      email: prefill.email || "", phone: prefill.phone || "+63",
+      eventDate: prefill.eventDate || today, eventTime: prefill.eventTime || "19:00",
+      specialRequests: prefill.specialRequests || "",
+    });
   }, [prefill]);
 
-  useEffect(() => {
-    if (secondsLeft <= 0) onTimerExpired();
-  }, [secondsLeft]);
+  useEffect(() => { if (secondsLeft <= 0) onTimerExpired(); }, [secondsLeft]);
 
   const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const secs = String(secondsLeft % 60).padStart(2, "0");
@@ -484,20 +535,35 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
     } else setForm(f => ({ ...f, [k]: v }));
   };
 
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
   const allFilled =
     form.firstName.trim() !== "" &&
     form.lastName.trim()  !== "" &&
-    form.email.trim()     !== "" &&
+    emailValid &&
     form.phone.trim()     !== "" && form.phone !== "+63" &&
     form.eventDate.trim() !== "";
 
-  const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
+  const seatDisplay = isStandalone
+    ? `Seat ${seatData?.num ?? seatData?.id ?? "—"}`
+    : mode === "whole"
+      ? getWholeSeatLabel(guests, tableData)
+      : seatData ? `Seat ${seatData.num ?? seatData.id}` : "—";
+
+  const summaryColumns = [
+    ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "—"}`]]),
+    ["Seat", seatDisplay],
+    ["Guests", String(guests)],
+    ["Room", ROOM],
+  ];
 
   return (
     <ModalShell onClose={onCancel} C={C}>
-      <ModalHeader eyebrow={mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Your Information" onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />} />
+      <ModalHeader
+        eyebrow={isStandalone ? "Standalone Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        title="Your Information"
+        onClose={onCancel} C={C} meta={<StepIndicator step={2} C={C} />}
+      />
       <div style={{ padding: "18px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
-        {/* Timer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: isUrgent ? C.statusNote.rejected : C.goldFaintest, border: `1px solid ${isUrgent ? C.statusNoteBorder.rejected : C.borderAccent}` }}>
           <div>
             <div style={{ fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: isUrgent ? C.red : C.textSecondary, marginBottom: 2 }}>Seat Hold Timer</div>
@@ -506,9 +572,8 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
           <div style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 700, color: isUrgent ? C.red : C.gold, letterSpacing: "0.04em" }}>{mins}:{secs}</div>
         </div>
 
-        {/* Booking summary strip */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.borderDefault}` }}>
-          {[["Room", ROOM.split(" ").slice(0, 2).join(" ")], ["Table", `Table ${tableData?.id ?? "—"}`], ["Seat", seatDisplay], ["Guests", String(guests)]].map(([label, value], i, arr) => (
+          {summaryColumns.map(([label, value], i, arr) => (
             <div key={label} style={{ flex: 1, padding: "10px 12px", background: C.surfaceInput, borderRight: i < arr.length - 1 ? `1px solid ${C.borderDefault}` : "none" }}>
               <div style={{ fontFamily: F.label, fontSize: 8, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
               <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: label === "Seat" ? C.gold : C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
@@ -538,12 +603,10 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
             width: "100%", padding: "13px", marginTop: 6,
             background: allFilled ? C.gold : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"),
             border: allFilled ? "none" : `1px solid ${C.borderDefault}`,
-            borderRadius: 8,
-            fontFamily: F.label, fontSize: 10, fontWeight: 700,
+            borderRadius: 8, fontFamily: F.label, fontSize: 10, fontWeight: 700,
             letterSpacing: "0.18em", textTransform: "uppercase",
             color: allFilled ? C.textOnAccent : C.textTertiary,
-            cursor: allFilled ? "pointer" : "not-allowed",
-            transition: "all 0.20s",
+            cursor: allFilled ? "pointer" : "not-allowed", transition: "all 0.20s",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}
           onMouseEnter={e => { if (allFilled) e.currentTarget.style.background = C.goldLight; }}
@@ -557,14 +620,18 @@ function ModalDetails({ tableData, seatData, mode, guests, onReview, onCancel, p
 }
 
 // ─── MODAL 3: Review ──────────────────────────────────────────────────────────
-function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
+function ModalReview({ form, guests, tableData, seatData, mode, isStandalone, onSubmit, onEdit, submitting, isRebook, rebookFrom, C }) {
   const fmt = t => { if (!t) return null; const [h, m] = t.split(":"); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`; };
-  const seatDisplay = mode === "whole" ? getWholeSeatLabel(guests, tableData) : `Seat ${seatData?.num ?? seatData?.id ?? "—"}`;
+  const seatDisplay = isStandalone
+    ? `Seat ${seatData?.num ?? seatData?.id ?? "—"}`
+    : mode === "whole"
+      ? getWholeSeatLabel(guests, tableData)
+      : `Seat ${seatData?.num ?? seatData?.id ?? "—"}`;
 
   const reservationRows = [
     ["Venue", "The Bellevue Manila"],
     ["Room",  `${WING} — ${ROOM}`],
-    ["Table", `Table ${tableData?.id ?? "—"}`],
+    ...(isStandalone || !tableData ? [] : [["Table", `Table ${tableData?.id ?? "—"}`]]),
     ["Seat(s)", seatDisplay],
     ["Guests", `${guests} guest${guests !== 1 ? "s" : ""}`],
     ["Event Date", form.eventDate || "—"],
@@ -586,7 +653,11 @@ function ModalReview({ form, guests, tableData, seatData, mode, onSubmit, onEdit
 
   return (
     <ModalShell onClose={onEdit} disabled={submitting} C={C}>
-      <ModalHeader eyebrow={isRebook ? "Rebook / Move Seat" : mode === "individual" ? "Seat Reservation" : "Table Reservation"} title="Review Your Booking" onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />} />
+      <ModalHeader
+        eyebrow={isRebook ? "Rebook / Move Seat" : isStandalone ? "Standalone Seat Reservation" : mode === "individual" ? "Seat Reservation" : "Table Reservation"}
+        title="Review Your Booking"
+        onClose={onEdit} disabled={submitting} C={C} meta={<StepIndicator step={3} C={C} />}
+      />
       <div style={{ padding: "20px 24px 26px", maxHeight: "64vh", overflowY: "auto" }}>
         {isRebook && rebookFrom && (
           <div style={{ padding: "11px 14px", borderRadius: 8, marginBottom: 18, background: C.statusNote.pending, border: `1px solid ${C.statusNoteBorder.pending}`, fontSize: 12, color: C.gold, lineHeight: 1.65 }}>
@@ -692,7 +763,7 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
       ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(28, divY); ctx.lineTo(W - 28, divY); ctx.stroke();
       ctx.fillStyle = "#8A8278"; ctx.font = "600 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("REFERENCE CODE", W / 2, divY + 20);
       ctx.fillStyle = "#EDE8DF"; ctx.font = "bold 26px sans-serif"; ctx.fillText(refCode || "—", W / 2, divY + 52);
-      const link = document.createElement("a"); link.download = `bellevue-reservation-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
+      const link = document.createElement("a"); link.download = `bellevue-qsina-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
     } catch { alert("Could not save photo. Please try again."); }
     finally { setSaving(false); }
   }, [refCode, saving, qrReady]);
@@ -752,70 +823,49 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
 }
 
 // ─── Mobile Bottom Sheet ──────────────────────────────────────────────────────
-function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark }) {
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "Tap a table") : (activeTable ? `Table ${activeTable.id}` : "—");
-  const displaySeat  = mode === "individual"
+function MobileBottomSheet({ mode, selectedSeat, activeTable, guests, seatRatio, canProceed, rebookFrom, onReserve, C, isDark, isStandalone }) {
+  const displayTable = isStandalone
+    ? "Standalone"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "Tap a table")
+      : (activeTable ? `Table ${activeTable.id}` : "—");
+  const displaySeat = mode === "individual"
     ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Tap a seat")
     : getWholeSeatLabel(guests, activeTable);
-
   const canGo = mode === "whole" ? true : canProceed;
 
   return (
-    <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
-      background: C.bottomSheet,
-      borderTop: `1px solid ${C.borderAccent}`,
-      borderRadius: "20px 20px 0 0",
-      boxShadow: "0 -8px 32px rgba(0,0,0,0.28)",
-      padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0",
-      animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)",
-    }}>
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: C.bottomSheet, borderTop: `1px solid ${C.borderAccent}`, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(0,0,0,0.28)", padding: "0 0 max(env(safe-area-inset-bottom), 12px) 0", animation: "slideUp 0.26s cubic-bezier(0.16,1,0.3,1)" }}>
       <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}80 30%, ${C.gold}80 70%, transparent)`, borderRadius: "20px 20px 0 0" }} />
       <div style={{ display: "flex", justifyContent: "center", paddingTop: 8, paddingBottom: 4 }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: C.borderStrong }} />
       </div>
-
       <div style={{ padding: "10px 16px 14px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
-            <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
-            {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
-          </div>
-
-          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
-            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
-              {mode === "whole" ? "Seats" : "Seat"}
+          {!isStandalone && (
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: C.goldFaintest, border: `1px solid ${C.borderAccent}` }}>
+              <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Table</div>
+              <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayTable}</div>
+              {seatRatio && <div style={{ fontFamily: F.label, fontSize: 8, color: C.gold, marginTop: 2 }}>{seatRatio} avail.</div>}
             </div>
+          )}
+          <div style={{ flex: 1, padding: "8px 12px", borderRadius: 10, background: mode === "individual" && selectedSeat ? C.goldFaint : C.surfaceInput, border: `1px solid ${mode === "individual" && selectedSeat ? C.borderAccent : C.borderDefault}` }}>
+            <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{mode === "whole" ? "Seats" : "Seat"}</div>
             <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: mode === "individual" && selectedSeat ? C.gold : C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displaySeat}</div>
           </div>
-
           <div style={{ flex: 1.4, padding: "8px 12px", borderRadius: 10, background: C.surfaceInput, border: `1px solid ${C.borderDefault}` }}>
             <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.16em", color: C.textTertiary, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Room</div>
             <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Qsina</div>
           </div>
         </div>
-
         <button
           onClick={canGo ? onReserve : undefined}
           disabled={!canGo}
-          style={{
-            width: "100%", padding: "15px",
-            background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"),
-            border: "none", borderRadius: 12,
-            fontFamily: F.label, fontSize: 11, fontWeight: 700,
-            letterSpacing: "0.16em", textTransform: "uppercase",
-            color: canGo ? C.textOnAccent : C.textTertiary,
-            cursor: canGo ? "pointer" : "not-allowed",
-            transition: "all 0.18s",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}
+          style={{ width: "100%", padding: "15px", background: canGo ? C.gold : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"), border: "none", borderRadius: 12, fontFamily: F.label, fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: canGo ? C.textOnAccent : C.textTertiary, cursor: canGo ? "pointer" : "not-allowed", transition: "all 0.18s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           {mode === "whole"
             ? (rebookFrom ? "Move to This Table" : activeTable ? "Reserve This Table" : "Tap a Table to Reserve")
-            : selectedSeat
-              ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat")
-              : "Select a Seat First"
+            : selectedSeat ? (rebookFrom ? "Move to This Seat" : "Reserve This Seat") : "Select a Seat First"
           }
         </button>
       </div>
@@ -829,15 +879,19 @@ export default function Qsina() {
   const location = useLocation();
   const selectedRoom = location.state?.selectedSubRoom || ROOM;
 
+  // ─── Theme ────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => {
     try { const s = localStorage.getItem("bellevue-theme"); if (s !== null) return s === "dark"; } catch {}
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
-  const toggleTheme = () => setIsDark(p => {
-    const n = !p;
-    try { localStorage.setItem("bellevue-theme", n ? "dark" : "light"); } catch {}
-    return n;
-  });
+
+  useEffect(() => {
+    const onStorage = e => {
+      if (e.key === "bellevue-theme") setIsDark(e.newValue === "dark");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const C = getTokens(isDark);
 
@@ -852,7 +906,8 @@ export default function Qsina() {
   const [submitting,         setSubmitting]         = useState(false);
   const [rebookFrom,         setRebookFrom]         = useState(null);
   const [lastBookingDetails, setLastBookingDetails] = useState(null);
-  const [tableData,          setTableData]          = useState(() => loadLayoutForClient(WING, ROOM));
+
+  const [tableData, setTableData] = useState(() => loadLayoutForClient(WING, ROOM));
 
   const [holdSecondsLeft, setHoldSecondsLeft] = useState(24 * 60);
   const holdStartedRef = useRef(false);
@@ -874,20 +929,99 @@ export default function Qsina() {
     return () => clearInterval(id);
   }, [modal, holdSecondsLeft]);
 
-  // ─── Cross-tab / same-tab layout sync ────────────────────────────────────
+  // ─── fetchAndMerge ────────────────────────────────────────────────────────
+  const fetchAndMerge = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=1`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+
+      console.log("[Qsina] Reservations API response:", data);
+
+      const reservations = Array.isArray(data) ? data : (data.data || []);
+      console.log("[Qsina] Processing reservations:", reservations.length, "for room:", ROOM, "wing:", WING);
+
+      const seatStatusMap = {};
+      reservations.forEach(r => {
+        const normStatus = normaliseApiStatus(r.status);
+        console.log("[Qsina] Reservation:", {
+          table: r.table_number,
+          seat: r.seat_number,
+          status: r.status,
+          normalized: normStatus
+        });
+
+        if (normStatus === "available") return;
+
+        const tableKey = String(r.table_number ?? "").trim().toUpperCase();
+        const seatNums = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
+
+        seatNums.forEach(seatNum => {
+          if (tableKey) {
+            seatStatusMap[`${tableKey}|${seatNum}`] = normStatus;
+          }
+          if (r.type === "standalone" || r.is_standalone) {
+            seatStatusMap[`STANDALONE|${seatNum}`] = normStatus;
+          }
+        });
+      });
+
+      console.log("[Qsina] Final seat status map:", seatStatusMap);
+
+      setTableData(prev => {
+        if (!prev) return prev;
+
+        const updated = {
+          ...prev,
+          tables: (prev.tables || []).map(t => ({
+            ...t,
+            seats: (t.seats || []).map(s => {
+              const status = seatStatusMap[`${String(t.id ?? "").trim()}|${String(s.num ?? "").trim()}`] || "available";
+              return { ...s, status };
+            }),
+          })),
+          standaloneSeats: (prev.standaloneSeats || []).map(s => {
+            const status = seatStatusMap[`STANDALONE|${String(s.num ?? "").trim()}`] || "available";
+            return { ...s, status };
+          }),
+        };
+
+        console.log("[Qsina] Updated layout with real statuses");
+        return updated;
+      });
+    } catch (err) {
+      console.error("[Qsina] Failed to fetch reservations:", err);
+    }
+  }, []);
+
+  // ─── Storage + seatmap:saved listener ────────────────────────────────────
   useEffect(() => {
     const onStorage = e => {
+      if (e.key === "bellevue-theme") {
+        setIsDark(e.newValue === "dark");
+        return;
+      }
       if (e.key !== layoutKey(WING, ROOM)) return;
       try {
         const parsed = e.newValue ? JSON.parse(e.newValue) : null;
-        if (parsed?.v === 2) setTableData(parsed);
+        if (parsed?.tables) {
+          console.log("[Qsina] Storage event detected - fetching fresh API data");
+          fetchAndMerge();
+        }
       } catch {}
     };
+
     const onSeatMapSaved = e => {
       if (e.detail?.wing !== WING || e.detail?.room !== ROOM) return;
       try {
         const parsed = e.detail.payload ? JSON.parse(e.detail.payload) : null;
-        if (parsed?.v === 2) setTableData(parsed);
+        if (parsed?.tables) {
+          console.log("[Qsina] SeatMap saved event - fetching fresh API data");
+          fetchAndMerge();
+        }
       } catch {}
     };
 
@@ -897,96 +1031,32 @@ export default function Qsina() {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("seatmap:saved", onSeatMapSaved);
     };
-  }, []);
+  }, [fetchAndMerge]);
 
-  // ─── fetchAndMerge: reads /reservations and overlays real statuses ────────
-  // This is the key function ported from TowerBallroom1. It reads the actual
-  // reservation records from the database and maps approved → "reserved" (red),
-  // pending → "pending" (gold), rejected/cancelled → "available" (green).
-  const fetchAndMerge = useCallback(async () => {
-    try {
-      const apiUrl = `${API_BASE_URL}/reservations?room=${encodeURIComponent(ROOM)}&wing=${encodeURIComponent(WING)}&venue_id=1`;
-      const res = await fetch(apiUrl, { headers: { Accept: "application/json" } });
-      if (!res.ok) return;
-      const data = await res.json();
-      const reservations = Array.isArray(data) ? data : (data.data || []);
-
-      // Build a lookup map: tableKey|seatNum → normalised status
-      const seatStatusMap = {};
-      reservations.forEach(r => {
-        const rawStatus = normaliseApiStatus(r.status);
-        const tableKey  = String(r.table_number ?? "").trim();
-        const seatNums  = String(r.seat_number ?? "").split(",").map(s => s.trim()).filter(Boolean);
-        const seatId    = r.seat_id ? String(r.seat_id).trim() : null;
-        const isStandaloneRow =
-          tableKey === "" || tableKey === "STANDALONE" ||
-          r.type === "standalone" || r.is_standalone;
-
-        seatNums.forEach(seatNum => {
-          if (tableKey && !isStandaloneRow) seatStatusMap[`${tableKey}|${seatNum}`] = rawStatus;
-          seatStatusMap[seatNum] = rawStatus;
-          if (isStandaloneRow) seatStatusMap[`STANDALONE|${seatNum}`] = rawStatus;
-        });
-        if (seatId) seatStatusMap[`ID|${seatId}`] = rawStatus;
-      });
-
-      setTableData(prev => {
-        const base = prev || loadLayoutForClient(WING, ROOM);
-        if (!base) return prev;
-
-        const resolveTableSeat = (t, s) => {
-          const tid  = String(t.id ?? t.label ?? "").trim();
-          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
-          const dbId = s.db_id ? String(s.db_id).trim() : null;
-          return (
-            seatStatusMap[`${tid}|${snum}`] ??
-            seatStatusMap[snum] ??
-            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
-            s.status
-          );
-        };
-
-        const resolveStandaloneSeat = s => {
-          const snum = String(s.num ?? s.label ?? s.id ?? "").trim();
-          const dbId = s.db_id ? String(s.db_id).trim() : null;
-          return (
-            seatStatusMap[`STANDALONE|${snum}`] ??
-            seatStatusMap[snum] ??
-            (dbId ? seatStatusMap[`ID|${dbId}`] : undefined) ??
-            s.status
-          );
-        };
-
-        const merged = {
-          ...base,
-          tables:          (base.tables          || []).map(t => ({ ...t, seats: (t.seats || []).map(s => ({ ...s, status: resolveTableSeat(t, s) })) })),
-          standaloneSeats: (base.standaloneSeats  || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })),
-          ...(base.seats ? { seats: (base.seats || []).map(s => ({ ...s, status: resolveStandaloneSeat(s) })) } : {}),
-        };
-
-        try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(merged)); } catch {}
-        return merged;
-      });
-    } catch (err) {
-      console.error("[Qsina] fetchAndMerge error:", err);
-    }
-  }, []);
-
-  // ─── Initial load ─────────────────────────────────────────────────────────
+  // ─── On mount ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const local = loadLayoutForClient(WING, ROOM);
-    if (local) setTableData(local);
+    const localLayout = loadLayoutForClient(WING, ROOM);
+    if (localLayout) setTableData(localLayout);
     fetchAndMerge();
   }, [fetchAndMerge]);
 
-  // ─── Window resize ────────────────────────────────────────────────────────
+  // ─── Resize listener ──────────────────────────────────────────────────────
   useEffect(() => {
     const h = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ─── WebSocket + polling fallback (ported from TowerBallroom1) ───────────
+  // ─── Re-fetch when tab becomes visible ────────────────────────────────────
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchAndMerge();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchAndMerge]);
+
+  // ─── WebSocket / polling ──────────────────────────────────────────────────
   useEffect(() => {
     const pusherKey     = import.meta.env.VITE_PUSHER_APP_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
@@ -994,7 +1064,7 @@ export default function Qsina() {
 
     const startPolling = () => {
       if (pollingRef.current) return;
-      pollingRef.current = setInterval(fetchAndMerge, 5_000);
+      pollingRef.current = setInterval(() => { fetchAndMerge(); }, 5_000);
     };
     const stopPolling = () => {
       if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -1009,88 +1079,149 @@ export default function Qsina() {
     try {
       const channel = echo.channel("reservations");
       const events  = [
-        "ReservationCreated", "ReservationUpdated", "ReservationDeleted",
-        "ReservationApproved", "ReservationRejected", "ReservationStatusUpdated",
-        "SeatReserved", "TableReserved", "SeatStatusChanged",
-        "reservation.approved", "reservation.updated", "reservation.status.updated",
+        "ReservationCreated","ReservationUpdated","ReservationDeleted",
+        "ReservationApproved","ReservationRejected","SeatReserved","TableReserved",
       ];
-      events.forEach(ev => channel.listen(ev, () => { wsConnected = true; stopPolling(); fetchAndMerge(); }));
+      events.forEach(ev => channel.listen(ev, () => {
+        wsConnected = true;
+        stopPolling();
+        fetchAndMerge();
+      }));
       const fallbackTimer = setTimeout(() => { if (!wsConnected) startPolling(); }, 8_000);
       return () => {
-        clearTimeout(fallbackTimer); stopPolling();
+        clearTimeout(fallbackTimer);
+        stopPolling();
         try { events.forEach(ev => channel.stopListening(ev)); } catch {}
       };
     } catch { startPolling(); return () => stopPolling(); }
   }, [fetchAndMerge]);
 
-  // Cleanup polling on unmount
-  useEffect(() => () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } }, []);
+  useEffect(() => () => {
+    if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+  }, []);
 
-  // ─── Derived helpers ──────────────────────────────────────────────────────
-  const getTables           = () => { if (!tableData) return []; if (tableData.tables) return tableData.tables; if (Array.isArray(tableData)) return tableData; return [tableData]; };
-  const resolveTableForSeat = seat => { if (!seat) return null; const tables = getTables(); return tables.find(t => t.seats?.some(s => s.id === seat.id)) || tables[0] || null; };
-  const getActiveTable      = () => selectedTable || getTables()[0] || null;
+  // ─── Table/seat helpers ───────────────────────────────────────────────────
+  const getTables = useCallback(() => {
+    if (!tableData) return [];
+    if (tableData.tables) return tableData.tables;
+    if (Array.isArray(tableData)) return tableData;
+    return [tableData];
+  }, [tableData]);
 
+  const getStandaloneSeats = useCallback(() => tableData?.standaloneSeats || [], [tableData]);
+
+  const isSeatStandalone = useCallback(seat => {
+    if (!seat) return false;
+    const inTable = getTables().some(t => (t.seats || []).some(s => s.id === seat.id));
+    if (inTable) return false;
+    return getStandaloneSeats().some(s => s.id === seat.id);
+  }, [getTables, getStandaloneSeats]);
+
+  const resolveTableForSeat = useCallback(seat => {
+    if (!seat) return null;
+    return getTables().find(t => t.seats?.some(s => s.id === seat.id)) || null;
+  }, [getTables]);
+
+  const getActiveTable = useCallback(() => selectedTable || getTables()[0] || null, [selectedTable, getTables]);
+
+  // ─── Interaction handlers ─────────────────────────────────────────────────
   const handleTableClick    = table => { setSelectedTable(table); setModal("guestCount"); };
   const handleSeatClick     = seat  => {
     if (seat.status === "reserved") { alert("This seat is already reserved and cannot be booked."); return; }
-    setSelectedSeat(seat); setSelectedTable(resolveTableForSeat(seat));
+    if (seat.status === "pending")  { alert("This seat is pending approval and cannot be booked."); return; }
+    setSelectedSeat(seat);
+    setSelectedTable(resolveTableForSeat(seat));
   };
   const handleGuestContinue = g => { setGuests(g); startHoldTimer(); setModal("details"); };
   const handleReview        = form => { setFormData(form); setModal("review"); };
   const handleEditDetails   = ()   => { setModal("details"); };
 
+  // ─── Submit reservation ───────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!formData || submitting) return;
     setSubmitting(true);
     try {
-      const activeTable = getActiveTable();
+      const seatIsStandalone = isSeatStandalone(selectedSeat);
+      const activeTable      = seatIsStandalone ? null : getActiveTable();
+
+      let seatNumStr;
+      if (seatIsStandalone) {
+        seatNumStr = String(selectedSeat?.num ?? selectedSeat?.label ?? selectedSeat?.id ?? "");
+      } else if (mode === "individual") {
+        seatNumStr = String(selectedSeat?.num ?? selectedSeat?.id ?? "");
+      } else {
+        seatNumStr = Array.from({ length: guests }, (_, i) => i + 1).join(",");
+      }
+
       const payload = {
-        name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email,
-        phone: formData.phone,
-        venue_id: 1,
-        wing: WING,
-        room: selectedRoom,
-        table_number: String(activeTable?.id ?? "T1"),
-        seat_number: mode === "individual"
-          ? String(selectedSeat?.num ?? selectedSeat?.id ?? "")
-          : Array.from({ length: guests }, (_, i) => i + 1).join(","),
-        guests_count: guests,
-        event_date: formData.eventDate,
-        event_time: formData.eventTime ? formData.eventTime.substring(0, 5) : null,
+        name:             `${formData.firstName} ${formData.lastName}`,
+        email:            formData.email,
+        phone:            formData.phone,
+        venue_id:         1,
+        wing:             WING,
+        room:             selectedRoom,
+        table_number:     seatIsStandalone ? "STANDALONE" : String(activeTable?.id ?? "T1"),
+        seat_number:      seatNumStr,
+        guests_count:     seatIsStandalone ? 1 : (mode === "individual" ? 1 : guests),
+        event_date:       formData.eventDate,
+        event_time:       formData.eventTime ? formData.eventTime.substring(0, 5) : null,
         special_requests: formData.specialRequests || "",
-        type: mode,
+        type:             seatIsStandalone ? "standalone" : mode,
+        is_standalone:    seatIsStandalone ? 1 : 0,
+        seat_id:          seatIsStandalone ? (selectedSeat?.id ?? null) : null,
       };
+
       const response = await apiCall("/reservations", { method: "POST", body: JSON.stringify(payload) });
       const newRefCode = response.reference_code || "—";
       setRefCode(newRefCode);
       setLastBookingDetails({
-        room: selectedRoom,
-        table: `Table ${activeTable?.id ?? "—"}`,
-        date: formData.eventDate,
-        name: `${formData.firstName} ${formData.lastName}`,
+        room:  selectedRoom,
+        table: seatIsStandalone ? "Standalone Seat" : `Table ${activeTable?.id ?? "—"}`,
+        date:  formData.eventDate,
+        name:  `${formData.firstName} ${formData.lastName}`,
       });
-      if (rebookFrom) { try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {} }
 
-      // Optimistic update — mark seats pending immediately
-      if (activeTable) {
-        setTableData(prev => {
-          if (!prev) return prev;
+      if (rebookFrom) {
+        try { await apiCall(`/reservations/${rebookFrom.db_id || rebookFrom.id}/reject`, { method: "PATCH" }); } catch {}
+      }
+
+      // ── Optimistic UI: mark seats as pending locally ───────────────────
+      setTableData(prev => {
+        if (!prev) return prev;
+
+        if (seatIsStandalone && selectedSeat) {
+          const updated = {
+            ...prev,
+            standaloneSeats: (prev.standaloneSeats || []).map(s =>
+              s.id === selectedSeat.id ? { ...s, status: "pending" } : s
+            ),
+          };
+          try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
+          return updated;
+        }
+
+        if (activeTable) {
           const tables = (prev.tables || []).map(t => {
             if (t.id !== activeTable.id) return t;
-            if (mode === "individual") return { ...t, seats: t.seats.map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+            if (mode === "individual") {
+              return { ...t, seats: (t.seats || []).map(s => s.id === selectedSeat?.id ? { ...s, status: "pending" } : s) };
+            }
             let marked = 0;
-            return { ...t, seats: t.seats.map(s => { if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; } return s; }) };
+            return {
+              ...t,
+              seats: (t.seats || []).map(s => {
+                if (marked < guests && s.status === "available") { marked++; return { ...s, status: "pending" }; }
+                return s;
+              }),
+            };
           });
           const updated = { ...prev, tables };
           try { localStorage.setItem(layoutKey(WING, ROOM), JSON.stringify(updated)); } catch {}
           return updated;
-        });
-      }
+        }
 
-      // Re-fetch from DB to get the true latest statuses
-      await fetchAndMerge();
+        return prev;
+      });
 
       setModal("success");
       resetHoldTimer();
@@ -1105,24 +1236,54 @@ export default function Qsina() {
     fetchAndMerge();
   };
 
-  const isMobile   = windowSize.width < 640;
-  const isTablet   = windowSize.width < 1024;
-  const activeTable = getActiveTable();
-  const canProceed  = mode === "individual" && selectedSeat && selectedSeat.status !== "reserved";
-  const seatRatio   = activeTable ? getSeatRatio(activeTable) : null;
+  // ─── Derived state ────────────────────────────────────────────────────────
+  const isMobile         = windowSize.width < 640;
+  const isTablet         = windowSize.width < 1024;
+  const activeTable      = getActiveTable();
+  const seatIsStandalone = isSeatStandalone(selectedSeat);
+  const canProceed       = mode === "individual" && selectedSeat &&
+    selectedSeat.status !== "reserved" && selectedSeat.status !== "pending";
+  const seatRatio        = activeTable ? getSeatRatio(activeTable) : null;
 
-  const displayTable = mode === "whole" ? (activeTable ? `Table ${activeTable.id}` : "—") : (selectedTable ? `Table ${selectedTable.id}` : "—");
-  const displaySeat  = mode === "individual" ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat") : getWholeSeatLabel(guests, activeTable);
+  const displayTable = seatIsStandalone
+    ? "Standalone"
+    : mode === "whole"
+      ? (activeTable ? `Table ${activeTable.id}` : "—")
+      : (selectedTable ? `Table ${selectedTable.id}` : "—");
 
-  const rebookPrefill  = rebookFrom ? { firstName: (rebookFrom.name || "").split(/\s+/)[0] || "", lastName: (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "", email: rebookFrom.email || "", phone: rebookFrom.phone || "", eventDate: rebookFrom.event_date || "", eventTime: rebookFrom.event_time || "19:00", specialRequests: rebookFrom.special_requests || "" } : null;
-  const detailsPrefill = formData ? { firstName: formData.firstName || "", lastName: formData.lastName || "", email: formData.email || "", phone: formData.phone || "+63", eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00", specialRequests: formData.specialRequests || "" } : rebookPrefill;
+  const displaySeat = mode === "individual"
+    ? (selectedSeat ? `Seat ${selectedSeat.num ?? selectedSeat.id}` : "Select a seat")
+    : getWholeSeatLabel(guests, activeTable);
 
-  const BOTTOM_SHEET_H = 180;
-  const NAV_H = 64;
+  const rebookPrefill = rebookFrom ? {
+    firstName: (rebookFrom.name || "").split(/\s+/)[0] || "",
+    lastName:  (rebookFrom.name || "").split(/\s+/).slice(1).join(" ") || "",
+    email:     rebookFrom.email || "",
+    phone:     rebookFrom.phone || "",
+    eventDate: rebookFrom.event_date || "",
+    eventTime: rebookFrom.event_time || "19:00",
+    specialRequests: rebookFrom.special_requests || "",
+  } : null;
+
+  const detailsPrefill = formData ? {
+    firstName: formData.firstName || "", lastName: formData.lastName || "",
+    email: formData.email || "", phone: formData.phone || "+63",
+    eventDate: formData.eventDate || "", eventTime: formData.eventTime || "19:00",
+    specialRequests: formData.specialRequests || "",
+  } : rebookPrefill;
+
+  const modalTableData = seatIsStandalone
+    ? null
+    : (mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable);
+
+  const BOTTOM_SHEET_H  = 180;
+  const NAV_H           = 64;
   const mobileMapHeight = windowSize.height - NAV_H - BOTTOM_SHEET_H;
 
+  const legendEntries = Object.entries(STATUS_COLORS).filter(([key]) => LEGEND_STATUSES.includes(key));
+
   return (
-    <ThemeContext.Provider value={{ isDark, toggle: toggleTheme }}>
+    <ThemeContext.Provider value={{ isDark, toggle: () => {} }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');
         @keyframes spin    { to { transform: rotate(360deg) } }
@@ -1137,7 +1298,6 @@ export default function Qsina() {
 
       <div style={{ minHeight: "100vh", fontFamily: F.body, background: C.pageBg, transition: "background 0.30s", position: "relative" }}>
 
-        {/* Background */}
         <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
           <div style={{ position: "absolute", inset: 0, backgroundImage: "url('/src/assets/bg-login.jpeg')", backgroundSize: "cover", backgroundPosition: "center", filter: isDark ? "blur(6px) brightness(0.35)" : "blur(6px) brightness(0.45) saturate(0.4)", transform: "scale(1.05)", transition: "filter 0.40s" }} />
           <div style={{ position: "absolute", inset: 0, background: isDark ? "rgba(12,11,10,0.75)" : "rgba(237,233,224,0.65)", transition: "background 0.40s" }} />
@@ -1148,47 +1308,22 @@ export default function Qsina() {
         {/* ═══════════════ MOBILE LAYOUT ═══════════════ */}
         {isMobile ? (
           <div style={{ position: "relative", zIndex: 1, paddingTop: NAV_H }}>
-
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "12px 16px 8px",
-              background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)",
-              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-              borderBottom: `1px solid ${C.borderAccent}`,
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px", background: isDark ? "rgba(10,9,8,0.85)" : "rgba(247,244,238,0.90)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderAccent}` }}>
               <button onClick={() => navigate("/venues")} title="Back"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: `1px solid ${C.borderDefault}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, padding: 0 }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: C.textSecondary }}><path d="m15 18-6-6 6-6" /></svg>
               </button>
-
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: F.label, fontSize: 8, letterSpacing: "0.22em", color: C.gold, fontWeight: 700, textTransform: "uppercase" }}>Seat Reservation</div>
                 <div style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Qsina Restaurant</div>
               </div>
-
-              <ThemeToggle />
             </div>
 
-            <div style={{
-              display: "flex", gap: 0,
-              padding: "10px 16px",
-              background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)",
-              backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-              borderBottom: `1px solid ${C.borderDefault}`,
-            }}>
+            <div style={{ display: "flex", gap: 0, padding: "10px 16px", background: isDark ? "rgba(10,9,8,0.80)" : "rgba(247,244,238,0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: `1px solid ${C.borderDefault}` }}>
               {[["whole", "Whole Table"], ["individual", "Individual Seat"]].map(([val, label], i) => (
                 <button key={val}
                   onClick={() => { setMode(val); if (val === "whole") setSelectedSeat(null); else setSelectedTable(null); }}
-                  style={{
-                    flex: 1, padding: "9px 0",
-                    background: mode === val ? C.gold : "transparent",
-                    border: `1px solid ${mode === val ? C.gold : C.borderDefault}`,
-                    borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0",
-                    color: mode === val ? C.textOnAccent : C.textSecondary,
-                    fontFamily: F.label, fontSize: 9, fontWeight: 700,
-                    letterSpacing: "0.12em", textTransform: "uppercase",
-                    cursor: "pointer", transition: "all 0.18s",
-                  }}
+                  style={{ flex: 1, padding: "9px 0", background: mode === val ? C.gold : "transparent", border: `1px solid ${mode === val ? C.gold : C.borderDefault}`, borderRadius: i === 0 ? "8px 0 0 8px" : "0 8px 8px 0", color: mode === val ? C.textOnAccent : C.textSecondary, fontFamily: F.label, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", transition: "all 0.18s" }}
                 >{label}</button>
               ))}
             </div>
@@ -1211,31 +1346,19 @@ export default function Qsina() {
                 <>
                   <div style={{ width: "100%", height: "100%", overflow: "auto", WebkitOverflowScrolling: "touch" }}>
                     <SeatMap
-                      tableData={tableData}
-                      editMode={false}
-                      mode={mode}
+                      tableData={tableData} editMode={false} mode={mode}
                       selectedSeat={selectedSeat}
                       onSeatClick={handleSeatClick}
                       onTableClick={handleTableClick}
-                      windowWidth={windowSize.width}
-                      wing={WING}
-                      room={ROOM}
+                      windowWidth={windowSize.width} wing={WING} room={ROOM} isDark={isDark}
                     />
                   </div>
-
-                  <div style={{
-                    position: "absolute", bottom: 10, left: 10,
-                    background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)",
-                    border: `1px solid ${C.borderDefault}`,
-                    borderRadius: 10, padding: "8px 10px",
-                    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-                    zIndex: 2, display: "flex", flexDirection: "column", gap: 3,
-                  }}>
-                    {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                  <div style={{ position: "absolute", bottom: 10, left: 10, background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderDefault}`, borderRadius: 10, padding: "8px 10px", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", zIndex: 2, display: "flex", flexDirection: "column", gap: 3 }}>
+                    {legendEntries.map(([key, color]) => (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
                         <span style={{ fontFamily: F.body, fontSize: 10, color: C.textSecondary, fontWeight: 500, textTransform: "capitalize" }}>
-                          {key === "reserved" ? "Approved" : key}
+                          {key === "reserved" ? "Approved / Reserved" : key.charAt(0).toUpperCase() + key.slice(1)}
                         </span>
                       </div>
                     ))}
@@ -1255,21 +1378,15 @@ export default function Qsina() {
             </div>
 
             <MobileBottomSheet
-              mode={mode}
-              selectedSeat={selectedSeat}
-              activeTable={activeTable}
-              guests={guests}
-              seatRatio={seatRatio}
-              canProceed={canProceed}
-              rebookFrom={rebookFrom}
-              onReserve={() => setModal("guestCount")}
-              C={C}
-              isDark={isDark}
+              mode={mode} selectedSeat={selectedSeat} activeTable={activeTable}
+              guests={guests} seatRatio={seatRatio} canProceed={canProceed}
+              rebookFrom={rebookFrom} onReserve={() => setModal("guestCount")}
+              C={C} isDark={isDark} isStandalone={seatIsStandalone}
             />
           </div>
-        ) : (
 
-        /* ═══════════════ TABLET / DESKTOP LAYOUT ═══════════════ */
+        ) : (
+          /* ═══════════════ TABLET / DESKTOP LAYOUT ═══════════════ */
           <div style={{ position: "relative", zIndex: 1, paddingTop: 64, minHeight: "100vh" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto", padding: isTablet ? "28px 24px" : "36px 48px" }}>
 
@@ -1321,23 +1438,18 @@ export default function Qsina() {
 
               <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexDirection: isTablet ? "column" : "row", animation: "fadeUp 0.36s ease" }}>
 
-                {/* Map card */}
+                {/* Map panel */}
                 <div style={{ flex: "1 1 0", width: isTablet ? "100%" : undefined, minWidth: 0, minHeight: 520, background: C.surfaceBase, borderRadius: 14, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 8px 40px rgba(0,0,0,0.40)" : "0 4px 24px rgba(0,0,0,0.08)", position: "relative", display: "flex", flexDirection: "column" }}>
                   <div style={{ height: "2px", flexShrink: 0, background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 30%, ${C.gold}60 70%, transparent 100%)` }} />
-
                   {tableData ? (
                     <>
                       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
                         <SeatMap
-                          tableData={tableData}
-                          editMode={false}
-                          mode={mode}
+                          tableData={tableData} editMode={false} mode={mode}
                           selectedSeat={selectedSeat}
                           onSeatClick={handleSeatClick}
                           onTableClick={handleTableClick}
-                          windowWidth={windowSize.width}
-                          wing={WING}
-                          room={ROOM}
+                          windowWidth={windowSize.width} wing={WING} room={ROOM} isDark={isDark}
                         />
                       </div>
                       <div style={{ position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)", background: isDark ? "rgba(10,9,8,0.88)" : "rgba(247,244,238,0.92)", border: `1px solid ${C.borderAccent}`, borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap", zIndex: 2 }}>
@@ -1368,13 +1480,13 @@ export default function Qsina() {
                 <div style={{ width: isTablet ? "100%" : 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: isTablet ? "grid" : "flex", gridTemplateColumns: isTablet ? "1fr 1fr" : undefined, flexDirection: isTablet ? undefined : "column", gap: 14 }}>
 
-                    {/* Legend */}
+                    {/* Status Legend */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Status Legend</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                          {legendEntries.map(([key, color]) => (
                             <div key={key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 0" }}>
                               <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0, display: "inline-block" }} />
                               <span style={{ fontFamily: F.body, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
@@ -1386,13 +1498,13 @@ export default function Qsina() {
                       </div>
                     </div>
 
-                    {/* Selection card */}
+                    {/* Your Selection */}
                     <div style={{ background: C.surfaceBase, borderRadius: 12, border: `1px solid ${C.borderDefault}`, overflow: "hidden", boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.30)" : "0 2px 12px rgba(0,0,0,0.06)" }}>
                       <div style={{ height: "2px", background: `linear-gradient(90deg, transparent 0%, ${C.gold}60 50%, transparent 100%)` }} />
                       <div style={{ padding: "14px 16px" }}>
                         <div style={{ fontFamily: F.label, fontSize: 9, letterSpacing: "0.20em", color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.divider}` }}>Your Selection</div>
                         {[
-                          ["Table", displayTable, false, seatRatio],
+                          ...(!seatIsStandalone ? [["Table", displayTable, false, seatRatio ?? null]] : []),
                           [mode === "whole" && guests > 1 ? "Seats" : "Seat", displaySeat, true, null],
                           ["Room", ROOM, false, null],
                         ].map(([label, value, isGold, badge]) => (
@@ -1408,7 +1520,6 @@ export default function Qsina() {
                     </div>
                   </div>
 
-                  {/* Reserve button */}
                   <button
                     onClick={mode === "whole" ? () => setModal("guestCount") : (canProceed ? () => setModal("guestCount") : undefined)}
                     disabled={mode === "individual" && !canProceed}
@@ -1428,34 +1539,39 @@ export default function Qsina() {
         )}
       </div>
 
-      {/* Modals */}
+      {/* ─── Modals ─────────────────────────────────────────────────────────── */}
       {modal === "guestCount" && (
         <ModalGuestCount
           seatData={mode === "individual" ? selectedSeat : null}
-          tableData={mode === "individual" ? resolveTableForSeat(selectedSeat) : activeTable}
-          mode={mode} onContinue={handleGuestContinue} onCancel={() => setModal(null)} C={C} isDark={isDark}
+          tableData={modalTableData} mode={mode} isStandalone={seatIsStandalone}
+          onContinue={handleGuestContinue} onCancel={() => setModal(null)}
+          C={C} isDark={isDark}
         />
       )}
       {modal === "details" && (
         <ModalDetails
-          tableData={activeTable} seatData={selectedSeat} mode={mode} guests={guests}
-          onReview={handleReview} onCancel={() => { setModal(null); resetHoldTimer(); }}
+          tableData={modalTableData} seatData={selectedSeat} mode={mode}
+          isStandalone={seatIsStandalone} guests={guests}
+          onReview={handleReview}
+          onCancel={() => { setModal(null); resetHoldTimer(); }}
           prefill={detailsPrefill} C={C} isDark={isDark}
-          secondsLeft={holdSecondsLeft}
-          onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
+          secondsLeft={holdSecondsLeft} onTimerExpired={() => { setModal(null); resetHoldTimer(); }}
         />
       )}
       {modal === "review" && formData && (
         <ModalReview
-          form={formData} guests={guests} mode={mode} tableData={activeTable} seatData={selectedSeat}
-          onSubmit={handleSubmit} onEdit={handleEditDetails} submitting={submitting}
-          isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
+          form={formData} guests={guests} mode={mode}
+          tableData={modalTableData} seatData={selectedSeat}
+          isStandalone={seatIsStandalone}
+          onSubmit={handleSubmit} onEdit={handleEditDetails}
+          submitting={submitting} isRebook={!!rebookFrom} rebookFrom={rebookFrom} C={C}
         />
       )}
       {modal === "success" && (
         <ModalSuccess
-          refCode={refCode} onBack={handleBack} mode={mode} guests={guests}
-          isRebook={!!rebookFrom} bookingDetails={lastBookingDetails} C={C} isDark={isDark}
+          refCode={refCode} onBack={handleBack} mode={mode}
+          guests={guests} isRebook={!!rebookFrom}
+          bookingDetails={lastBookingDetails} C={C} isDark={isDark}
         />
       )}
     </ThemeContext.Provider>
