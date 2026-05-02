@@ -125,6 +125,11 @@ export default function UnifiedSeatMapEditor() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    navigate('/admin');
+  };
+
   // Derive venue type reactively from the URL so deep-links work correctly.
   const venueType = getVenueTypeFromPath(location.pathname);
   const config    = VENUE_CONFIGS[venueType] ?? VENUE_CONFIGS["business-center"];
@@ -140,7 +145,7 @@ export default function UnifiedSeatMapEditor() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
       `}</style>
 
-      <AdminNavbar />
+      <AdminNavbar onLogout={handleLogout} />
 
       <div style={{ display: "flex", minHeight: "100vh" }}>
         <Sidebar

@@ -1,6 +1,7 @@
 // src/features/admin/pages/ReservationDashboard.jsx
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 import { fetchReservations, approveReservation, rejectReservation, getReservationStats } from "../../../utils/api";
@@ -902,6 +903,7 @@ function PaginationControls({ pagination, onPageChange, onRowsChange, filteredCo
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function ReservationDashboard() {
+  const navigate = useNavigate();
   const [reservations,setReservations]=useState([]);
   const [filteredReservations,setFilteredReservations]=useState([]);
   const [filterStatus,setFilterStatus]=useState("ALL");
@@ -1230,6 +1232,11 @@ export default function ReservationDashboard() {
   // Whether any filter is active (for "clear all" affordance)
   const hasActiveFilters = filterStatus !== "ALL" || filterRoom !== "ALL" || search.trim() !== "";
 
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    navigate('/admin');
+  };
+
   return (
     <>
       <style>{`
@@ -1246,7 +1253,7 @@ export default function ReservationDashboard() {
       `}</style>
 
       <div style={{minHeight:"100vh",fontFamily:F.body,background:C.pageBg,color:C.textPrimary}}>
-        <AdminNavbar/>
+        <AdminNavbar onLogout={handleLogout}/>
 
         <div style={{display:"flex",minHeight:"100vh"}}>
           <Sidebar

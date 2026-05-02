@@ -1,5 +1,6 @@
 // src/features/admin/pages/CancelledDashboard.jsx
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavbar from "../../../components/layout/AdminNavbar";
 import Sidebar from "../../../components/layout/Sidebar";
 
@@ -302,7 +303,9 @@ function Toast({ message, type, onClose }) {
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+
 export default function CancelledDashboard() {
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [filteredReservations, setFilteredReservations] = useState([]);
   const [search, setSearch] = useState("");
@@ -493,6 +496,11 @@ export default function CancelledDashboard() {
     { label: "Cancelled Today", count: stats.today },
     { label: "This Week",       count: stats.thisWeek },
   ];
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    navigate('/admin');
+  };
 
   return (
     <>
