@@ -815,8 +815,9 @@ function ModalSuccess({ refCode, onBack, mode, guests, isRebook, bookingDetails,
       }
       const divY = qrY + qrSize + 20;
       ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(28, divY); ctx.lineTo(W - 28, divY); ctx.stroke();
-      ctx.fillStyle = "#8A8278"; ctx.font = "600 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("REFERENCE CODE", W / 2, divY + 20);
-      ctx.fillStyle = "#EDE8DF"; ctx.font = "bold 26px sans-serif"; ctx.fillText(refCode || "—", W / 2, divY + 52);
+      const guestDisplayName = (bookingDetails?.name || "").trim() || refCode || "—";
+      ctx.fillStyle = "#8A8278"; ctx.font = "600 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("GUEST NAME", W / 2, divY + 20);
+      ctx.fillStyle = "#EDE8DF"; ctx.font = "bold 22px sans-serif"; ctx.fillText(guestDisplayName, W / 2, divY + 52);
       const link = document.createElement("a"); link.download = `bellevue-reservation-${refCode || "ticket"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
     } catch { alert("Could not save photo. Please try again."); }
     finally { setSaving(false); }
